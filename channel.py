@@ -69,6 +69,36 @@ def download(url, dest, digest=None):
     if digest and 'sha256:' + hashlib.sha256(Path(dest).read_bytes()).hexdigest() != digest:
         raise ValueError('Official release download checksum mismatch')
 
+def dependencies(args):
+    # Upstream uses BSD tar's automatic stdin decompression. GNU tar needs -J.
+    # Prepare the same xz sources before tpk.sh so its existing-directory check
+    # skips that platform-specific extraction. Do not modify the packaging recipe.
+    recipe = (Path(args.source) / 'tools/tpk.sh').read_text()
+    cache = Path(args.cache) / 'src'
+    cache.mkdir(parents=True, exist_ok=True)
+    urls = re.findall(r'https://[^\s"\\]+\.tar\.xz', recipe)
+    if not urls: raise ValueError('No upstream xz dependency URLs found; review recipe')
+    for url in urls:
+        name = url.rsplit('/', 1)[1].removesuffix('.tar.xz')
+        folder = cache / name
+        if folder.is_dir(): continue
+        archive = cache / (name + '.tar.xz')
+        req = urllib.request.Request(url, headers={'User-Agent': 'Nuvio-MDBList-channel'})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r, archive.open('wb') as f:
+                shutil.copyfileobj(r, f)
+            with tarfile.open(archive, 'r:xz') as t:
+                if any(Path(m.name).parts[0] != name for m in t.getmembers()):
+                    raise ValueError('Unexpected dependency archive root: ' + name)
+                t.extractall(cache, filter='data')
+            if not folder.is_dir(): raise ValueError('Missing extracted dependency: ' + name)
+            print('Prepared upstream dependency:', name)
+        except Exception:
+            if folder.exists(): shutil.rmtree(folder)
+            raise
+        finally:
+            archive.unlink(missing_ok=True)
+
 def prepare(args):
     state = json.loads(Path(args.state).read_text())
     root = Path(args.source).resolve()
@@ -167,5 +197,6 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(); sub = p.add_subparsers(dest='command', required=True)
     d = sub.add_parser('discover'); d.add_argument('--run', type=int, required=True); d.add_argument('--force', action='store_true'); d.add_argument('--state', default='state.json')
     r = sub.add_parser('prepare'); r.add_argument('--source', default='upstream'); r.add_argument('--engine', default='engine'); r.add_argument('--patch', default='mdblist.patch'); r.add_argument('--state', default='state.json')
+    c = sub.add_parser('dependencies'); c.add_argument('--source', default='upstream'); c.add_argument('--cache', required=True)
     b = sub.add_parser('package'); b.add_argument('--source', default='upstream'); b.add_argument('--state', default='state.json'); b.add_argument('--output', default='release')
     args = p.parse_args(); globals()[args.command](args)
