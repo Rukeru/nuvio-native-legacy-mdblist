@@ -133,17 +133,18 @@ index f56e7ea..2f0ff5c 100644
    // instalar, o sistema mata o app de qualquer jeito.
 diff --git a/src/mdblistwebos.c b/src/mdblistwebos.c
 new file mode 100644
-index 0000000..e1ef9c2
+index 0000000..879e7bf
 --- /dev/null
 +++ b/src/mdblistwebos.c
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,103 @@
 +#include "mdblistwebos.h"
 +#include "mdblistchannel.h"
 +#include <stdlib.h>
 +#include <string.h>
 +#include <ctype.h>
 +#ifdef NV_WEBOS
-+__attribute__((used)) const char nv_mdblist_webos_contract_v1[] = "nuvio-mdblist-webos/1";
++/* GCC's used emits the object; retain also survives ELF --gc-sections. */
++__attribute__((used, retain)) const char nv_mdblist_webos_contract_v1[] = "nuvio-mdblist-webos/1";
 +#endif
 +
 +static const char *ws(const char *p) { while (*p && isspace((unsigned char)*p)) p++; return p; }
