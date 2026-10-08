@@ -1,0 +1,118 @@
+name: Rebuild webOS releases with MDBList
+on:
+  schedule:
+    - cron: '47 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild the current LG release
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: mdblist-webos-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    outputs:
+      build: ${{ steps.discover.outputs.build }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Check for a new official LG release
+        id: discover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args=()
+          if [ "$FORCE" = true ]; then args+=(--force); fi
+          python3 webos.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
+      - name: Prepare the exact source and verified SDK
+        if: steps.discover.outputs.build == 'true'
+        env:
+          BUILD_PROPERTIES: ${{ secrets.NUVIO_BUILD_PROPERTIES }}
+          NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio-webos.properties
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$BUILD_PROPERTIES" ]; then echo 'Shared build settings are missing.' >&2; exit 1; fi
+          umask 077
+          printf '%s\n' "$BUILD_PROPERTIES" > "$NUVIO_PROPERTIES"
+          python3 webos.py prepare
+      - name: Test MDBList and platform isolation
+        if: steps.discover.outputs.build == 'true'
+        run: |
+          python3 -m unittest discover -s . -v
+          bash upstream/tests/mdblist.sh
+          bash upstream/tests/mdblist_channel.sh
+          cc -std=c11 -Wall -Wextra -Werror -Iupstream/src upstream/tests/mdblist_webos.c upstream/src/mdblistwebos.c -o "$RUNNER_TEMP/webos-check"
+          "$RUNNER_TEMP/webos-check"
+          cc -std=c11 -Wall -Wextra -Werror -Iupstream/src upstream/tests/trakt_scrobble.c upstream/src/traktscrobble.c -lm -o "$RUNNER_TEMP/trakt-check"
+          "$RUNNER_TEMP/trakt-check"
+      - name: Install the pinned LG packaging CLI
+        if: steps.discover.outputs.build == 'true'
+        run: npm install --prefix "$RUNNER_TEMP/lg-cli" --no-audit --no-fund @webos-tools/cli@3.2.6
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: steps.discover.outputs.build == 'true'
+        id: sdk-cache
+        with:
+          path: ${{ runner.temp }}/webos-cache
+          key: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-
+      - name: Build the native LG app with engine and DTS
+        if: steps.discover.outputs.build == 'true'
+        env:
+          NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio-webos.properties
+          NUVIO_P2P_MOTOR: ${{ runner.temp }}/webos-cache/engine
+          NUVIO_BUILD_PLATFORM: linux/amd64
+          NV_JOBS: '2'
+        run: |
+          mkdir -p "$RUNNER_TEMP/webos-cache"
+          if [ -f "$RUNNER_TEMP/webos-cache/sdk-image.tar.zst" ]; then
+            zstd -dc "$RUNNER_TEMP/webos-cache/sdk-image.tar.zst" | docker load
+          else
+            docker build --platform linux/amd64 -t nuvio-webos-sdk upstream/tools
+            docker save nuvio-webos-sdk | zstd -T0 -3 > "$RUNNER_TEMP/webos-cache/sdk-image.tar.zst"
+          fi
+          bash upstream/tools/p2p-motor/build-arm.sh "$NUVIO_P2P_MOTOR/arm"
+          export NUVIO_ARES_PACKAGE="$RUNNER_TEMP/lg-cli/node_modules/.bin/ares-package"
+          bash upstream/tools/env.sh --require-core >/dev/null
+          bash upstream/tools/arm.sh --ipk --build
+          python3 webos.py package
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && steps.sdk-cache.outputs.cache-hit != 'true' && steps.discover.outputs.build == 'true'
+        with:
+          path: ${{ runner.temp }}/webos-cache
+          key: ${{ steps.sdk-cache.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.discover.outputs.build == 'true'
+        with:
+          name: checked-webos-release
+          path: release-webos/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove private build settings
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nuvio-webos.properties"
+  publish:
+    needs: build
+    if: needs.build.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: checked-webos-release
+          path: release-webos/
+      - name: Publish checked LG assets without changing the Samsung Latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 publish_webos.py
