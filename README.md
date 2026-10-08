@@ -5,22 +5,24 @@ This companion repository rebuilds **published releases** of
 reapplying MDBList playback tracking before publication. It is intended for
 **Rukeru/nuvio-native-legacy-mdblist**. It is an independent custom build.
 
-The prepared files are not a live update service until this repository is uploaded,
-its build configuration is installed, and its first Actions run succeeds.
+The update channel is configured. Its first cloud build and publication passed,
+and a subsequent workflow confirmed that an unchanged upstream release is skipped.
+Only shared settings from the official public app are stored in the encrypted
+Actions build secret; personal login details and MDBList keys are excluded.
 
-## One-time activation
+## Install once
 
-1. Create the public repository `Rukeru/nuvio-native-legacy-mdblist` and put this
-   directory's contents on its default branch, including `.github`.
-2. In repository Settings → Secrets and variables → Actions, create the encrypted
-   secret `NUVIO_BUILD_PROPERTIES` containing the original app's build properties.
-   Do not commit that file. No personal MDBList API key belongs in this secret.
-3. Enable Actions, open **Rebuild upstream releases with MDBList**, and select
-   **Run workflow**. Resolve any failed checks before expecting updates.
-4. Sign the custom unsigned Tizen 8 TPK for your TV and install it once. This is
-   necessary to replace the original upstream update destination and install the
-   MDBList compatibility guard.
-5. Enable MDBList playback tracking in your profile's Tracking settings.
+1. Download the unsigned Tizen 8 TPK from [the latest custom release](https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/latest).
+2. Sign it for your TV and install it. The custom package installs the MDBList
+   integration and its compatible update channel.
+3. Add your MDBList key through the app's existing account credential settings.
+4. Open **Settings → Account and profiles → Tracking → Track playback with
+   MDBList** and enable it for each profile you want to track.
+
+The repository, Actions schedule and `NUVIO_BUILD_PROPERTIES` secret are already
+configured for Rukeru. Never commit the properties file or put a personal MDBList
+key in that build secret. A new copy of this repository needs those settings
+configured separately before its builds can preserve sign-in.
 
 The app service properties preserve Nuvio sign-in, account sync and existing
 service integrations. They identify the original app's backend, rather than your
@@ -74,9 +76,9 @@ See [GitHub's schedule documentation](https://docs.github.com/en/actions/referen
 Local checks cover fake-service MDBList tracking, Trakt regressions, translation
 tables, trusted-channel selection, malformed ELF rejection, real upstream core
 rejection, wrong checksums, shell mismatch and fork version ordering. The local
-bootstrap Tizen 8 host/core compiled successfully. The GitHub Linux build recipe
-still needs its first real Actions run; neither live MDBList credentials nor a
-physical TV were exercised here.
+bootstrap Tizen 8 host/core compiled successfully. The GitHub Linux ARM build, Tizen 8 package validation and release publication
+also passed. The downloaded package and real native core were checked independently.
+Neither live MDBList credentials nor a physical TV were exercised here.
 
 `SOURCE.json` and the corresponding patched source archive accompany each cloud
 release. The official engine's release checksum and exact source commit are recorded.
