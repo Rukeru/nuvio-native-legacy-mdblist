@@ -74,13 +74,31 @@ def dependencies(args):
     # Prepare the same xz sources before tpk.sh so its existing-directory check
     # skips that platform-specific extraction. Do not modify the packaging recipe.
     recipe = (Path(args.source) / 'tools/tpk.sh').read_text()
-    cache = Path(args.cache) / 'src'
+    deps = Path(args.source) / 'tools/tpk/deps.sh'
+    body = deps.read_text(encoding='utf8')
+    marker = '# MDBList CI: fresh dependency cleanup and progress.'
+    if marker not in body:
+        # A release tarball has Makefile.in but no generated Makefile yet.
+        # Under set -e, the standalone libass distclean otherwise exits silently.
+        body = re.sub(r'^([ \t]+)make distclean >/dev/null 2>&1$',
+                      r'\1if [ -f Makefile ]; then make distclean >/dev/null 2>&1; fi',
+                      body, flags=re.M)
+        body = re.sub(r'^cd /w/src/([A-Za-z0-9_.-]+)$',
+                      r'echo "[deps] Building \1"\ncd /w/src/\1', body, flags=re.M)
+        body = body.replace('HB=/w/src/harfbuzz-', 'echo "[deps] Building HarfBuzz"\nHB=/w/src/harfbuzz-')
+        deps.write_text(marker + '\n' + body, encoding='utf8', newline='\n')
+        print('Prepared fresh-source cleanup and dependency progress messages')
+    cache = (Path(args.cache) / 'src').resolve()
     cache.mkdir(parents=True, exist_ok=True)
     urls = re.findall(r'https://[^\s"\\]+\.tar\.xz', recipe)
     if not urls: raise ValueError('No upstream xz dependency URLs found; review recipe')
     for url in urls:
         name = url.rsplit('/', 1)[1].removesuffix('.tar.xz')
-        folder = cache / name
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', name):
+            raise ValueError('Invalid dependency directory name')
+        folder = (cache / name).resolve()
+        if folder.parent != cache:
+            raise ValueError('Dependency directory leaves the source cache')
         if folder.is_dir(): continue
         archive = cache / (name + '.tar.xz')
         req = urllib.request.Request(url, headers={'User-Agent': 'Nuvio-MDBList-channel'})
