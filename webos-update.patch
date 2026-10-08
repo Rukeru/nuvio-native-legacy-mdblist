@@ -1,5 +1,5 @@
 diff --git a/src/atualizacao.c b/src/atualizacao.c
-index f56e7ea..a44af8a 100644
+index f56e7ea..2f0ff5c 100644
 --- a/src/atualizacao.c
 +++ b/src/atualizacao.c
 @@ -19,9 +19,12 @@
@@ -85,18 +85,21 @@ index f56e7ea..a44af8a 100644
      textoJson(corpo, "body", body, sizeof body);
      // Sem anexo da variante desta build, ipkUrl fica vazio e podeInstalar()
      // devolve 0: o cartao aparece so com a URL da pagina.
-@@ -986,6 +1010,20 @@ static void channelAutoStage(void) {
+@@ -986,6 +1010,23 @@ static void channelAutoStage(void) {
  }
  #endif
  
 +#ifdef NV_WEBOS
 +/* Full package replacement is delegated to Homebrew Channel, only from idle home. */
++static void nascer(void);
 +static void channelAutoInstallWebos(void) {
 +  SDL_Thread *t;
 +  SDL_LockMutex(mtx);
 +  if (emCurso || !podeInstalar()) { SDL_UnlockMutex(mtx); return; }
 +  estado=AT_INSTALANDO;
++  aberto=1; geracaoVista=geracao;
 +  SDL_UnlockMutex(mtx);
++  nascer(); reiniciarVista();
 +  t=SDL_CreateThread(fioInstalar,"nv-mdblist-webos",NULL);
 +  if (t) { SDL_DetachThread(t); fioInst=t; }
 +  else { SDL_LockMutex(mtx); estado=AT_FALHOU; SDL_UnlockMutex(mtx); }
@@ -106,7 +109,7 @@ index f56e7ea..a44af8a 100644
  void atualizacao_verificar(void) {
  #ifdef NV_DTS_DEBUG
    return; /* Debug IPKs are installed explicitly, outside production updates. */
-@@ -1004,6 +1042,9 @@ void atualizacao_verificar(void) {
+@@ -1004,6 +1045,9 @@ void atualizacao_verificar(void) {
    ultChamada = rel;
  #ifdef NV_TPK
    channelAutoStage();
@@ -116,6 +119,18 @@ index f56e7ea..a44af8a 100644
  #endif
    if (!podeReconsultar()) return;
    SDL_LockMutex(mtx);
+@@ -1118,6 +1162,11 @@ void atualizacao_evento(const SDL_Event *e) {
+   SDL_Keycode k;
+   if (!aberto || e->type != SDL_KEYDOWN) return;
+   k = e->key.keysym.sym;
++#ifdef NV_WEBOS
++  /* The system installer may close this process. Keep playback inaccessible
++   * until it finishes or fails, instead of hiding installation behind a video. */
++  if (estado == AT_INSTALANDO) return;
++#endif
+   // VOLTAR sempre fecha, inclusive durante o download: quem desistiu no meio
+   // nao fica preso olhando uma barra. O fio termina sozinho e, se chegar a
+   // instalar, o sistema mata o app de qualquer jeito.
 diff --git a/src/mdblistwebos.c b/src/mdblistwebos.c
 new file mode 100644
 index 0000000..e1ef9c2
