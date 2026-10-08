@@ -1,0 +1,144 @@
+name: Rebuild upstream releases with MDBList
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild the current release even if already published
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: mdblist-release-channel
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    outputs:
+      build: ${{ steps.discover.outputs.build }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Check for a published upstream release
+        id: discover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          args=()
+          if [ "$FORCE" = true ]; then args+=(--force); fi
+          python3 channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
+      - name: Prepare private build configuration
+        if: steps.discover.outputs.build == 'true'
+        env:
+          BUILD_PROPERTIES: ${{ secrets.NUVIO_BUILD_PROPERTIES }}
+        run: |
+          if [ -z "$BUILD_PROPERTIES" ]; then echo 'Configure NUVIO_BUILD_PROPERTIES in Actions secrets.' >&2; exit 1; fi
+          umask 077
+          printf '%s\n' "$BUILD_PROPERTIES" > "$RUNNER_TEMP/nuvio.properties"
+      - name: Apply MDBList integration to the exact release
+        if: steps.discover.outputs.build == 'true'
+        env:
+          NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio.properties
+          GH_TOKEN: ${{ github.token }}
+        run: python3 channel.py prepare
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: steps.discover.outputs.build == 'true'
+        with:
+          dotnet-version: '8.0.425'
+      - name: Install the pinned Tizen workload and image tools
+        if: steps.discover.outputs.build == 'true'
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Samsung/Tizen.NET/6ab8cb41e7ccab90a3ba838e7f6d6b38a9c4ec08/workload/scripts/workload-install.sh -o "$RUNNER_TEMP/tizen-workload.sh"
+          bash "$RUNNER_TEMP/tizen-workload.sh" -v 10.0.120 -t 8.0.400 -d "$DOTNET_ROOT"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libsdl2-dev
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+        if: steps.discover.outputs.build == 'true'
+        with:
+          platforms: arm
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: steps.discover.outputs.build == 'true'
+        with:
+          path: ${{ runner.temp }}/nuvio-tpk-deps
+          key: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile') }}
+      - name: Test tracking and release-selection rules
+        if: steps.discover.outputs.build == 'true'
+        run: |
+          python3 -m unittest discover -s . -v
+          bash upstream/tests/mdblist.sh
+          bash upstream/tests/mdblist_channel.sh
+          cc -std=c11 -Wall -Wextra -Werror -Iupstream/src upstream/tests/trakt_scrobble.c upstream/src/traktscrobble.c -lm -o "$RUNNER_TEMP/trakt-check"
+          "$RUNNER_TEMP/trakt-check"
+          cc -std=c11 -Wall -Wextra -Iupstream/src $(sdl2-config --cflags) upstream/tests/idioma.c upstream/src/idioma.c -o "$RUNNER_TEMP/language-check"
+          "$RUNNER_TEMP/language-check"
+      - name: Build Tizen 8 using the upstream native toolchain
+        if: steps.discover.outputs.build == 'true'
+        env:
+          NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio.properties
+          NUVIO_TPK_CACHE: ${{ runner.temp }}/nuvio-tpk-deps
+          NUVIO_P2P_MOTOR: ${{ github.workspace }}/engine
+          NV_TPK_PACOTES: NuvioTpk
+        run: |
+          export NV_MDBLIST_VERSION="$(python3 -c 'import json;print(json.load(open("state.json"))["core_version"])')"
+          bash upstream/tools/env.sh --require-core >/dev/null
+          bash upstream/tools/tpk.sh
+      - name: Check actual ARM core and package all release artifacts
+        if: steps.discover.outputs.build == 'true'
+        run: |
+          dotnet run --project upstream/tests/mdblist_channel/Checks.csproj -c Release -- upstream/build/tpk/libnuvio.so upstream/build/mdblist-shell.sha256
+          python3 channel.py package
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: steps.discover.outputs.build == 'true'
+        with:
+          name: checked-release
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove temporary configuration
+        if: always()
+        run: rm -f "$RUNNER_TEMP/nuvio.properties"
+  publish:
+    needs: build
+    if: needs.build.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: checked-release
+          path: release/
+      - name: Publish only after GitHub confirms every asset checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 publish.py
+  maintain-schedule:
+    needs: build
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Keep the release monitor active after quiet upstream months
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          if [ "$((now-last))" -lt 2592000 ]; then exit 0; fi
+          mkdir -p .channel
+          date -u +%FT%TZ > .channel/last-check.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .channel/last-check.txt
+          git commit -m 'Keep upstream release monitoring active'
+          git push
