@@ -1,0 +1,267 @@
+diff --git a/src/atualizacao.c b/src/atualizacao.c
+index f56e7ea..a44af8a 100644
+--- a/src/atualizacao.c
++++ b/src/atualizacao.c
+@@ -19,9 +19,12 @@
+ #include "horafmt.h"
+ #include "app_id.h"
+ #include "atualizacao.h"
+-#ifdef NV_TPK
++#if defined(NV_TPK) || defined(NV_WEBOS)
+ #include "mdblistchannel.h"
+ #endif
++#ifdef NV_WEBOS
++#include "mdblistwebos.h"
++#endif
+ #include "ilha.h"
+ #include "dados.h"
+ #include "rede.h"
+@@ -130,13 +133,15 @@ static void at_sha256_hex(const unsigned char *buf, size_t n, char *hex65) {
+ }
+ #endif
+ 
+-#ifdef NV_TPK
++#ifdef NV_WEBOS
++#define AT_URL NV_MDBLIST_WEBOS_API
++#elif defined(NV_TPK)
+ #define AT_URL NV_MDBLIST_RELEASE_API
+ #else
+ #define AT_URL "https://api.github.com/repos/iqui27/nuvio-native-legacy/releases/latest"
+ #endif
+ #define AT_ARQ   "atualizacao-vista.txt"
+-#ifdef NV_TPK
++#if defined(NV_TPK) || defined(NV_WEBOS)
+ #define AT_PAGINA NV_MDBLIST_RELEASE_PAGE
+ #else
+ #define AT_PAGINA "https://github.com/iqui27/nuvio-native-legacy/releases"
+@@ -370,8 +375,14 @@ static int textoJson(const char *corpo, const char *chave, char *dst, size_t tam
+ #endif
+ 
+ static int terminaEm(const char *s, size_t n, const char *sufixo) {
++#ifdef NV_WEBOS
++  sufixo = "_mdblist_arm.ipk";
++#endif
+   size_t k = strlen(sufixo);
+   if (n >= k && !strncmp(s + n - k, sufixo, k)) return 1;
++#ifdef NV_WEBOS
++  return 0;
++#endif
+   k = strlen(AT_SUFIXO2);
+   return n >= k && !strncmp(s + n - k, AT_SUFIXO2, k);
+ }
+@@ -419,12 +430,18 @@ static int acharIpk(const char *corpo, char *dst, size_t tam,
+     n = (size_t)(p - ini);
+     if (n > 4 && n < tam && terminaEm(ini, n, sufixo)) {
+       memcpy(dst, ini, n); dst[n] = 0;
++#ifdef NV_WEBOS
++      if (!mdblist_webos_asset(dst)) { dst[0]=0; continue; }
++#endif
+       // O SHA-256 DO MESMO ANEXO, e ele e obrigatorio na pratica: sem ele o
+       // instalador do Homebrew Channel compara o hash calculado contra
+       // `undefined` e responde `returnValue: false` com "Invalid file
+       // checksum" — MEDIDO na C9, e o arquivo ate chegou a ser instalado, o
+       // que e pior: sucesso reportado como falha.
+       hashAntesDe(corpo, ini, hash, tamHash);
++#ifdef NV_WEBOS
++      if (!hash || strlen(hash)!=64 || strspn(hash,"0123456789abcdefABCDEF")!=64) { dst[0]=0; continue; }
++#endif
+       return 1;
+     }
+   }
+@@ -559,9 +576,16 @@ static int fioConsulta(void *arg) {
+   (void)arg;
+   body[0] = 0;
+   corpo = rede_baixar(AT_URL, 12);
++#ifdef NV_WEBOS
++  if (corpo) { char *selected=mdblist_webos_release(corpo); free(corpo); corpo=selected; }
++#endif
+   if (!corpo) { printf("[atualizacao] sem resposta do GitHub\n"); fflush(stdout); }
+   else {
+     textoJson(corpo, "tag_name", tag, sizeof tag);
++#ifdef NV_WEBOS
++    if (!strncmp(tag,"webos-v",7)) memmove(tag,tag+7,strlen(tag+7)+1);
++    else tag[0]=0;
++#endif
+     textoJson(corpo, "body", body, sizeof body);
+     // Sem anexo da variante desta build, ipkUrl fica vazio e podeInstalar()
+     // devolve 0: o cartao aparece so com a URL da pagina.
+@@ -986,6 +1010,20 @@ static void channelAutoStage(void) {
+ }
+ #endif
+ 
++#ifdef NV_WEBOS
++/* Full package replacement is delegated to Homebrew Channel, only from idle home. */
++static void channelAutoInstallWebos(void) {
++  SDL_Thread *t;
++  SDL_LockMutex(mtx);
++  if (emCurso || !podeInstalar()) { SDL_UnlockMutex(mtx); return; }
++  estado=AT_INSTALANDO;
++  SDL_UnlockMutex(mtx);
++  t=SDL_CreateThread(fioInstalar,"nv-mdblist-webos",NULL);
++  if (t) { SDL_DetachThread(t); fioInst=t; }
++  else { SDL_LockMutex(mtx); estado=AT_FALHOU; SDL_UnlockMutex(mtx); }
++}
++#endif
++
+ void atualizacao_verificar(void) {
+ #ifdef NV_DTS_DEBUG
+   return; /* Debug IPKs are installed explicitly, outside production updates. */
+@@ -1004,6 +1042,9 @@ void atualizacao_verificar(void) {
+   ultChamada = rel;
+ #ifdef NV_TPK
+   channelAutoStage();
++#endif
++#ifdef NV_WEBOS
++  channelAutoInstallWebos();
+ #endif
+   if (!podeReconsultar()) return;
+   SDL_LockMutex(mtx);
+diff --git a/src/mdblistwebos.c b/src/mdblistwebos.c
+new file mode 100644
+index 0000000..e1ef9c2
+--- /dev/null
++++ b/src/mdblistwebos.c
+@@ -0,0 +1,102 @@
++#include "mdblistwebos.h"
++#include "mdblistchannel.h"
++#include <stdlib.h>
++#include <string.h>
++#include <ctype.h>
++#ifdef NV_WEBOS
++__attribute__((used)) const char nv_mdblist_webos_contract_v1[] = "nuvio-mdblist-webos/1";
++#endif
++
++static const char *ws(const char *p) { while (*p && isspace((unsigned char)*p)) p++; return p; }
++static const char *string_end(const char *p) {
++  if (*p++ != '"') return NULL;
++  while (*p) {
++    if ((unsigned char)*p < 32) return NULL;
++    if (*p == '"') return p + 1;
++    if (*p == '\\') { p++; if (!*p) return NULL; }
++    p++;
++  }
++  return NULL;
++}
++static const char *value_end(const char *p, int depth) {
++  const char *q;
++  if (depth > 64) return NULL;
++  p = ws(p);
++  if (*p == '"') return string_end(p);
++  if (*p == '{' || *p == '[') {
++    int object = *p == '{'; char close = object ? '}' : ']';
++    p = ws(p + 1);
++    if (*p == close) return p + 1;
++    for (;;) {
++      if (object) { p = string_end(p); if (!p || *(p = ws(p)) != ':') return NULL; p++; }
++      p = value_end(p, depth + 1); if (!p) return NULL;
++      p = ws(p); if (*p == close) return p + 1;
++      if (*p != ',') return NULL;
++      p = ws(p + 1);
++    }
++  }
++  q = p;
++  while (*q && !isspace((unsigned char)*q) && *q != ',' && *q != ']' && *q != '}') q++;
++  if (q == p) return NULL;
++  if ((q-p == 4 && !memcmp(p,"true",4)) || (q-p == 5 && !memcmp(p,"false",5)) ||
++      (q-p == 4 && !memcmp(p,"null",4))) return q;
++  { char *end; (void)strtod(p, &end); return end == q ? q : NULL; }
++}
++/* Root fields only: asset names and escaped release notes cannot impersonate a tag. */
++static const char *field(const char *p, const char *key, size_t *size) {
++  if (*p != '{') return NULL;
++  p = ws(p + 1);
++  while (*p && *p != '}') {
++    const char *e = string_end(p), *v, *end;
++    if (!e) return NULL;
++    v = ws(e); if (*v != ':') return NULL;
++    v = ws(v + 1); end = value_end(v,0); if (!end) return NULL;
++    if ((size_t)(e-p) == strlen(key)+2 && !memcmp(p+1,key,strlen(key))) {
++      *size = (size_t)(end-v); return v;
++    }
++    p = ws(end); if (*p != ',') break; p = ws(p+1);
++  }
++  return NULL;
++}
++static int version(const char *p, size_t n) {
++  size_t i; int dots = 0, digits = 0;
++  for (i=0;i<n;i++) {
++    if (p[i] >= '0' && p[i] <= '9') { if (++digits > 9) return 0; }
++    else if (p[i] == '.' && digits && dots < 2) { dots++; digits=0; }
++    else return 0;
++  }
++  return dots == 2 && digits;
++}
++char *mdblist_webos_release(const char *json) {
++  const char *p, *selected = NULL; size_t selected_size = 0;
++  if (!json || strlen(json) > 8*1024*1024) return NULL;
++  p = ws(json); if (*p++ != '[') return NULL; p = ws(p);
++  if (*p == ']') return NULL;
++  for (;;) {
++    const char *end = value_end(p,0), *tag, *draft, *pre;
++    size_t n=0, d=0, r=0;
++    if (!end || *p != '{') return NULL;
++    tag=field(p,"tag_name",&n); draft=field(p,"draft",&d); pre=field(p,"prerelease",&r);
++    if (!selected && tag && n>9 && !memcmp(tag,"\"webos-v",8) && tag[n-1]=='"' &&
++        version(tag+8,n-9) && draft && d==5 && !memcmp(draft,"false",5) &&
++        pre && r==5 && !memcmp(pre,"false",5)) { selected=p; selected_size=(size_t)(end-p); }
++    p=ws(end);
++    if (*p == ']') { if (*ws(p+1)) return NULL; break; }
++    if (*p != ',') return NULL;
++    p=ws(p+1);
++  }
++  if (selected) { char *out=malloc(selected_size+1); if(out) {memcpy(out,selected,selected_size);out[selected_size]=0;} return out; }
++  return NULL;
++}
++int mdblist_webos_asset(const char *url) {
++  const char *tag, *slash, *name;
++  const char *prefix=NV_MDBLIST_DOWNLOAD_PREFIX "webos-v";
++  const char *stem="space.nuvio.native.legacy_", *suffix="_mdblist_arm.ipk";
++  size_t n, v;
++  if (!url || strncmp(url,prefix,strlen(prefix))) return 0;
++  tag=url+strlen(prefix); slash=strchr(tag,'/'); if(!slash) return 0;
++  v=(size_t)(slash-tag); if(!version(tag,v)) return 0;
++  name=slash+1; n=strlen(name);
++  return n==strlen(stem)+v+strlen(suffix) && !memcmp(name,stem,strlen(stem)) &&
++      !memcmp(name+strlen(stem),tag,v) && !strcmp(name+strlen(stem)+v,suffix);
++}
+diff --git a/src/mdblistwebos.h b/src/mdblistwebos.h
+new file mode 100644
+index 0000000..7aeade3
+--- /dev/null
++++ b/src/mdblistwebos.h
+@@ -0,0 +1,7 @@
++#ifndef NV_MDBLIST_WEBOS_H
++#define NV_MDBLIST_WEBOS_H
++#define NV_MDBLIST_WEBOS_API "https://api.github.com/repos/Rukeru/nuvio-native-legacy-mdblist/releases?per_page=100"
++/* Allocated single release object, or NULL. Caller frees it. */
++char *mdblist_webos_release(const char *json);
++int mdblist_webos_asset(const char *url);
++#endif
+diff --git a/tests/mdblist_webos.c b/tests/mdblist_webos.c
+new file mode 100644
+index 0000000..7918b3b
+--- /dev/null
++++ b/tests/mdblist_webos.c
+@@ -0,0 +1,22 @@
++#include "mdblistwebos.h"
++#include <assert.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdio.h>
++#define RELEASE "{\"tag_name\":\"webos-v2.0.200001\",\"draft\":false,\"prerelease\":false,\"assets\":[]}"
++int main(void) {
++  char *r=mdblist_webos_release("[{\"tag_name\":\"v2.0.2.3\",\"draft\":false,\"prerelease\":false}," RELEASE "]");
++  assert(r && !strcmp(r,RELEASE)); free(r);
++  assert(!mdblist_webos_release(NULL)); assert(!mdblist_webos_release("[]"));
++  assert(!mdblist_webos_release("[" RELEASE));
++  assert(!mdblist_webos_release("[" RELEASE "]junk"));
++  assert(!mdblist_webos_release("[{\"tag_name\":\"webos-v2.0.200001\",\"draft\":true,\"prerelease\":false}]"));
++  assert(!mdblist_webos_release("[{\"tag_name\":\"webos-v2.0.200001\",\"draft\":false,\"prerelease\":true}]"));
++  assert(!mdblist_webos_release("[{\"assets\":[" RELEASE "],\"draft\":false,\"prerelease\":false}]"));
++  assert(!mdblist_webos_release("[{\"tag_name\":\"webos-v2.0.2.1\",\"draft\":false,\"prerelease\":false}]"));
++  assert(mdblist_webos_asset("https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/download/webos-v2.0.200001/space.nuvio.native.legacy_2.0.200001_mdblist_arm.ipk"));
++  assert(!mdblist_webos_asset("https://github.com/iqui27/nuvio-native-legacy/releases/download/v2.0.2/space.nuvio.native.legacy_2.0.2_arm.ipk"));
++  assert(!mdblist_webos_asset("https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/download/webos-v2.0.200001/space.nuvio.native.legacy_2.0.200002_mdblist_arm.ipk"));
++  assert(!mdblist_webos_asset("https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/download/webos-v2.0.200001/space.nuvio.native.legacy_2.0.200001_mdblist_arm.ipk?x=1"));
++  puts("webOS release filtering and trusted package selection: PASS"); return 0;
++}
