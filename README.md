@@ -1,4 +1,4 @@
-# Nuvio Legacy with MDBList — Tizen 8 update channel
+# Nuvio Legacy with MDBList — Tizen 8 and webOS update channels
 
 This companion repository rebuilds **published releases** of
 [iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy),
@@ -9,6 +9,12 @@ The update channel is configured. Its first cloud build and publication passed,
 and a subsequent workflow confirmed that an unchanged upstream release is skipped.
 Only shared settings from the official public app are stored in the encrypted
 Actions build secret; personal login details and MDBList keys are excluded.
+
+## LG webOS
+
+LG packages and automatic updates are also available in this repository. Read
+[the webOS instructions](WEBOS.md) for installation, Homebrew Channel requirements
+and the separate LG release channel. Samsung continues using Latest unchanged.
 
 ## Install once
 
