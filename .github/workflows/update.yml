@@ -61,11 +61,13 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         with:
           platforms: arm
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        id: deps-cache
         if: steps.discover.outputs.build == 'true'
         with:
           path: ${{ runner.temp }}/nuvio-tpk-deps
-          key: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile') }}
+          key: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk.sh', 'upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile', 'channel.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk.sh', 'upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile', 'channel.py') }}-
       - name: Test tracking and release-selection rules
         if: steps.discover.outputs.build == 'true'
         run: |
@@ -77,6 +79,7 @@ jobs:
           cc -std=c11 -Wall -Wextra -Iupstream/src $(sdl2-config --cflags) upstream/tests/idioma.c upstream/src/idioma.c -o "$RUNNER_TEMP/language-check"
           "$RUNNER_TEMP/language-check"
       - name: Build Tizen 8 using the upstream native toolchain
+        id: native
         if: steps.discover.outputs.build == 'true'
         env:
           NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio.properties
@@ -88,6 +91,18 @@ jobs:
           export NV_MDBLIST_VERSION="$(python3 -c 'import json;print(json.load(open("state.json"))["core_version"])')"
           bash upstream/tools/env.sh --require-core >/dev/null
           bash upstream/tools/tpk.sh
+      - name: Keep completed dependency libraries after a later build failure
+        id: cache-ready
+        if: always() && (steps.native.outcome == 'success' || steps.native.outcome == 'failure')
+        run: |
+          if [ -s "$RUNNER_TEMP/nuvio-tpk-deps/prefix/lib/libSDL2.a" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && steps.cache-ready.outputs.ready == 'true' && steps.deps-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/nuvio-tpk-deps
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
       - name: Check actual ARM core and package all release artifacts
         if: steps.discover.outputs.build == 'true'
         run: |
