@@ -1,4 +1,4 @@
-# Nuvio Legacy with MDBList â€” Tizen 8 update channel
+# Nuvio Legacy with MDBList — Tizen 8 update channel
 
 This companion repository rebuilds **published releases** of
 [iqui27/nuvio-native-legacy](https://github.com/iqui27/nuvio-native-legacy),
@@ -12,7 +12,7 @@ its build configuration is installed, and its first Actions run succeeds.
 
 1. Create the public repository `Rukeru/nuvio-native-legacy-mdblist` and put this
    directory's contents on its default branch, including `.github`.
-2. In repository Settings â†’ Secrets and variables â†’ Actions, create the encrypted
+2. In repository Settings → Secrets and variables → Actions, create the encrypted
    secret `NUVIO_BUILD_PROPERTIES` containing the original app's build properties.
    Do not commit that file. No personal MDBList API key belongs in this secret.
 3. Enable Actions, open **Rebuild upstream releases with MDBList**, and select
@@ -60,7 +60,7 @@ install that release's new TPK to resume automatic core updates. This intentiona
 avoids guessing that a new core will work with an old shell.
 
 An upstream change can conflict with the MDBList patch. Repair the patch and use
-**Run workflow â†’ force** to rebuild the current release. Failed Actions runs appear
+**Run workflow → force** to rebuild the current release. Failed Actions runs appear
 in the repository and GitHub's configured failure notifications; no broken release
 is promoted automatically.
 
