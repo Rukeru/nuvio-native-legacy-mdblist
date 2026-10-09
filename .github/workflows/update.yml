@@ -45,7 +45,9 @@ jobs:
         env:
           NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio.properties
           GH_TOKEN: ${{ github.token }}
-        run: python3 channel.py prepare
+        run: |
+          python3 channel.py prepare
+          python3 tizen_improvements.py
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         if: steps.discover.outputs.build == 'true'
         with:
@@ -74,6 +76,7 @@ jobs:
           python3 -m unittest discover -s . -v
           bash upstream/tests/mdblist.sh
           bash upstream/tests/mdblist_channel.sh
+          bash upstream/tests/tizen_improvements.sh
           cc -std=c11 -Wall -Wextra -Werror -Iupstream/src upstream/tests/trakt_scrobble.c upstream/src/traktscrobble.c -lm -o "$RUNNER_TEMP/trakt-check"
           "$RUNNER_TEMP/trakt-check"
           cc -std=c11 -Wall -Wextra -Iupstream/src $(sdl2-config --cflags) upstream/tests/idioma.c upstream/src/idioma.c -o "$RUNNER_TEMP/language-check"
