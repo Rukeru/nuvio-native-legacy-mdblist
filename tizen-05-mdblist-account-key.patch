@@ -1,0 +1,290 @@
+diff --git a/src/ajustes.c b/src/ajustes.c
+index 7a32a94..5653538 100644
+--- a/src/ajustes.c
++++ b/src/ajustes.c
+@@ -1390,8 +1390,8 @@ static const char *CHAVE[] = {
+   "tmdb_use_networks", "tmdb_use_episodes", "tmdb_use_trailers",
+   "tmdb_use_more_like_this", "tmdb_use_collections",
+   "tmdb_enrich_continue_watching",
+-  // A chave do mdblist chega pelas CREDENCIAIS da conta (sync.c), nao pelo
+-  // blob de ajustes; a linha aqui so mostra o estado, por isso o "-".
++  // sync.c reads MDBList credentials or mdblist_settings in the account blob.
++  // This status row never exports a key or writes it into ajustes.txt.
+   "mdblist_enabled", "-mdblistChave",
+   "mdblist_show_trakt", "mdblist_show_imdb", "mdblist_show_tmdb",
+   "mdblist_show_letterboxd", "mdblist_show_tomatoes", "mdblist_show_audience",
+diff --git a/src/mdbaccount.c b/src/mdbaccount.c
+new file mode 100644
+index 0000000..1e18377
+--- /dev/null
++++ b/src/mdbaccount.c
+@@ -0,0 +1,124 @@
++#include "mdbaccount.h"
++#include "mdbformat.h"
++#include "js.h"
++#include <ctype.h>
++#include <stdlib.h>
++#include <string.h>
++
++static const char *valueEnd(const char *p, const char *end) {
++  if (!p || p >= end) return NULL;
++  if (*p == '{' || *p == '[') {
++    const char *f = js_fim(p);
++    return f && f > p && f <= end && f[-1] == (*p == '{' ? '}' : ']') ? f : NULL;
++  }
++  if (*p == '"') for (const char *q = p + 1; q < end && *q; q++) {
++    if (*q == '"') return q + 1;
++    if (*q == '\\') { if (++q >= end || !*q) return NULL; }
++  }
++  return NULL;
++}
++
++/* Complete object or serialized object. The output fits the entire raw input,
++   preventing js_cadeia's bounded decoder from truncating a credential. */
++static char *objectCopy(const char *p, const char *end) {
++  const char *f = valueEnd(p, end);
++  if (!f || (size_t)(f - p) > 2u * 1024u * 1024u) return NULL;
++  size_t n = (size_t)(f - p);
++  char *out = malloc(n + 1);
++  if (!out) return NULL;
++  if (*p == '"') {
++    if (!js_cadeia(p, out, n + 1)) { free(out); return NULL; }
++  } else { memcpy(out, p, n); out[n] = 0; }
++  char *start = out;
++  while (isspace((unsigned char)*start)) start++;
++  if (start != out) memmove(out, start, strlen(start) + 1);
++  f = *out == '{' ? valueEnd(out, out + strlen(out)) : NULL;
++  if (!f) { free(out); return NULL; }
++  while (isspace((unsigned char)*f)) f++;
++  if (*f) { free(out); return NULL; }
++  return out;
++}
++
++static int keyValue(const char *p, const char *end, char *dst, size_t n) {
++  if (!p) return 0;
++  if (*p == '{') {
++    const char *f = valueEnd(p, end);
++    if (!f) return -1;
++    p = mdb_prop(p, f, "value"); /* typed profile setting */
++    end = f;
++  }
++  const char *f = valueEnd(p, end);
++  if (!p || *p != '"' || !f || (size_t)(f - p) >= 512 || !dst || !n) return -1;
++  char decoded[512];
++  /* Keys are URL/header-safe ASCII; reject escapes rather than accept a NUL
++     prefix, malformed escape or silently truncated secret. */
++  for (const char *q = p + 1; q < f - 1; q++) if (*q == '\\') return -1;
++  size_t raw = (size_t)(f - p - 2);
++  memcpy(decoded, p + 1, raw); decoded[raw] = 0;
++  char *start = decoded;
++  while (isspace((unsigned char)*start)) start++;
++  size_t len = strlen(start);
++  while (len && isspace((unsigned char)start[len - 1])) len--;
++  if (len >= 80 || len >= n) return -1;
++  for (size_t i = 0; i < len; i++)
++    if (!((start[i] >= 'a' && start[i] <= 'z') ||
++          (start[i] >= 'A' && start[i] <= 'Z') ||
++          (start[i] >= '0' && start[i] <= '9') || start[i] == '-' || start[i] == '_')) return -1;
++  memcpy(dst, start, len); dst[len] = 0;
++  return 1;
++}
++
++int mdb_account_credential(const char *row, const char *end, char *dst, size_t n) {
++  if (!row || !end || !valueEnd(row, end)) return -1;
++  char provider[48];
++  if (!js_texto_raiz_em(row, end, "provider", provider, sizeof provider)) return 0;
++  char *start = provider;
++  while (isspace((unsigned char)*start)) start++;
++  size_t len = strlen(start);
++  while (len && isspace((unsigned char)start[len - 1])) start[--len] = 0;
++  for (size_t i = 0; i < len; i++) start[i] = (char)tolower((unsigned char)start[i]);
++  if (strcmp(start, "mdblist")) return 0;
++  const char *p = mdb_prop(row, end, "credential_json");
++  if (!p) p = mdb_prop(row, end, "credentialJson");
++  char *object = objectCopy(p, end);
++  if (!object) return -1;
++  int result = keyValue(mdb_prop(object, object + strlen(object), "api_key"),
++                        object + strlen(object), dst, n);
++  free(object);
++  return result ? result : -1;
++}
++
++int mdb_account_settings(const char *settings, char *dst, size_t n) {
++  if (!settings) return 0;
++  char *object = objectCopy(settings, settings + strlen(settings));
++  if (!object) return -1;
++  const char *end = object + strlen(object), *scope = object;
++  const char *features = mdb_prop(object, end, "features");
++  if (features) {
++    const char *f = valueEnd(features, end);
++    scope = f && *features == '{' ? mdb_prop(features, f, "mdblist_settings") : NULL;
++    if (!scope) { free(object); return 0; }
++  } else {
++    const char *feature = mdb_prop(object, end, "mdblist_settings");
++    if (feature) scope = feature;
++  }
++  char *feature = objectCopy(scope, end);
++  if (!feature) { free(object); return -1; }
++  const char *fend = feature + strlen(feature);
++  int result = keyValue(mdb_prop(feature, fend, "mdblist_api_key"), fend, dst, n);
++  free(feature); free(object);
++  return result;
++}
++
++int mdb_account_profile_reply(const char *reply, char *dst, size_t n) {
++  if (!reply) return 0;
++  while (isspace((unsigned char)*reply)) reply++;
++  const char *finish = *reply == '[' ? valueEnd(reply, reply + strlen(reply)) : NULL;
++  if (!finish) return -1;
++  while (isspace((unsigned char)*finish)) finish++;
++  if (*finish) return -1;
++  const char *row = js_raiz_array(reply), *end = row ? js_fim(row) : NULL;
++  if (!row || !end || !valueEnd(row, end)) return 0;
++  const char *settings = mdb_prop(row, end, "settings_json");
++  return settings ? mdb_account_settings(settings, dst, n) : 0;
++}
+diff --git a/src/mdbaccount.h b/src/mdbaccount.h
+new file mode 100644
+index 0000000..b7d7277
+--- /dev/null
++++ b/src/mdbaccount.h
+@@ -0,0 +1,9 @@
++#ifndef NV_MDBACCOUNT_H
++#define NV_MDBACCOUNT_H
++#include <stddef.h>
++/* 1: valid, including explicit empty/removal; 0: absent; -1: malformed.
++   Failures preserve dst. No network, persistence or secret logging. */
++int mdb_account_credential(const char *row, const char *end, char *dst, size_t n);
++int mdb_account_settings(const char *settings, char *dst, size_t n);
++int mdb_account_profile_reply(const char *reply, char *dst, size_t n);
++#endif
+diff --git a/src/sync.c b/src/sync.c
+index 8f93b1f..d735a02 100644
+--- a/src/sync.c
++++ b/src/sync.c
+@@ -24,6 +24,7 @@ void servidores_esquecer_todos(void);   // servidores.c: wipe every profile's to
+ #include "trakt.h"
+ #include "traktauth.h"
+ #include "mdblist.h"
++#include "mdbaccount.h"
+ #include "catalogo.h"
+ #include "vistoep.h"
+ #include "progresso.h"
+@@ -707,6 +708,12 @@ static void puxarCredenciais(void) {
+   for (p = js_raiz_array(r); p; p = js_prox(js_fim(p))) {
+     const char *f = js_fim(p);
+     char prov[48], cred[900];
++    int mdb = mdb_account_credential(p, f, mdbKey, sizeof mdbKey);
++    if (mdb) {
++      if (mdb == 1) temMdb = 1;
++      else printf("[sync] mdblist: formato de credencial nao reconhecido\n");
++      continue;
++    }
+     if (!js_texto(p, f, "provider", prov, sizeof prov)) continue;
+     if (!js_bruto(p, f, "credential_json", cred, sizeof cred)) continue;
+     if (!strcmp(prov, "trakt")) {
+@@ -722,10 +729,6 @@ static void puxarCredenciais(void) {
+       if (js_texto(cred, cred + strlen(cred), "api_key", tmdbKey, sizeof tmdbKey))
+         temTmdb = 1;
+     }
+-    else if (!strcmp(prov, "mdblist")) {
+-      if (js_texto(cred, cred + strlen(cred), "api_key", mdbKey, sizeof mdbKey))
+-        temMdb = 1;
+-    }
+     else if (!strncmp(prov, "debrid:", 7)) {
+       // A chave solta serve para resolver torrent sem url (debrid.c). Quem tem
+       // a chave embutida na URL do addon nao e afetado: esses ja vem com url.
+@@ -987,6 +990,12 @@ static int puxarAjustesPerfil(const char *corpo) {
+   // o blob e APLICADO (temAjustesBlob abaixo), nao se ele e buscado.
+   r = sessao_rpc("sync_pull_profile_settings_blob", corpo, &st);
+   if (!ok2xx(r, st)) { free(r); return 0; }
++  /* Independent of local-layout protection and object/string blob encoding.
++     An explicit valid credential row, including removal, has priority. */
++  if (!temMdb && mdb_account_profile_reply(r, mdbKey, sizeof mdbKey) == 1) {
++    temMdb = 1;
++    printf("[sync] mdblist: credencial do blob do perfil\n");
++  }
+   // A resposta e [{ "settings_json": { ... } }]; o que interessa e o objeto de
+   // dentro, cru e INTEIRO.
+   p = js_raiz_array(r);
+@@ -1209,6 +1218,7 @@ static long long cicloInicioMs;
+ 
+ static void *rodar(void *u) {
+   (void)u;
++  temMdb = 0; mdbKey[0] = 0; /* never reuse a prior cycle's candidate */
+   cicloInicioMs = contapend_agora_ms();
+   foraCiclo = 0;
+   copiaCiclo = 0;
+diff --git a/tests/mdbaccount.c b/tests/mdbaccount.c
+new file mode 100644
+index 0000000..9b1164b
+--- /dev/null
++++ b/tests/mdbaccount.c
+@@ -0,0 +1,54 @@
++#include "mdbaccount.h"
++#include "js.h"
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++
++static int row(const char *json, char *key, size_t n) {
++  return mdb_account_credential(json, json + strlen(json), key, n);
++}
++int main(void) {
++  char key[80] = "previous";
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":\"fixture_key\"}}", key, sizeof key) == 1);
++  assert(!strcmp(key, "fixture_key"));
++  const char *serialized = "{\"provider\":\"mdblist\",\"credential_json\":\"{\\\"api_key\\\":\\\"fixture_key\\\"}\"}";
++  /* Reproduce the old reader's failure with the documented string format. */
++  char raw[256], old[80] = "previous";
++  assert(js_bruto(serialized, NULL, "credential_json", raw, sizeof raw));
++  assert(!js_texto(raw, NULL, "api_key", old, sizeof old));
++  assert(row(serialized, key, sizeof key) == 1 && !strcmp(key, "fixture_key"));
++  assert(row("{\"provider\":\" MDBList \",\"credentialJson\":\"{\\\"api_key\\\":\\\"  spaced_key  \\\"}\"}", key, sizeof key) == 1);
++  assert(!strcmp(key, "spaced_key"));
++  assert(row("{\"provider\":\"torbox\",\"credential_json\":{\"api_key\":\"other\"}}", key, sizeof key) == 0);
++  assert(!strcmp(key, "spaced_key"));
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"nested\":{\"api_key\":\"wrong\"}}}", key, sizeof key) == -1);
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":123}}", key, sizeof key) == -1);
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":\"{\\\"api_key\\\":\\\"cut\\\"\"}", key, sizeof key) == -1);
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":\"bad&key\"}}", key, sizeof key) == -1);
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":\"key\\u0000tail\"}}", key, sizeof key) == -1);
++  assert(!strcmp(key, "spaced_key"));
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":\"too_long\"}}", key, 4) == -1);
++  char longrow[256];
++  snprintf(longrow, sizeof longrow, "{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":\"%080d\"}}", 1);
++  assert(row(longrow, key, sizeof key) == -1 && !strcmp(key, "spaced_key"));
++  assert(row("{\"provider\":\"mdblist\",\"credential_json\":{\"api_key\":\"\"}}", key, sizeof key) == 1 && !key[0]);
++
++  const char *typed = "{\"version\":1,\"features\":{\"mdblist_settings\":{\"mdblist_api_key\":{\"type\":\"string\",\"value\":\"profile_key\"}}}}";
++  assert(mdb_account_settings(typed, key, sizeof key) == 1 && !strcmp(key, "profile_key"));
++  assert(mdb_account_settings("{\"mdblist_settings\":{\"mdblist_api_key\":\"direct_key\"}}", key, sizeof key) == 1 && !strcmp(key, "direct_key"));
++  assert(mdb_account_settings("{\"mdblist_api_key\":\"flat_key\"}", key, sizeof key) == 1 && !strcmp(key, "flat_key"));
++  assert(mdb_account_settings("{\"features\":{\"other\":{\"mdblist_api_key\":\"wrong\"}}}", key, sizeof key) == 0 && !strcmp(key, "flat_key"));
++  assert(mdb_account_settings("{\"features\":{\"mdblist_settings\":{\"mdblist_api_key\":{\"type\":\"string\",\"value\":null}}}}", key, sizeof key) == -1);
++  assert(mdb_account_settings("{\"mdblist_api_key\":\"cut\"", key, sizeof key) == -1);
++  assert(!strcmp(key, "flat_key"));
++  assert(mdb_account_profile_reply("[{\"settings_json\":{\"features\":{\"mdblist_settings\":{\"mdblist_api_key\":\"rpc_key\"}}}}]", key, sizeof key) == 1 && !strcmp(key, "rpc_key"));
++  assert(mdb_account_profile_reply("[{\"settings_json\":\"{\\\"features\\\":{\\\"mdblist_settings\\\":{\\\"mdblist_api_key\\\":{\\\"type\\\":\\\"string\\\",\\\"value\\\":\\\"serialized_profile_key\\\"}}}}\"}]", key, sizeof key) == 1);
++  assert(!strcmp(key, "serialized_profile_key"));
++  assert(mdb_account_profile_reply("[]", key, sizeof key) == 0);
++  assert(mdb_account_profile_reply("[{\"settings_json\":{\"mdblist_api_key\":\"truncated\"}}", key, sizeof key) == -1);
++  assert(mdb_account_profile_reply("[{\"settings_json\":null}]", key, sizeof key) == -1);
++  assert(!strcmp(key, "serialized_profile_key"));
++  assert(mdb_account_settings("{\"mdblist_api_key\":\"\"}", key, sizeof key) == 1 && !key[0]);
++  puts("MDBList account key: object/string credentials, typed/serialized profile settings, isolation, explicit removal and no truncation: PASS");
++  return 0;
++}
+diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
+index b64fc40..44eac6b 100644
+--- a/tests/tizen_improvements.sh
++++ b/tests/tizen_improvements.sh
+@@ -7,6 +7,8 @@ flags=(-std=gnu11 -O1 -g -Wall -Wextra -Isrc -DSDL_MAIN_HANDLED)
+ read -ra sdl <<< "$(sdl2-config --cflags)"
+ cc "${flags[@]}" tests/mdbformat.c src/mdbformat.c src/js.c -lm -o "$out/format"
+ "$out/format"
++cc "${flags[@]}" tests/mdbaccount.c src/mdbaccount.c src/mdbformat.c src/js.c -lm -o "$out/account"
++"$out/account"
+ cc "${flags[@]}" tests/mdbresume.c src/mdbresume.c -lm -o "$out/resume"
+ "$out/resume"
+ cc "${flags[@]}" "${sdl[@]}" -Itests/stubs/mdblist tests/mdblistlibrary.c src/mdbformat.c src/mdbresume.c src/mdblistscrobble.c src/js.c -lm -o "$out/library"

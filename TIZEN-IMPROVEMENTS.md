@@ -1,10 +1,35 @@
 # Tizen source filtering, season charts and MDBList providers
 
-Four ordered patches named `tizen-01` through `tizen-04` follow the common `mdblist.patch` in
+Ordered patches named `tizen-01` through `tizen-05` follow the common `mdblist.patch` in
 the Samsung build. The LG workflow continues applying its existing patches.
 Every Tizen rebuild applies and tests all four improvements. Conflicts stop
 the build; the previous published package remains available. `SOURCE.json`
 records every improvement patch's SHA-256.
+
+## MDBList account-key sync fix
+
+The fifth patch reads the official client's `features.mdblist_settings.mdblist_api_key`
+as a typed value or plain string, including serialized settings responses. It also
+decodes both object and serialized-object `credential_json` provider rows, with
+the official `credentialJson` alias. Valid provider credentials take priority over
+the settings fallback, including an explicit empty value used to remove a key.
+Malformed, missing, unsafe and oversized values do not replace a working key.
+Credential pulls remain independent of this TV's protected local layout settings.
+Existing account/profile-cycle guards still gate application to the active profile.
+This fix reads existing account data; it does not upload or bundle personal keys.
+
+Regression tests reproduce the previous serialized-credential failure and cover
+typed/serialized profile keys, provider/root isolation, explicit clearing and
+rejection of truncated or unsafe values. The key field's Settings status still
+shows only presence, never the key itself.
+
+On 9 October the user reported season charts at approximately 25 FPS on their
+S95C after updating to 2.0.2.7. This is user-observed improvement, not a controlled
+benchmark of every chart or the later account-sync fix.
+
+Official format reference (verified 9 October):
+[provider credential service](https://github.com/NuvioMedia/NuvioTVSmart/blob/72473523c18a3fb4bef3a0dba8fb8f91548b3baa/js/core/profile/providerCredentialSyncService.js),
+[MDBList settings sync](https://github.com/NuvioMedia/NuvioTVSmart/blob/72473523c18a3fb4bef3a0dba8fb8f91548b3baa/js/core/profile/profileSettingsSyncFeature-mdblist-settings.js).
 
 ## Sources
 
