@@ -90,3 +90,10 @@ Neither live MDBList credentials nor a physical TV were exercised here.
 release. The official engine's release checksum and exact source commit are recorded.
 Third-party source URLs and native build instructions remain in upstream tools.
 This repository uses the upstream GPL-3.0 license; third-party notices are retained.
+
+## Additional Samsung improvements
+
+The Tizen channel also preserves strict cached-source filtering, the season-chart
+performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
+[Tizen improvements and limitations](TIZEN-IMPROVEMENTS.md). The four patches
+are tested on every Samsung rebuild; the LG channel keeps its existing patch set.

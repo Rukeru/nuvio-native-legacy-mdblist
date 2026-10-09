@@ -1,0 +1,1139 @@
+diff --git a/src/addons.c b/src/addons.c
+index f87a0a59ff584f75efda25ca890c8db02797df89..7aaa035d41acac6426fd7f9555225a5afe4cccfc 100644
+--- a/src/addons.c
++++ b/src/addons.c
+@@ -1853,6 +1853,15 @@ static int prazoDoAddon(const Consulta *c, int i) {
+   }
+   return s;
+ }
++static char *streamPedido(int i,const char *url,int seconds) {
++  /* AIOStreams' default server policy supplies streamData to compatible
++     clients. Negotiate on this same request; no TorBox availability calls. */
++  const char *fields[]={addon[i].id,addon[i].nome};
++  for(int k=0;k<2;k++)for(const char *p=fields[k];*p;p++)
++    if(!strncasecmp(p,"aiostreams",10))
++      return rede_baixar_com(url,seconds,(const char *const[]){"User-Agent: AIO-Compatible/NuvioNativeLegacy",NULL});
++  return rede_baixar(url,seconds);
++}
+ 
+ static void *fioFontes(void *u) {
+   Consulta *c = u;
+@@ -1883,7 +1892,7 @@ static void *fioFontes(void *u) {
+     prazoS = prazoDoAddon(c, i);
+     corpo = pedidoCoube(i, nv_addon_url(url, sizeof url, addon[i].base, "/stream/%s/%s.json",
+                                     t1, idUrl), sizeof url) && idUrl[0]
+-            ? rede_baixar_com(url, prazoS, (const char *const[]){ "User-Agent: AIO-Compatible/NuvioNativeLegacy", NULL }) : NULL;
++            ? streamPedido(i,url,prazoS) : NULL;
+     achados = NULL; n = 0;
+     if (corpo) n = stream_extrair(corpo, addon[i].nome, &achados);
+     // CANAL AO VIVO TEM DOIS NOMES DE TIPO NO PROTOCOLO, e addons diferentes
+@@ -1913,7 +1922,7 @@ static void *fioFontes(void *u) {
+       char *alt;
+       alt = pedidoCoube(i, nv_addon_url(url, sizeof url, addon[i].base, "/stream/%s/%s.json",
+                                     t2, idUrl), sizeof url) && idUrl[0]
+-            ? rede_baixar_com(url, prazoS, (const char *const[]){ "User-Agent: AIO-Compatible/NuvioNativeLegacy", NULL }) : NULL;
++            ? streamPedido(i,url,prazoS) : NULL;
+       if (alt) {
+         Stream *a2 = NULL;
+         int n2 = stream_extrair(alt, addon[i].nome, &a2);
+diff --git a/src/ajustes.c b/src/ajustes.c
+index d4eaf3093d7b53ea5eca731b728c788ef865b13b..7a32a94534698640a1adc812db4a30c7ea79a855 100644
+--- a/src/ajustes.c
++++ b/src/ajustes.c
+@@ -684,7 +684,7 @@ static const char *V_CW[]        = { "Card", "Largo", "P\xc3\xb4ster" };
+ // tests/simkl_cw.sh confere rotulo por indice. "Ambas" continua com o nome
+ // antigo mesmo sendo tres: e o rotulo que quem ja usa conhece, o Simkl so
+ // entra nela com vinculo feito, e a ajuda da linha diz a regra inteira.
+-static const char *V_CW_FONTE[]  = { "Ambas", "Conta Nuvio", "Trakt", "Simkl" };
++static const char *V_CW_FONTE[]  = { "Ambas", "Conta Nuvio", "Trakt", "Simkl", "MDBList" };
+ // `continueWatchingSortMode`, normalizado em normalizeContinueWatchingSortMode.
+ static const char *V_CW_ORDEM[]  = { "Padrão", "Estilo streaming", "Separar futuros" };
+ // Itens por fileira da Home (#163). O INDICE e o que fica gravado; o numero de
+@@ -1007,7 +1007,7 @@ static const Opcao OPCOES[AJ_N] = {
+ 
+   ESC("Mostrar \"Continuar assistindo\"", V_LIGA, 2), // continueWatchingEnabled
+   ESC("OK no card",                     V_CW_OK, 2),  // local, ver V_CW_OK
+-  ESC("Fonte do \"Continuar assistindo\"", V_CW_FONTE, 4),   // local, ver V_CW_FONTE
++  ESC("Fonte do \"Continuar assistindo\"", V_CW_FONTE, 5),   // local, ver V_CW_FONTE
+   ESC("Estilo do \"Continuar assistindo\"", V_CW, 3), // continueWatchingCardStyle
+   ESC("Miniatura do episódio",      V_LIGA, 2),   // useEpisodeThumbnailsInCw
+   ESC("Desfocar próximo episódio",  V_LIGA, 2),   // blurContinueWatchingNextUp
+@@ -5277,6 +5277,7 @@ static const char *efeitoOpcao(int op) {
+     case AJ_CW_OK:
+       return "Vale só nesta TV: não altera a Home dos seus outros aparelhos.";
+     case AJ_CW_FONTE:
++      if (valor[op] == AJ_CWF_MDBLIST) return "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.";
+       // SEM VINCULO, "Simkl" e uma fileira vazia. Dizer isso aqui, na linha
+       // onde a escolha e feita, e o que impede a Home de so perder a fileira
+       // sem explicacao. Mesma frase de simkl.h, que as outras telas usam.
+@@ -5298,6 +5299,7 @@ static const char *efeitoOpcao(int op) {
+     case AJ_SAIR:
+       return "Pede o OK duas vezes. Para voltar é preciso entrar de novo pelo QR.";
+     case AJ_SALVOS_DEST:
++      if (valor[op] == AJ_SALVOS_MDBLIST) return "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.";
+       if (valor[op] == AJ_SALVOS_SIMKL && !simklauth_token()[0])
+         return "Vincule o Simkl em Ajustes: sem o vínculo, o + guarda só na lista desta TV.";
+       return "A lista desta TV recebe o título em todos os casos. Isto decide se ele também vai para o Trakt ou para o Simkl.";
+diff --git a/src/ajustes.h b/src/ajustes.h
+index b12b7a3d776175419806693979915966dc5607bc..459bccdc5e04c977636f296edbcff48054888592 100644
+--- a/src/ajustes.h
++++ b/src/ajustes.h
+@@ -350,7 +350,7 @@ int   ajustes_salvos_no_mdblist(void);
+ // ja usa o app: valor novo entra no fim, nunca no meio. tests/simkl_cw.sh
+ // confere cada um contra o rotulo em ajustes.c.
+ enum { AJ_SALVOS_LOCAL = 0, AJ_SALVOS_TRAKT = 1, AJ_SALVOS_SIMKL = 2, AJ_SALVOS_MDBLIST = 3 };
+-enum { AJ_CWF_AMBAS = 0, AJ_CWF_CONTA = 1, AJ_CWF_TRAKT = 2, AJ_CWF_SIMKL = 3 };
++enum { AJ_CWF_AMBAS = 0, AJ_CWF_CONTA = 1, AJ_CWF_TRAKT = 2, AJ_CWF_SIMKL = 3, AJ_CWF_MDBLIST = 4 };
+ // Envio automatico do registro (Sobre). 1 = ligado.
+ int   ajustes_envio_auto(void);
+ // Forca da vinheta do fundo do titulo, 0..1 (1 = a medida do web).
+diff --git a/src/continuar.c b/src/continuar.c
+index b9314c859375e885454a1f224745a755d168a549..26210c85bec9030ffaafebf45ee3ec15a957f77b 100644
+--- a/src/continuar.c
++++ b/src/continuar.c
+@@ -10,6 +10,7 @@
+ #include "proximo.h"
+ #include "trakt.h"
+ #include "simkl.h"
++#include "mdblistlibrary.h"
+ #include "cwordem.h"
+ #include "descoberta.h"
+ #include <stdio.h>
+@@ -92,7 +93,7 @@ void continuar_desenhar(const CatItem *ci, GfxRect r, float raio) {
+   gfx_veu_base(r, raio, NV_CW_VEU_F, NV_CW_VEU_A);
+ 
+   // Um retangulo compacto, nao uma pilula. Nunca inventar status de estreia.
+-  if (ci->restanteMin > 0 || (ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || cwo_conta_a_seguir(ci->imdb)))) {
++  if (ci->restanteMin > 0 || (ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || mdb_library_next(ci->imdb) || cwo_conta_a_seguir(ci->imdb)))) {
+     char selo[48];
+     int h = ci->restanteMin / 60, m = ci->restanteMin % 60;
+     // "A SEGUIR" e nao "53min Restantes": o item de progresso 0 e o proximo
+@@ -107,7 +108,7 @@ void continuar_desenhar(const CatItem *ci, GfxRect r, float raio) {
+         cwo_data_curta(cwo_estreia(ci->imdb), (long long)time(NULL) * 1000LL,
+                        ajustes_idioma(), 0, quando, sizeof quando))
+       snprintf(selo, sizeof selo, i18n("Estreia %s"), quando);
+-    else if (ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || cwo_conta_a_seguir(ci->imdb)))
++    else if (ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || mdb_library_next(ci->imdb) || cwo_conta_a_seguir(ci->imdb)))
+       snprintf(selo, sizeof selo, "%s", i18n("A seguir"));
+     else if (h && m) snprintf(selo, sizeof selo, i18n("%dh %dmin Restantes"), h, m);
+     else if (h) snprintf(selo, sizeof selo, i18n("%dh Restantes"), h);
+diff --git a/src/ctxmenu.c b/src/ctxmenu.c
+index b559a7b1c18163197c85379ea37a1b53fe9cf8b2..6e4999dbe8af3ddf6bf91418b527cf4e9bce62fc 100644
+--- a/src/ctxmenu.c
++++ b/src/ctxmenu.c
+@@ -1000,6 +1000,13 @@ static void aplicar(void) {
+       // O Simkl tambem guarda o pausado (issue #110). Ja sai em fio proprio;
+       // sem id conhecido (item que nao veio do Simkl) nao faz nada.
+       simkl_playback_remover(imdb);
++      if (ajustes_cw_fonte() == AJ_CWF_MDBLIST) {
++        char base[64],compound[96];
++        prog_content_id(base,sizeof base,imdb,NULL,NULL);
++        if(ep>0)snprintf(compound,sizeof compound,"%s:%d:%d",base,temp,ep);
++        else snprintf(compound,sizeof compound,"%s",base);
++        mdb_library_clear(compound);
++      }
+       // SEM DESFAZER: o ponto de retomada foi apagado aqui e nas contas, e nao
+       // ha como restaura-lo; por isso a confirmacao do menu continua.
+       { IlhaAcao a;
+diff --git a/src/descoberta.c b/src/descoberta.c
+index 131593cea2e8c930ed98ffcaae857284a914f643..bf2682f693693493a033c07b6ff188ada2cc5f70 100644
+--- a/src/descoberta.c
++++ b/src/descoberta.c
+@@ -2761,17 +2761,17 @@ static int montarContinuar(CatItem *saida, int max) {
+   // repetiria o defeito do #5 — uma fonte vinculada e ignorada em silencio.
+   // Quem nao vinculou nao paga nada: sem token, nenhum pedido sai.
+   int fonte = ajustes_cw_fonte();
+-  int querConta = fonte == AJ_CWF_AMBAS || fonte == AJ_CWF_CONTA;
++  int querConta = fonte == AJ_CWF_AMBAS || fonte == AJ_CWF_CONTA || fonte == AJ_CWF_MDBLIST;
+   int querTrakt = fonte == AJ_CWF_AMBAS || fonte == AJ_CWF_TRAKT;
+   int querSimkl = (fonte == AJ_CWF_AMBAS || fonte == AJ_CWF_SIMKL) && simkl_ativo();
+ 
+   if (max > CONT_MAX) max = CONT_MAX;
+   cwGer++;
+-  nT = querTrakt ? trakt_continuar(doTrakt, CONT_MAX) : 0;
++  nT = fonte == AJ_CWF_MDBLIST ? mdb_library_continue(doTrakt, CONT_MAX) : querTrakt ? trakt_continuar(doTrakt, CONT_MAX) : 0;
+   // Os limites AGORA valem para todas as fontes. Sem isto, o /sync/playback
+   // devolve o que qualquer cliente pausou uma vez — inclusive titulos em 0% e
+   // titulos praticamente terminados, que e o "nunca assisti isso" do relato.
+-  nT = filtrarRemoto(doTrakt, nT, trakt_e_a_seguir, &fora);
++  nT = filtrarRemoto(doTrakt, nT, fonte == AJ_CWF_MDBLIST ? mdb_library_next : trakt_e_a_seguir, &fora);
+   if (querSimkl) {
+     doSimkl = (CatItem *)malloc(sizeof(CatItem) * CONT_MAX);
+     if (doSimkl) {
+@@ -2807,7 +2807,7 @@ static int montarContinuar(CatItem *saida, int max) {
+       remotos[achou] = &doSimkl[i];
+   }
+   nL = querConta ? continuarLocal(daConta, CONT_MAX) : 0;
+-  if (querConta && !trakt_ativo() && !simkl_ativo())
++  if (querConta && fonte != AJ_CWF_MDBLIST && !trakt_ativo() && !simkl_ativo())
+     nL = contaASeguir(daConta, nL, CONT_MAX);
+   else
+     cwo_conta_definir(NULL, 0);
+@@ -2826,6 +2826,7 @@ static int montarContinuar(CatItem *saida, int max) {
+     for (i = 0; i < nR; i++)
+       for (j = 0; j < nL; j++)
+         if (mesmaObra(remotos[i], &daConta[j]) &&
++            !(fonte == AJ_CWF_MDBLIST && remotos[i]->temporada == daConta[j].temporada && remotos[i]->episodio == daConta[j].episodio) &&
+             instanteDaConta(remotos[i]) > instanteDaConta(&daConta[j]))
+           pularLocal[j] = 1;
+   for (i = 0; i < nL && nJ < (int)(sizeof juntos / sizeof *juntos); i++) {
+@@ -2896,7 +2897,7 @@ static int montarContinuar(CatItem *saida, int max) {
+       const CatItem *c = juntos[i].item;
+       CwoItem x;
+       x.aSeguir = c->progresso == 0 &&
+-                  (trakt_e_a_seguir(c->imdb) || simkl_e_a_seguir(c->imdb) ||
++                  (trakt_e_a_seguir(c->imdb) || simkl_e_a_seguir(c->imdb) || mdb_library_next(c->imdb) ||
+                    cwo_conta_a_seguir(c->imdb));
+       x.estreiaMs = x.aSeguir ? cwo_estreia(c->imdb) : CWO_SEM_DATA;
+       // POR ITEM, para o log de campo dizer POR QUE um "a seguir" nao virou
+diff --git a/src/detail.c b/src/detail.c
+index f2e58350eccb4e2ec3de59edd1afbe49db25d5b0..8551477603a362e55dad08144d11d4c5511927f6 100644
+--- a/src/detail.c
++++ b/src/detail.c
+@@ -3329,6 +3329,7 @@ void detail_atualizar(float dt, Uint32 agora) {
+     }
+   }
+   if (saindo && t < 0.02f) {
++    serieaud_bloco_reiniciar();
+     // O fio do TMDB pode trocar ou limpar o logo no catalogo enquanto o detalhe
+     // mostra logoFixo; ao voltar, o hero lia o catalogo novo (vazio ou FALHOU)
+     // e caia no nome escrito. Restaura o caminho que funcionou na abertura.
+diff --git a/src/home.c b/src/home.c
+index 1a598ac9fec61d9327026cb697c35b458aff056a..acfc4b657b0b988b6ffa0fedd3cb49d88fb47cfb 100644
+--- a/src/home.c
++++ b/src/home.c
+@@ -17,6 +17,7 @@
+ #endif
+ #include "trakt.h"
+ #include "simkl.h"
++#include "mdblistlibrary.h"
+ #include "idioma.h"
+ #include "catordem.h"
+ #include "homeestado.h"
+@@ -787,7 +788,7 @@ int home_proximo_desfocar(const CatItem *ci, const char *arte) {
+   const char *still;
+   if (!ci || !arte || !arte[0] || !ajustes_cw_desfocar_proximo() || !ajustes_cw_ligado()) return 0;
+   if (strcmp(ci->tipo, "series") || ci->progresso != 0) return 0;
+-  if (!(trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || cwo_conta_a_seguir(ci->imdb))) return 0;
++  if (!(trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || mdb_library_next(ci->imdb) || cwo_conta_a_seguir(ci->imdb))) return 0;
+   still = artehero_url_episodio(ci);
+   return still && !strcmp(still, arte);
+ }
+@@ -3137,7 +3138,7 @@ static float desenhaCopiaHero(const CatItem *ci, int principal, float x,
+                              float aCopy, float cin, float btnH, float btnGap,
+                              float slot) {
+   int contHero = (ci && ci->progresso > 0 && ci->restanteMin > 0);
+-  int seguirHero = (ci && ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || cwo_conta_a_seguir(ci->imdb)));
++  int seguirHero = (ci && ci->progresso == 0 && (trakt_e_a_seguir(ci->imdb) || simkl_e_a_seguir(ci->imdb) || mdb_library_next(ci->imdb) || cwo_conta_a_seguir(ci->imdb)));
+ 
+   // Linha de meta. No web sao tokens juntados por "•"; ci->genero ja chega
+   // como "Filme · Terror", que e o par (tipo, primeiro genero) do web.
+diff --git a/src/idioma_bg.h b/src/idioma_bg.h
+index f1875dea3c162d4a202c3bf13cd056e8fb7676a6..78c70c3a1373b4d7e162dc11555ab9ee1178dfb5 100644
+--- a/src/idioma_bg.h
++++ b/src/idioma_bg.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Вече в списъка ви"),
+   T("Já é a principal", "Вече са основните субтитри"),
+   T("Já é seu amigo", "Вече ви е приятел"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "ПОДРЕДБА APPLE TV И ТВ НА ЖИВО"),
+   T("LEMBRETE", "НАПОМНЯНЕ"),
+   T("LEVA A", "ВОДИ ДО"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Използвайте наляво и надясно за избор. Предпочитанието се прилага, докато променяте стойността."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Използвайте имейла и паролата на акаунта си в Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Използвай, когато миниатюрата винаги показва сцената от няколко секунди по-рано или по-късно. Случва се, когато твоята версия на заглавието се различава от тази на Seekr (друг монтаж, по-дълго начало). Важи за всички заглавия; върни на 0 при смяна на филма."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Паметта, която в момента използва кешът за изображения, а не място, заето в хранилището на телевизора."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Потребителско име за Xtream"),
+diff --git a/src/idioma_bs.h b/src/idioma_bs.h
+index 05490057bdd3ce879de22a58e1a27d5ab5d61ae1..d199daf720647f3e8c50dfc704350f8e259e01cb 100644
+--- a/src/idioma_bs.h
++++ b/src/idioma_bs.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Već na vašoj listi"),
+   T("Já é a principal", "Već je glavni titl"),
+   T("Já é seu amigo", "Već je vaš prijatelj"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV RASPORED I TV UŽIVO"),
+   T("LEMBRETE", "PODSJETNIK"),
+   T("LEVA A", "VODI DO"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Koristite lijevo i desno za odabir. Postavka se primjenjuje dok mijenjate vrijednost."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Koristite e-mail i lozinku svog Nuvio računa."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Koristite kad sličica uvijek prikazuje scenu nekoliko sekundi prije ili poslije. To se dešava kad se vaša verzija naslova razlikuje od one koju koristi Seekr (drugi rez, duža špica). Vrijedi za sve naslove; vratite na 0 kad promijenite film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Memorija koju trenutno koristi keš slika, a ne prostor zauzet u pohrani TV-a."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream korisničko ime"),
+diff --git a/src/idioma_cs.h b/src/idioma_cs.h
+index 7563dc4e4cc28763eae20d783a76b0ad173523cd..7bbeb6185de4d576c6d3ad8fadd0b1b274617d6b 100644
+--- a/src/idioma_cs.h
++++ b/src/idioma_cs.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Už je ve vašem seznamu"),
+   T("Já é a principal", "Už jsou to hlavní titulky"),
+   T("Já é seu amigo", "Už je váš přítel"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "ROZVRŽENÍ APPLE TV A ŽIVÉ VYSÍLÁNÍ"),
+   T("LEMBRETE", "PŘIPOMÍNKA"),
+   T("LEVA A", "VEDE K"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Vlevo a vpravo vybíráte. Předvolba se použije ihned při změně hodnoty."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Použijte e-mail a heslo svého účtu Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Použijte, když náhled vždy ukazuje scénu o pár sekund dříve nebo později. Stává se to, když se vaše verze titulu liší od verze Seekr (jiný střih, delší úvod). Platí pro všechny tituly; při změně filmu vraťte na 0."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Paměť, kterou právě využívá cache obrázků, ne místo zabrané v úložišti televize."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Uživatelské jméno Xtream"),
+diff --git a/src/idioma_da.h b/src/idioma_da.h
+index 4efd7f19fbbf230880cfc1964360cfb8b674576c..8f49041c0948b2a36aded34ee3c1163f15122be8 100644
+--- a/src/idioma_da.h
++++ b/src/idioma_da.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Allerede på din liste"),
+   T("Já é a principal", "Er allerede hovedunderteksten"),
+   T("Já é seu amigo", "Allerede din ven"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV-LAYOUT OG LIVE-TV"),
+   T("LEMBRETE", "PÅMINDELSE"),
+   T("LEVA A", "FØRER TIL"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Brug venstre og højre til at vælge. Indstillingen anvendes, når du ændrer værdien."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Brug e-mail og adgangskode til din Nuvio-konto."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Brug det, når miniaturen altid viser scenen nogle sekunder før eller efter. Det sker, når din version af titlen afviger fra Seekrs (anden klipning, længere intro). Gælder alle titler; sæt til 0 igen, når du skifter film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Aktuelt hukommelsesforbrug for billedcachen, ikke den plads, der er optaget i tv'ets lager."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream-brugernavn"),
+diff --git a/src/idioma_de.h b/src/idioma_de.h
+index fef60455698b97bc4ba1825d466e1192e33cf007..6161968138a45bf6426d48b0e3217d0d94069c68 100644
+--- a/src/idioma_de.h
++++ b/src/idioma_de.h
+@@ -2101,6 +2101,7 @@
+   T("Já na sua lista", "Schon in deiner Liste"),
+   T("Já é a principal", "Ist bereits der Hauptuntertitel"),
+   T("Já é seu amigo", "Schon dein Freund"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE-TV-LAYOUT UND LIVE-TV"),
+   T("LEMBRETE", "ERINNERUNG"),
+   T("LEVA A", "FÜHRT ZU"),
+@@ -4398,6 +4399,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Wähle mit den Pfeiltasten links und rechts. Die Einstellung gilt, sobald du den Wert änderst."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Verwende E-Mail und Passwort deines Nuvio-Kontos."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Nutze das, wenn das Vorschaubild immer die Szene einige Sekunden davor oder danach zeigt. Das passiert, wenn deine Version des Titels von der von Seekr abweicht (anderer Schnitt, längerer Vorspann). Gilt für alle Titel; setze beim Filmwechsel auf 0 zurück."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Aktuell vom Bildcache genutzter Speicher, nicht der belegte Platz im Speicher des TVs."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream-Benutzername"),
+diff --git a/src/idioma_el.h b/src/idioma_el.h
+index 972a676773d8b7af54461ea404bf234f5a4f01f9..87c1b5aa6975aaf09b65d7272f65b489345a1901 100644
+--- a/src/idioma_el.h
++++ b/src/idioma_el.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Ήδη στη λίστα σου"),
+   T("Já é a principal", "Είναι ήδη οι κύριοι υπότιτλοι"),
+   T("Já é seu amigo", "Είναι ήδη φίλος σου"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "ΔΙΑΤΑΞΗ APPLE TV ΚΑΙ ΖΩΝΤΑΝΗ TV"),
+   T("LEMBRETE", "ΥΠΕΝΘΥΜΙΣΗ"),
+   T("LEVA A", "ΟΔΗΓΕΙ ΣΕ"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Χρησιμοποίησε αριστερά και δεξιά για να επιλέξεις. Η προτίμηση εφαρμόζεται καθώς αλλάζεις την τιμή."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Χρησιμοποίησε το email και τον κωδικό του λογαριασμού σου Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Χρησιμοποίησέ το όταν η μικρογραφία δείχνει πάντα τη σκηνή λίγα δευτερόλεπτα πριν ή μετά. Συμβαίνει όταν η δική σου έκδοση του τίτλου διαφέρει από αυτή του Seekr (άλλο μοντάζ, μεγαλύτερα γενικά). Ισχύει για όλους τους τίτλους· γύρνα στο 0 όταν αλλάζεις ταινία."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Η μνήμη που χρησιμοποιεί αυτή τη στιγμή η προσωρινή μνήμη εικόνων, όχι ο χώρος στον αποθηκευτικό χώρο της τηλεόρασης."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Όνομα χρήστη Xtream"),
+diff --git a/src/idioma_es.h b/src/idioma_es.h
+index 817ae3e8ed5a669588406a5873f2e1fae8c4cc5c..8e3d37862ca35f179d894c776cafb5d53292ba54 100644
+--- a/src/idioma_es.h
++++ b/src/idioma_es.h
+@@ -2101,6 +2101,7 @@
+   T("Já na sua lista", "Ya está en tu lista"),
+   T("Já é a principal", "Ya es el subtítulo principal"),
+   T("Já é seu amigo", "Ya es tu amigo"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "LAYOUT APPLE TV Y TV EN DIRECTO"),
+   T("LEMBRETE", "RECORDATORIO"),
+   T("LEVA A", "LLEVA A"),
+@@ -4398,6 +4399,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Usa las flechas laterales para elegir. La preferencia se aplica al cambiar el valor."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Usa el correo y la contraseña de tu cuenta Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Úsalo cuando la miniatura muestre siempre la escena de unos segundos antes o después. Ocurre si tu versión del título difiere de la que usa Seekr (otro montaje, intro más larga). Vale para todos los títulos; vuelve a 0 al cambiar de película."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Uso actual de memoria por la caché de imágenes, no espacio ocupado en el almacenamiento de la TV."),
+   T("Uso do Seekr indisponível", "Uso de Seekr no disponible"),
+   T("Usuário Xtream", "Usuario Xtream"),
+diff --git a/src/idioma_fr.h b/src/idioma_fr.h
+index 74d53d2e895cc37e49ae089d355f3dd1631b0d29..6213242e5c4e9b3f666dd03a3788dac128cbd3f3 100644
+--- a/src/idioma_fr.h
++++ b/src/idioma_fr.h
+@@ -2101,6 +2101,7 @@
+   T("Já na sua lista", "Déjà dans votre liste"),
+   T("Já é a principal", "C'est déjà le sous-titre principal"),
+   T("Já é seu amigo", "Déjà votre ami"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "DISPOSITION APPLE TV ET TV EN DIRECT"),
+   T("LEMBRETE", "RAPPEL"),
+   T("LEVA A", "MÈNE À"),
+@@ -4398,6 +4399,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Utilisez les flèches gauche et droite pour choisir. La préférence s'applique dès que vous changez la valeur."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Utilisez l'e-mail et le mot de passe de votre compte Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "À utiliser quand la miniature montre toujours la scène de quelques secondes avant ou après. Cela arrive quand votre version du titre diffère de celle de Seekr (autre montage, générique plus long). Vaut pour tous les titres; remettez à 0 en changeant de film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Utilisation actuelle de la mémoire par le cache d'images, et non l'espace occupé dans le stockage de la TV."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Utilisateur Xtream"),
+diff --git a/src/idioma_hu.h b/src/idioma_hu.h
+index abe7ebd4a5e3b00b2a1cc5a3f8c45cdbaa54b237..3173355fde3a08ab9cecffe5c7ae8a4717d61f1f 100644
+--- a/src/idioma_hu.h
++++ b/src/idioma_hu.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Már a listádon van"),
+   T("Já é a principal", "Már ez a fő felirat"),
+   T("Já é seu amigo", "Már az ismerősöd"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV ELRENDEZÉS ÉS ÉLŐ TÉVÉ"),
+   T("LEMBRETE", "EMLÉKEZTETŐ"),
+   T("LEVA A", "EZZEL KAPCSOLATOS"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Balra és jobbra választasz. A beállítás az érték változtatásával azonnal érvénybe lép."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Használd a Nuvio-fiókod e-mail-címét és jelszavát."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Akkor használd, ha a miniatűr mindig néhány másodperccel korábbi vagy későbbi jelenetet mutat. Ez akkor fordul elő, ha a címnek más változatod van, mint amit a Seekr használ (másik vágás, hosszabb főcím). Minden címre érvényes; filmváltáskor állítsd vissza 0-ra."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "A képgyorsítótár által jelenleg használt memória, nem a TV tárhelyén foglalt hely."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream-felhasználónév"),
+diff --git a/src/idioma_id.h b/src/idioma_id.h
+index 595c07b0dd457b236846ac0a037ec3a4af88eada..67ebf71d8ba7f71f4b57bd9d0f9805d49f06b693 100644
+--- a/src/idioma_id.h
++++ b/src/idioma_id.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Sudah ada di daftarmu"),
+   T("Já é a principal", "Sudah menjadi subtitle utama"),
+   T("Já é seu amigo", "Sudah jadi temanmu"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "TATA LETAK APPLE TV DAN TV LANGSUNG"),
+   T("LEMBRETE", "PENGINGAT"),
+   T("LEVA A", "MENUJU KE"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Gunakan kiri dan kanan untuk memilih. Preferensi diterapkan saat kamu mengubah nilai."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Gunakan email dan kata sandi akun Nuvio-mu."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Gunakan saat thumbnail selalu menampilkan adegan beberapa detik sebelum atau sesudahnya. Ini terjadi jika versi judul Anda berbeda dari yang dipakai Seekr (potongan lain, intro lebih panjang). Berlaku untuk semua judul; kembalikan ke 0 saat ganti film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Memori yang saat ini dipakai cache gambar, bukan ruang di penyimpanan TV."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Nama pengguna Xtream"),
+diff --git a/src/idioma_it.h b/src/idioma_it.h
+index e11847cd6445282283195ccbb4770b0758243e27..7d74cb06b37bc33078f375d4a314c9aa2fb76a47 100644
+--- a/src/idioma_it.h
++++ b/src/idioma_it.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Già nella tua lista"),
+   T("Já é a principal", "È già il sottotitolo principale"),
+   T("Já é seu amigo", "È già tuo amico"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "LAYOUT APPLE TV E TV IN DIRETTA"),
+   T("LEMBRETE", "PROMEMORIA"),
+   T("LEVA A", "PORTA A"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Usa sinistra e destra per scegliere. La preferenza si applica mentre cambi il valore."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Usa l'e-mail e la password del tuo account Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Usalo quando la miniatura mostra sempre la scena di qualche secondo prima o dopo. Succede se la tua versione del titolo differisce da quella usata da Seekr (altro montaggio, sigla più lunga). Vale per tutti i titoli; riporta a 0 quando cambi film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Memoria attualmente usata dalla cache delle immagini, non spazio occupato nell'archiviazione della TV."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Nome utente Xtream"),
+diff --git a/src/idioma_ja.h b/src/idioma_ja.h
+index c59a0f1ccbc31d338251f0b0ee2fa7b9899e1f64..94a1deb91a76ec6800060d389258801a2c512102 100644
+--- a/src/idioma_ja.h
++++ b/src/idioma_ja.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "すでにリストにあります"),
+   T("Já é a principal", "すでにメイン字幕です"),
+   T("Já é seu amigo", "すでにフレンドです"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV レイアウトとライブ TV"),
+   T("LEMBRETE", "リマインダー"),
+   T("LEVA A", "つながる先"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "左右キーで選択します。値を変更すると設定がすぐに反映されます。"),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Nuvio アカウントのメールとパスワードを使ってください。"),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "サムネイルが常に数秒前または数秒後の場面を示すときに使います。お使いのバージョンが Seekr のものと違う場合（別カット、長いオープニングなど）に起こります。すべての作品に適用されます。映画を変えたら 0 に戻してください。"),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "画像キャッシュが現在使用しているメモリの量で、テレビのストレージ使用量ではありません。"),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream のユーザー名"),
+diff --git a/src/idioma_lt.h b/src/idioma_lt.h
+index 020754e64defc970f6be0a58c76b2e8e3488bfde..bb99178591db73a61fdc4be54416c0dcdebfa410 100644
+--- a/src/idioma_lt.h
++++ b/src/idioma_lt.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Jau jūsų sąraše"),
+   T("Já é a principal", "Tai jau pagrindiniai subtitrai"),
+   T("Já é seu amigo", "Jau jūsų draugas"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV IŠDĖSTYMAS IR TIESIOGINĖ TV"),
+   T("LEMBRETE", "PRIMINIMAS"),
+   T("LEVA A", "VEDA Į"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Kairę ir dešinę naudokite pasirinkimui. Nuostata pritaikoma keičiant reikšmę."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Naudokite savo Nuvio paskyros el. paštą ir slaptažodį."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Naudokite, kai miniatiūra visada rodo sceną likus kelioms sekundėms iki ar po. Taip nutinka, kai jūsų pavadinimo versija skiriasi nuo Seekr naudojamos (kitoks montažas, ilgesnė pradžia). Galioja visiems pavadinimams; keisdami filmą grąžinkite į 0."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Šiuo metu vaizdų talpyklos naudojama atmintis, o ne televizoriaus saugykloje užimta vieta."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream naudotojo vardas"),
+diff --git a/src/idioma_nl.h b/src/idioma_nl.h
+index 2f7acbb30e8d198a220f00251d75d0d242916dd4..1873a21302fa01cd62e960611a6cfed688eb20fb 100644
+--- a/src/idioma_nl.h
++++ b/src/idioma_nl.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Staat al op je lijst"),
+   T("Já é a principal", "Is al de hoofdondertitel"),
+   T("Já é seu amigo", "Al je vriend"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV-INDELING EN LIVE-TV"),
+   T("LEMBRETE", "HERINNERING"),
+   T("LEVA A", "LEIDT NAAR"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Kies met links en rechts. De voorkeur geldt terwijl je de waarde wijzigt."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Gebruik het e-mailadres en wachtwoord van je Nuvio-account."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Gebruik dit als de miniatuur steeds de scène van een paar seconden eerder of later toont. Dat gebeurt als jouw versie van de titel afwijkt van die van Seekr (andere montage, langere intro). Geldt voor alle titels; zet terug op 0 bij een andere film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Geheugen dat de afbeeldingscache nu gebruikt, niet de ruimte op de opslag van de tv."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream-gebruikersnaam"),
+diff --git a/src/idioma_no.h b/src/idioma_no.h
+index a1efa0b8ee2e00d435fe4bc05d8d4a6916f38d4d..8932a2404e0ffe0383c67cc08b4193f31e31aa64 100644
+--- a/src/idioma_no.h
++++ b/src/idioma_no.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Allerede på listen din"),
+   T("Já é a principal", "Er allerede hovedunderteksten"),
+   T("Já é seu amigo", "Allerede vennen din"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV-LAYOUT OG DIREKTE-TV"),
+   T("LEMBRETE", "PÅMINNELSE"),
+   T("LEVA A", "FØRER TIL"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Bruk venstre og høyre for å velge. Innstillingen brukes når du endrer verdien."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Bruk e-post og passord for Nuvio-kontoen din."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Bruk dette når miniatyren alltid viser scenen noen sekunder før eller etter. Det skjer når din versjon av tittelen er annerledes enn den Seekr bruker (annen klipp, lengre intro). Gjelder alle titler; sett tilbake til 0 når du bytter film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Gjeldende minnebruk for bildehurtigbufferen, ikke plass som er tatt i TV-ens lagring."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream-brukernavn"),
+diff --git a/src/idioma_pl.h b/src/idioma_pl.h
+index 07764bbf4f53bf2d6f3337ec5d13e9e4165de9f5..64f7a19eeb35ec15240f5782707679d3302b94eb 100644
+--- a/src/idioma_pl.h
++++ b/src/idioma_pl.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Już na Twojej liście"),
+   T("Já é a principal", "To już główne napisy"),
+   T("Já é seu amigo", "Już jest Twoim znajomym"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "UKŁAD APPLE TV I TV NA ŻYWO"),
+   T("LEMBRETE", "PRZYPOMNIENIE"),
+   T("LEVA A", "PROWADZI DO"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Użyj lewo i prawo, aby wybrać. Preferencja obowiązuje w trakcie zmiany wartości."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Użyj e-maila i hasła do konta Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Użyj, gdy miniatura zawsze pokazuje scenę sprzed lub po kilku sekundach. Dzieje się tak, gdy Twoja wersja tytułu różni się od wersji Seekr (inny montaż, dłuższe intro). Dotyczy wszystkich tytułów; wróć do 0 przy zmianie filmu."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Pamięć obecnie zajęta przez pamięć podręczną obrazów, a nie miejsce zajęte w pamięci masowej telewizora."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Nazwa użytkownika Xtream"),
+diff --git a/src/idioma_ptpt.h b/src/idioma_ptpt.h
+index 8c5ec5eb032327cc3e964841c37268fef588ae88..ee89f65a86f0acbd222e92b197d15f83c75d6a25 100644
+--- a/src/idioma_ptpt.h
++++ b/src/idioma_ptpt.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Já está na tua lista"),
+   T("Já é a principal", "Já é a principal"),
+   T("Já é seu amigo", "Já é seu amigo"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "DISPOSIÇÃO APPLE TV E TV EM DIRETO"),
+   T("LEMBRETE", "LEMBRETE"),
+   T("LEVA A", "LEVA A"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Usa as setas laterais para escolher. A preferência é aplicada ao alterares o valor."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Usa o e-mail e a palavra-passe da tua conta Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, genérico mais longo). Vale para todos os títulos; volte a 0 ao mudar de filme."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Utilização atual de memória pela cache de imagens, não o espaço ocupado no armazenamento da TV."),
+   T("Uso do Seekr indisponível", "Uso do Seekr indisponível"),
+   T("Usuário Xtream", "Utilizador Xtream"),
+diff --git a/src/idioma_ro.h b/src/idioma_ro.h
+index 8fb7c35eee020d3c26dc4d0efbd2ff43bc6aabfa..7d721377af6ccb065fc9650dd72cc8c3c3c5bb67 100644
+--- a/src/idioma_ro.h
++++ b/src/idioma_ro.h
+@@ -2101,6 +2101,7 @@
+   T("Já na sua lista", "Deja în lista ta"),
+   T("Já é a principal", "Este deja subtitrarea principală"),
+   T("Já é seu amigo", "Este deja prietenul tău"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "ASPECT APPLE TV ȘI LIVE TV"),
+   T("LEMBRETE", "MEMENTO"),
+   T("LEVA A", "DUCE LA"),
+@@ -4398,6 +4399,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Folosește stânga și dreapta pentru a alege. Preferința se aplică imediat ce schimbi valoarea."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Folosește e-mailul și parola contului tău Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Folosește când miniatura arată mereu scena de cu câteva secunde înainte sau după. Se întâmplă când versiunea ta a titlului diferă de cea folosită de Seekr (alt montaj, generic mai lung). Se aplică tuturor titlurilor; revino la 0 când schimbi filmul."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Memoria folosită acum de cache-ul de imagini, nu spațiul ocupat în stocarea televizorului."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Utilizator Xtream"),
+diff --git a/src/idioma_ru.h b/src/idioma_ru.h
+index 7fab4c59852a7c077c6568c8f1a923f71320ea49..3ec255c9a1f70a1b1b3db652b0d351e07e94b669 100644
+--- a/src/idioma_ru.h
++++ b/src/idioma_ru.h
+@@ -2101,6 +2101,7 @@
+   T("Já na sua lista", "Уже в вашем списке"),
+   T("Já é a principal", "Это уже основные субтитры"),
+   T("Já é seu amigo", "Уже ваш друг"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "МАКЕТ APPLE TV И LIVE TV"),
+   T("LEMBRETE", "НАПОМИНАНИЕ"),
+   T("LEVA A", "ВЕДЁТ К"),
+@@ -4398,6 +4399,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Влево и вправо — выбор. Настройка применяется сразу после изменения значения."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Используйте эл. почту и пароль учётной записи Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Используйте, когда миниатюра всегда показывает сцену на несколько секунд раньше или позже. Так бывает, если ваша версия отличается от версии Seekr (другой монтаж, более долгая заставка). Действует для всех тайтлов; при смене фильма верните на 0."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Память, которую сейчас использует кэш изображений, а не место, занятое в хранилище телевизора."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Логин Xtream"),
+diff --git a/src/idioma_sk.h b/src/idioma_sk.h
+index 3b7dde745ace0d7ef4e99086aa5bc24540af4e9e..d1cc1a7a96e26d45b251b3147483cc1fb1fe9bcf 100644
+--- a/src/idioma_sk.h
++++ b/src/idioma_sk.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Už je vo vašom zozname"),
+   T("Já é a principal", "Už sú to hlavné titulky"),
+   T("Já é seu amigo", "Už je váš priateľ"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "ROZLOŽENIE APPLE TV A ŽIVÉ VYSIELANIE"),
+   T("LEMBRETE", "PRIPOMIENKA"),
+   T("LEVA A", "VEDIE K"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Vľavo a vpravo vyberáte. Predvoľba sa použije ihneď pri zmene hodnoty."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Použite e-mail a heslo svojho účtu Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Použite, keď náhľad vždy ukazuje scénu o pár sekúnd skôr alebo neskôr. Stáva sa to, keď sa vaša verzia titulu líši od verzie Seekr (iný strih, dlhší úvod). Platí pre všetky tituly; pri zmene filmu vráťte na 0."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Pamäť, ktorú práve využíva cache obrázkov, nie miesto zabraté v úložisku televízora."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Používateľské meno Xtream"),
+diff --git a/src/idioma_sl.h b/src/idioma_sl.h
+index f3b129b2392fbab766dc980ee560c670c9f01a3f..0085ac121ddf75c386c5d981a84dcf949a52fc3f 100644
+--- a/src/idioma_sl.h
++++ b/src/idioma_sl.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Že na vašem seznamu"),
+   T("Já é a principal", "To so že glavni podnapisi"),
+   T("Já é seu amigo", "Že vaš prijatelj"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "POSTAVITEV APPLE TV IN TV V ŽIVO"),
+   T("LEMBRETE", "OPOMNIK"),
+   T("LEVA A", "VODI DO"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Z levo in desno izbirate. Nastavitev velja takoj ob spremembi vrednosti."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Uporabite e-pošto in geslo svojega računa Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Uporabite, kadar sličica vedno kaže prizor nekaj sekund prej ali pozneje. To se zgodi, ko se vaša različica naslova razlikuje od tiste pri Seekr (drugačen rez, daljša špica). Velja za vse naslove; ob menjavi filma vrnite na 0."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Pomnilnik, ki ga trenutno porablja predpomnilnik slik, ne prostor v shrambi televizorja."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Uporabniško ime Xtream"),
+diff --git a/src/idioma_sr.h b/src/idioma_sr.h
+index 60433e493e6a21dc340243d848e531c3ee325ebf..4770b7402b57fd74b269c460f90eec1b26766b54 100644
+--- a/src/idioma_sr.h
++++ b/src/idioma_sr.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Već na vašoj listi"),
+   T("Já é a principal", "Već je glavni titl"),
+   T("Já é seu amigo", "Već je vaš prijatelj"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV RASPORED I TV UŽIVO"),
+   T("LEMBRETE", "PODSETNIK"),
+   T("LEVA A", "VODI DO"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Koristite levo i desno za izbor. Podešavanje se primenjuje dok menjate vrednost."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Koristite e-poštu i lozinku svog Nuvio naloga."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Koristite kada sličica uvek prikazuje scenu nekoliko sekundi pre ili posle. To se dešava kada se vaša verzija naslova razlikuje od one koju koristi Seekr (drugi rez, duža špica). Važi za sve naslove; vratite na 0 kad promenite film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Memorija koju trenutno koristi keš slika, a ne prostor zauzet u skladištu TV-a."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream korisničko ime"),
+diff --git a/src/idioma_sv.h b/src/idioma_sv.h
+index 2f0aeed66f4c3623c5012ee1dba610c63c10f5d5..10247ddf360cf6ee9f6ab18e602ff810a9d13794 100644
+--- a/src/idioma_sv.h
++++ b/src/idioma_sv.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Redan i din lista"),
+   T("Já é a principal", "Är redan huvudundertexten"),
+   T("Já é seu amigo", "Redan din vän"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV-LAYOUT OCH LIVE-TV"),
+   T("LEMBRETE", "PÅMINNELSE"),
+   T("LEVA A", "LEDER TILL"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Använd vänster och höger för att välja. Inställningen tillämpas när du ändrar värdet."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Använd e-post och lösenord för ditt Nuvio-konto."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Använd när miniatyren alltid visar scenen några sekunder före eller efter. Det händer när din version av titeln skiljer sig från Seekrs (annan klippning, längre intro). Gäller alla titlar; återställ till 0 när du byter film."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Aktuell minnesanvändning för bildcachen, inte utrymme som upptas i TV:ns lagring."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream-användarnamn"),
+diff --git a/src/idioma_tab.h b/src/idioma_tab.h
+index 2f29c0c97bb461f4684e6e97fc9ecef0a21e4a81..699ffa9b935aa79b3e378b1d261fc1a15c27b322 100644
+--- a/src/idioma_tab.h
++++ b/src/idioma_tab.h
+@@ -2101,6 +2101,7 @@
+   { "Já na sua lista", "Already on your list" },
+   { "Já é a principal", "Already the main subtitle" },
+   { "Já é seu amigo", "Already your friend" },
++  { "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings." },
+   { "LAYOUT APPLE TV E LIVE TV", "APPLE TV LAYOUT AND LIVE TV" },
+   { "LEMBRETE", "REMINDER" },
+   { "LEVA A", "LEADS TO" },
+@@ -4398,6 +4399,7 @@
+   { "Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Use left and right to choose. The preference applies as you change the value." },
+   { "Use o e-mail e a senha da sua conta Nuvio.", "Use the email and password of your Nuvio account." },
+   { "Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Use when the thumbnail always shows a scene a few seconds before or after. This happens when your version of the title differs from the one Seekr uses (another cut, longer intro). Applies to all titles; reset to 0 when switching movies." },
++  { "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings." },
+   { "Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Memory currently used by the image cache, not space taken on the TV's storage." },
+   { "Uso do Seekr indisponível", "Seekr usage unavailable" },
+   { "Usuário Xtream", "Xtream username" },
+diff --git a/src/idioma_tr.h b/src/idioma_tr.h
+index 95a18bbdcf0eeab88bbca439f8216da4c2c4409b..ddceb7d001438e1fd7a5c7860f812c228d4529d7 100644
+--- a/src/idioma_tr.h
++++ b/src/idioma_tr.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Zaten listende"),
+   T("Já é a principal", "Zaten ana altyazı"),
+   T("Já é seu amigo", "Zaten arkadaşın"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV DÜZENİ VE CANLI TV"),
+   T("LEMBRETE", "HATIRLATICI"),
+   T("LEVA A", "ŞUNA GİDER"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Seçmek için sol ve sağı kullan. Tercih, değeri değiştirdikçe uygulanır."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Nuvio hesabının e-postasını ve şifresini kullan."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Küçük resim hep birkaç saniye öncesinin ya da sonrasının sahnesini gösteriyorsa kullan. Senin sürümün Seekr'in kullandığından farklıysa olur (başka kurgu, daha uzun açılış). Tüm yapımlar için geçerlidir; film değişince 0'a döndür."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Görsel önbelleğinin şu an kullandığı bellek; TV'nin depolamasında kaplanan alan değil."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream kullanıcı adı"),
+diff --git a/src/idioma_uk.h b/src/idioma_uk.h
+index af79235bdbde8b34bb81de41b29879db14db77eb..2387bd18c4e58d99542bca41f4346ac0818934d9 100644
+--- a/src/idioma_uk.h
++++ b/src/idioma_uk.h
+@@ -2101,6 +2101,7 @@
+   T("Já na sua lista", "Уже у вашому списку"),
+   T("Já é a principal", "Це вже основні субтитри"),
+   T("Já é seu amigo", "Уже ваш друг"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "МАКЕТ APPLE TV І LIVE TV"),
+   T("LEMBRETE", "НАГАДУВАННЯ"),
+   T("LEVA A", "ВЕДЕ ДО"),
+@@ -4398,6 +4399,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Вліво й вправо — вибір. Налаштування застосовується одразу після зміни значення."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Використайте ел. пошту та пароль облікового запису Nuvio."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Використовуйте, коли мініатюра завжди показує сцену на кілька секунд раніше чи пізніше. Так буває, коли ваша версія назви відрізняється від версії Seekr (інший монтаж, довша заставка). Діє для всіх назв; повертайте на 0 при зміні фільму."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Пам'ять, яку зараз використовує кеш зображень, а не місце, зайняте в сховищі телевізора."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Логін Xtream"),
+diff --git a/src/idioma_vi.h b/src/idioma_vi.h
+index 6ee967eb5c9c2392709d1a79d3e376e95a6dbbbc..66a96c944a6868796691640acb64777e07f73263 100644
+--- a/src/idioma_vi.h
++++ b/src/idioma_vi.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "Đã có trong danh sách của bạn"),
+   T("Já é a principal", "Đã là phụ đề chính"),
+   T("Já é seu amigo", "Đã là bạn của bạn"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "BỐ CỤC APPLE TV VÀ TV TRỰC TIẾP"),
+   T("LEMBRETE", "NHẮC NHỞ"),
+   T("LEVA A", "DẪN ĐẾN"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "Dùng trái và phải để chọn. Tùy chọn được áp dụng ngay khi bạn đổi giá trị."),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "Dùng email và mật khẩu tài khoản Nuvio của bạn."),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "Dùng khi ảnh thu nhỏ luôn hiện cảnh sớm hoặc muộn vài giây. Điều này xảy ra khi bản của bạn khác bản Seekr dùng (cắt khác, đoạn mở đầu dài hơn). Áp dụng cho mọi tựa; hãy đặt lại 0 khi đổi phim."),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "Bộ nhớ mà bộ nhớ đệm hình ảnh đang dùng, không phải dung lượng chiếm trong bộ lưu trữ của TV."),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Tên người dùng Xtream"),
+diff --git a/src/idioma_zhcn.h b/src/idioma_zhcn.h
+index f21c1a475466f8611701fc57a820ce4ec6213adc..c6effa88430a0ef0567b3d5a6210b8bebb731ef2 100644
+--- a/src/idioma_zhcn.h
++++ b/src/idioma_zhcn.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "已在你的列表中"),
+   T("Já é a principal", "已是主字幕"),
+   T("Já é seu amigo", "已是你的好友"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV 布局与电视直播"),
+   T("LEMBRETE", "提醒"),
+   T("LEVA A", "通向"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "用左右键选择。更改数值时偏好设置会立即生效。"),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "使用你的 Nuvio 账号邮箱和密码。"),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "当缩略图总是显示前几秒或后几秒的画面时使用。这是因为您的片源版本与 Seekr 所用版本不同（剪辑不同、片头更长）。对所有片名生效；换片时请调回 0。"),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "图片缓存当前占用的内存，而不是占用电视存储的空间。"),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream 用户名"),
+diff --git a/src/idioma_zhtw.h b/src/idioma_zhtw.h
+index 5753acad12002053c03d229bafddb2604dcf1405..b7ef91e390e409d078ccd6fc7e5e78fcc3a2bddc 100644
+--- a/src/idioma_zhtw.h
++++ b/src/idioma_zhtw.h
+@@ -2102,6 +2102,7 @@
+   T("Já na sua lista", "已在你的清單中"),
+   T("Já é a principal", "已是主字幕"),
+   T("Já é seu amigo", "已是你的好友"),
++  T("Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings.", "Keeps every change locally and syncs your MDBList Watchlist. Set your MDBList API key in Ratings."),
+   T("LAYOUT APPLE TV E LIVE TV", "APPLE TV 版面與電視直播"),
+   T("LEMBRETE", "提醒"),
+   T("LEVA A", "通往"),
+@@ -4399,6 +4400,7 @@
+   T("Use as setas laterais para escolher. A preferência é aplicada ao alterar o valor.", "用左右鍵選擇。變更數值時偏好設定會立即生效。"),
+   T("Use o e-mail e a senha da sua conta Nuvio.", "使用你的 Nuvio 帳號電子郵件和密碼。"),
+   T("Use quando a miniatura mostra sempre a cena de alguns segundos antes ou depois. Acontece quando a sua versão do título é diferente da usada pelo Seekr (outro corte, abertura mais longa). Vale para todos os títulos; volte a 0 ao trocar de filme.", "當縮圖總是顯示前幾秒或後幾秒的畫面時使用。這是因為您的片源版本與 Seekr 所用版本不同（剪輯不同、片頭更長）。對所有片名生效；換片時請調回 0。"),
++  T("Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings.", "Uses MDBList paused sessions and Up Next, with precise local resume kept when available. Set your MDBList API key in Ratings."),
+   T("Uso atual de memória pelo cache de imagens, não espaço ocupado no armazenamento da TV.", "圖片快取目前佔用的記憶體，而不是佔用電視儲存空間。"),
+   T("Uso do Seekr indisponível", "Seekr usage unavailable"),
+   T("Usuário Xtream", "Xtream 使用者名稱"),
+diff --git a/src/mdbformat.c b/src/mdbformat.c
+index 054ea7e13be890ae5d53c91c2f04f5522a68323b..c5952927503235f1ff75f0c1bf605126441688fa 100644
+--- a/src/mdbformat.c
++++ b/src/mdbformat.c
+@@ -51,8 +51,8 @@ static void metadata(const char *p,const char *end,MdbItem *out,int show) {
+ int mdb_watchlist_body(char *out,size_t n,const char *id,const char *type) {
+  int show=type&&!strcmp(type,"series"),written;if(!out||!n)return 0;out[0]=0;
+  if(!id||!type||(!show&&strcmp(type,"movie")))return 0;
+- if(!strncmp(id,"tt",2)&&digits(id+2))written=snprintf(out,n,"{\"%s\":[{\"imdb\":\"%s\"}]}",show?"shows":"movies",id);
+- else if(!strncmp(id,show?"tmdb:t":"tmdb:m",6)&&digits(id+6)&&id[6]!='0'&&strlen(id+6)<=10&&strtoull(id+6,NULL,10)<=INT_MAX)written=snprintf(out,n,"{\"%s\":[{\"tmdb\":%s}]}",show?"shows":"movies",id+6);
++ if(!strncmp(id,"tt",2)&&digits(id+2))written=snprintf(out,n,"{\"%s\":[{\"ids\":{\"imdb\":\"%s\"}}]}",show?"shows":"movies",id);
++ else if(!strncmp(id,show?"tmdb:t":"tmdb:m",6)&&digits(id+6)&&id[6]!='0'&&strlen(id+6)<=10&&strtoull(id+6,NULL,10)<=INT_MAX)written=snprintf(out,n,"{\"%s\":[{\"ids\":{\"tmdb\":%s}}]}",show?"shows":"movies",id+6);
+  else return 0;
+  return written>0&&(size_t)written<n;
+ }
+diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
+index 621fd1bec6ee539ab94bff64ad2ce676462324c9..aae4c3042e11ec9b05c3935dbffaab5d2919357e 100644
+--- a/src/mdblistlibrary.c
++++ b/src/mdblistlibrary.c
+@@ -4,6 +4,10 @@
+ #include "mdblistscrobble.h"
+ #include "rede.h"
+ #include "js.h"
++#include "progresso.h"
++#include "ajustes.h"
++#include "cwordem.h"
++#include "mdbresume.h"
+ #include <pthread.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -16,6 +20,9 @@
+ typedef struct { unsigned serial,generation; int add,clear,state; char id[64],type[8]; } Job;
+ static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER,network=PTHREAD_MUTEX_INITIALIZER;
+ static MdbItem *watch;
++static MdbItem cw[CW_MAX];
++static int cwN;
++static time_t cwAt;
+ static int watchN,blocked,worker,noticeCode;
+ static time_t watchAt,backoff;
+ static unsigned generation,serial;
+@@ -26,7 +33,7 @@ static int credentials(char *key,unsigned *gen) {
+  int ok=mdblist_credencial(key,80,gen);
+  pthread_mutex_lock(&lock);
+  if(generation!=*gen) {
+-  generation=*gen;watchN=0;watchAt=backoff=0;blocked=0;
++  generation=*gen;watchN=cwN=0;watchAt=cwAt=backoff=0;blocked=0;
+   free(watch);watch=NULL;
+   for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)jobs[i].state=3;
+  }
+@@ -147,7 +154,7 @@ static void *run(void *unused) {
+   if(!ok)problem(gen,http,0,1);
+   pthread_mutex_lock(&lock);
+   if(jobs[slot].serial==job.serial)jobs[slot].state=ok&&gen==generation?2:3;
+-  if(gen==generation){watchAt=0;if(noticeCode!=2)noticeCode=ok?1:2;
++  if(gen==generation){watchAt=cwAt=0;if(noticeCode!=2)noticeCode=ok?1:2;
+    if(ok&&!job.clear&&!job.add) {int w=0;for(int i=0;i<watchN;i++)if(strcmp(watch[i].id,job.id)||strcmp(watch[i].type,job.type))watch[w++]=watch[i];watchN=w;}
+   }
+   pthread_mutex_unlock(&lock);pthread_mutex_unlock(&network);
+@@ -180,3 +187,92 @@ const char *mdb_library_notice(int *refresh) {
+  *refresh=code==1;
+  return code==1?"MDBList sync complete":code==2?"MDBList sync failed. Your local changes are safe. Try again when connected.":code==3?"MDBList could not refresh. Showing saved local or previous data.":NULL;
+ }
++
++/* A complete read is swapped atomically. Limits bound memory and network
++   work; a pagination loop or capacity overflow retains the previous snapshot
++   and reports failure instead of presenting an incomplete list as current. */
++static int cwRead(MdbItem *next,const char *key,unsigned gen) {
++ MdbItem *page=calloc(512,sizeof *page);if(!page)return -1;
++ char *body=get("/sync/playback",key,gen);int n=-1;
++ if(body)n=mdb_parse_playback(body,page,512);free(body);
++ if(n<0){free(page);return -1;}
++ int count=0;long long oldest=0,now=(long long)time(NULL)*1000;
++ for(int i=0;i<n;i++) {
++  if(page[i].expires&&page[i].expires<=now)continue;
++  if(!page[i].updated)oldest=-1;
++  else if(oldest>=0&&(!oldest||page[i].updated<oldest))oldest=page[i].updated;
++  int at=-1;for(int j=0;j<count;j++)if(same(page+i,next+j)){at=j;break;}
++  if(at>=0){if(page[i].updated>next[at].updated)next[at]=page[i];continue;}
++  if(count==CW_MAX){free(page);return -1;}next[count++]=page[i];
++ }
++ for(int offset=0;offset<2000;offset+=100) {
++  char path[180];snprintf(path,sizeof path,"/upnext?limit=100&offset=%d&hide_unreleased=true&air_date_format=instant",offset);
++  body=get(path,key,gen);int more=0;int got=body?mdb_parse_next(body,page,512,&more):-1;free(body);
++  if(got<0){free(page);return -1;}
++  for(int i=0;i<got;i++) {
++   if(page[i].air&&page[i].air>now)continue;
++   int at=-1;for(int j=0;j<count;j++)if(!strcmp(page[i].id,next[j].id)&&!strcmp(page[i].type,next[j].type)){at=j;break;}
++   /* A paused show already has a concrete resume episode. Up Next must not
++      replace it merely because watched-history activity has a newer date. */
++   if(at>=0)continue;
++   if(count==CW_MAX){free(page);return -1;}next[count++]=page[i];
++  }
++  if(!more)break;
++  if(offset==1900){free(page);return -1;}
++ }
++ free(page);
++ if(!count)return 0;
++ char since[64]="",cursor[1024]="",previous[1024],escaped[3072],path[3500];
++ /* The oldest paused instant bounds the history query. Missing timestamps
++    require the bounded full-history fallback. History is ONLY a veto. */
++ if(oldest>0) {time_t seconds=(time_t)(oldest/1000);struct tm stamp;
++  if(gmtime_r(&seconds,&stamp))strftime(since,sizeof since,"&since=%Y-%m-%dT%H:%M:%SZ",&stamp);
++ }
++ for(int p=0;p<20;p++) {
++  if(!encode(escaped,sizeof escaped,cursor))return -1;
++  snprintf(path,sizeof path,"/sync/watched?limit=1000%s&cursor=%s",since,escaped);
++  body=get(path,key,gen);snprintf(previous,sizeof previous,"%s",cursor);
++  int filtered=body?mdb_filter_watched(body,next,count,cursor,sizeof cursor):-1;free(body);
++  if(filtered<0)return -1;count=filtered;
++  if(!cursor[0])break;
++  if(!strcmp(cursor,previous)||p==19)return -1;
++ }
++ return count;
++}
++int mdb_library_continue(CatItem *out,int max) {
++ char key[80];unsigned gen;
++ if(!credentials(key,&gen)){pthread_mutex_lock(&lock);noticeCode=3;pthread_mutex_unlock(&lock);return 0;}
++ pthread_mutex_lock(&network);
++ pthread_mutex_lock(&lock);int fresh=cwAt&&time(NULL)-cwAt<300;pthread_mutex_unlock(&lock);
++ if(!fresh&&allowed(gen)) {
++  MdbItem *next=calloc(CW_MAX,sizeof *next);int n=next?cwRead(next,key,gen):-1;
++  pthread_mutex_lock(&lock);
++  if(n>=0&&gen==generation){memcpy(cw,next,(size_t)n*sizeof *next);cwN=n;cwAt=time(NULL);}
++  pthread_mutex_unlock(&lock);free(next);
++  if(n<0)problem(gen,0,0,0);
++ }
++ pthread_mutex_unlock(&network);memset(key,0,sizeof key);
++ /* Copy compact data before consulting progress (a different mutex). No
++    reverse lock order, and no estimated seconds are written to disk. */
++ MdbItem *copy=calloc(CW_MAX,sizeof *copy);if(!copy)return 0;
++ pthread_mutex_lock(&lock);int n=gen==generation?cwN:0;memcpy(copy,cw,(size_t)n*sizeof *copy);pthread_mutex_unlock(&lock);
++ int w=0;
++ for(int i=0;i<n;i++) {
++  char progressKey[48];ProgRegistro local;
++  prog_chave(progressKey,sizeof progressKey,copy[i].id,copy[i].season,copy[i].episode);
++  if(prog_por_chave(progressKey,&local)&&mdb_resume_apply(copy+i,local.posSeg,local.durSeg,local.lastWatchedMs,ajustes_cw_concluido())<0)continue;
++  if(copy[i].expires&&copy[i].expires<=(long long)time(NULL)*1000)continue;
++  copy[w++]=copy[i];
++ }
++ n=w;
++ for(int i=1;i<n;i++){MdbItem value=copy[i];int j=i;while(j>0&&copy[j-1].updated<value.updated){copy[j]=copy[j-1];j--;}copy[j]=value;}
++ if(n>max)n=max;
++ for(int i=0;i<n;i++){toCat(copy+i,out+i);if(copy[i].next)cwo_marcar_estreia(out[i].imdb,copy[i].air?copy[i].air:CWO_SEM_DATA);}
++ free(copy);return n;
++}
++int mdb_library_next(const char *id) {
++ if(!id)return 0;char key[80];unsigned gen;if(!credentials(key,&gen))return 0;memset(key,0,sizeof key);
++ int found=0;pthread_mutex_lock(&lock);
++ for(int i=0;i<cwN&&!found;i++)if(cw[i].next){char compound[96];snprintf(compound,sizeof compound,"%s:%d:%d",cw[i].id,cw[i].season,cw[i].episode);found=!strcmp(id,compound);}
++ pthread_mutex_unlock(&lock);return found;
++}
+diff --git a/src/mdbresume.c b/src/mdbresume.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..969c04dd2ef7774e2b1e6a761590bfd00fda0abb
+--- /dev/null
++++ b/src/mdbresume.c
+@@ -0,0 +1,10 @@
++#include "mdbresume.h"
++#include <math.h>
++int mdb_resume_apply(MdbItem *item,double pos,double duration,long long updated,int completed) {
++ if(!isfinite(pos)||!isfinite(duration)||pos<0||duration<60||pos>duration||duration>604800)return 0;
++ double percent=100*pos/duration;
++ if(percent>=completed)return -1;
++ if(percent<1&&!item->next)return -1;
++ item->progress=percent<1?0:percent;item->runtime=(int)(duration/60+0.5);
++ item->updated=updated;return 1;
++}
+diff --git a/src/mdbresume.h b/src/mdbresume.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c277acac005abb9f23410084e31c160ab4749e6
+--- /dev/null
++++ b/src/mdbresume.h
+@@ -0,0 +1,6 @@
++#ifndef NV_MDB_RESUME_H
++#define NV_MDB_RESUME_H
++#include "mdbformat.h"
++/* -1 local complete/not resumable, 1 precise local selected, 0 no valid local. */
++int mdb_resume_apply(MdbItem *item,double pos,double duration,long long updated,int completed);
++#endif
+diff --git a/src/streams.c b/src/streams.c
+index b49d0fdfe37d7d3b5b48d75fc182513df7b5b799..a649db19df59bd2795fc6ad6954d1e3fd07ef1d0 100644
+--- a/src/streams.c
++++ b/src/streams.c
+@@ -1045,6 +1045,7 @@ static int verificarUma(int i, Conferencia *c) {
+       pthread_mutex_lock(&verTrava);
+       if (listaGeracao == c->geracao && i < n) {
+         snprintf(lista[i].url, sizeof lista[i].url, "%s", url);
++        lista[i].cacheEstado=STREAM_CACHE_CACHED; lista[i].foraCache=0;
+         ok = 1;
+       } else c->abortou = 1;
+       pthread_mutex_unlock(&verTrava);
+diff --git a/tests/mdbformat.c b/tests/mdbformat.c
+index 9cddf13a7f82b6d91494185d1f10f949e76c2eae..a32d85ae1d0b4a7b02beb49f49ccb90f0ed72690 100644
+--- a/tests/mdbformat.c
++++ b/tests/mdbformat.c
+@@ -4,7 +4,7 @@
+ #include <string.h>
+ int main(void) {
+  MdbItem items[8];char cursor[64],body[180];int more;
+- assert(mdb_watchlist_body(body,sizeof body,"tt123","series"));assert(!strcmp(body,"{\"shows\":[{\"imdb\":\"tt123\"}]}"));
++ assert(mdb_watchlist_body(body,sizeof body,"tt123","series"));assert(!strcmp(body,"{\"shows\":[{\"ids\":{\"imdb\":\"tt123\"}}]}"));
+  assert(mdb_watchlist_body(body,sizeof body,"tmdb:m123","movie"));
+  assert(!mdb_watchlist_body(body,sizeof body,"tmdb:t123","movie"));
+  assert(!mdb_watchlist_body(body,sizeof body,"tt123:1:2","series"));
+diff --git a/tests/mdblistlibrary.c b/tests/mdblistlibrary.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..9695580dc3585fc2d715b4e422c59d0709580a13
+--- /dev/null
++++ b/tests/mdblistlibrary.c
+@@ -0,0 +1,72 @@
++/* Controlled transport, clock, credentials, progress and scheduler. No real
++   account, network or graphics. Checks complete snapshots and local safety. */
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++#include "pthread.h"
++static void *(*scheduled)(void *);
++static int calls,http=200,retry=0,changeKey,postCalls;
++static unsigned account=1;
++static const char *keyValue="test_key";
++static const char *response="{\"movies\":[],\"shows\":[]}";
++static const char *second;
++static const char *postResponse="{\"added\":1,\"existing\":0,\"not_found\":0}";
++static time_t now=1791500000;
++static double localPos,localDuration;
++static time_t fake_time(time_t *out){if(out)*out=now;return now;}
++#ifdef _WIN32
++static struct tm *portable_gmtime(const time_t *at,struct tm *out){struct tm *r=gmtime(at);if(r)*out=*r;return r?out:NULL;}
++#define gmtime_r portable_gmtime
++#endif
++#define time fake_time
++#include "../src/mdblistlibrary.c"
++#undef time
++int pthread_mutex_lock(pthread_mutex_t *m){assert(!*m);*m=1;return 0;}
++int pthread_mutex_unlock(pthread_mutex_t *m){assert(*m);*m=0;return 0;}
++int pthread_create(pthread_t *t,const void *attr,void *(*f)(void *),void *arg){(void)attr;(void)arg;assert(!scheduled);scheduled=f;*t=1;return 0;}
++int pthread_detach(pthread_t t){(void)t;return 0;}
++static void drain(void){void *(*f)(void *)=scheduled;scheduled=NULL;if(f)f(NULL);}
++int mdblist_credencial(char *out,size_t n,unsigned *gen){snprintf(out,n,"%s",keyValue);*gen=account;return !!*keyValue;}
++char *rede_baixar_st_retry(const char *url,int timeout,const char *const *headers,int *status,int *after){
++ assert(!lock&&network);assert(timeout==15);assert(!strstr(url,"apikey="));assert(!strncmp(headers[0],"Authorization: Bearer ",22));
++ *status=http;*after=retry;calls++;
++ if(changeKey){changeKey=0;account++;mdb_library_tick();}
++ const char *value=second&&strstr(url,"cursor=page2")?second:response;
++ if(strstr(url,"/sync/playback"))value="[{\"type\":\"movie\",\"progress\":70,\"runtime\":90,\"movie\":{\"ids\":{\"imdb\":\"tt123\"}},\"paused_at\":\"2026-10-08T01:00:00Z\"}]";
++ if(strstr(url,"/upnext"))value="{\"items\":[],\"has_more\":false}";
++ if(strstr(url,"/sync/watched"))value="{\"movies\":[],\"episodes\":[]}";
++ return value?strdup(value):NULL;
++}
++char *rede_postar_st(const char *url,int timeout,const char *const *headers,const char *body,int *status){
++ assert(!lock&&network);assert(timeout==15);assert(strstr(headers[0],"Bearer"));assert(!strstr(url,keyValue));
++ if(strstr(url,"watchlist"))assert(strstr(body,"\"ids\""));
++ postCalls++;*status=http;return postResponse?strdup(postResponse):NULL;
++}
++void prog_chave(char *out,unsigned n,const char *id,int season,int ep){if(ep)snprintf(out,n,"%s_s%de%d",id,season,ep);else snprintf(out,n,"%s",id);}
++int prog_por_chave(const char *key,ProgRegistro *out){(void)key;memset(out,0,sizeof *out);out->posSeg=localPos;out->durSeg=localDuration;out->lastWatchedMs=1;return localDuration>0;}
++int ajustes_cw_concluido(void){return 90;}
++void cwo_marcar_estreia(const char *id,long long at){(void)id;(void)at;}
++static void reset(void){drain();account++;char key[80];unsigned gen;credentials(key,&gen);http=200;retry=calls=postCalls=changeKey=0;second=NULL;keyValue="test_key";noticeCode=0;localPos=localDuration=0;}
++int main(void){
++ CatItem *items=calloc(4,sizeof *items);assert(items);
++ reset();response="{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}],\"pagination\":{\"next_cursor\":\"page2\"}}";
++ second="{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}],\"shows\":[{\"ids\":{\"tmdb\":55}}]}";
++ assert(mdb_library_watchlist(NULL,0)==2&&calls==2);
++ assert(mdb_library_watchlist(items,4)==2&&items[0].naLista&&calls==2);
++ assert(mdb_library_watchlist(NULL,0)==2&&calls==2); /* TTL */
++ now+=301;http=500;assert(mdb_library_watchlist(NULL,0)==2&&calls==3); /* retain */
++ reset();http=429;retry=120;assert(mdb_library_watchlist(NULL,0)==0);int seen=calls;
++ now+=61;assert(mdb_library_watchlist(NULL,0)==0&&calls==seen);now+=60;assert(mdb_library_watchlist(NULL,0)==0&&calls>seen);
++ reset();http=401;assert(mdb_library_watchlist(NULL,0)==0);seen=calls;now+=5000;assert(mdb_library_watchlist(NULL,0)==0&&calls==seen);
++ reset();response="{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}]}";changeKey=1;assert(mdb_library_watchlist(NULL,0)==0); /* discard old profile reply */
++ reset();unsigned job=mdb_library_save("tt123","movie",1);assert(job&&mdb_library_result(job)==1);drain();assert(mdb_library_result(job)==2&&postCalls==1);
++ reset();postResponse="{\"added\":0,\"existing\":0,\"not_found\":1}";job=mdb_library_save("tt123","movie",1);drain();assert(mdb_library_result(job)==3);
++ reset();postResponse="{\"added\":1,\"existing\":0,\"not_found\":0}";job=mdb_library_save("tt123","movie",1);account++;mdb_library_tick();drain();assert(mdb_library_result(job)==3&&postCalls==0);
++ reset();job=mdb_library_save("tmdb:t55","movie",1);assert(mdb_library_result(job)==3&&postCalls==0);
++ reset();localDuration=3600;localPos=1200;assert(mdb_library_continue(items,4)==1&&items[0].progresso==33&&items[0].retomadoMs==1&&calls==3);
++ localPos=3500;assert(mdb_library_continue(items,4)==0&&calls==3); /* completed local, unchanged cache */
++ reset();keyValue="";job=mdb_library_save("tt123","movie",1);assert(mdb_library_result(job)==3&&postCalls==0);
++ free(items);free(watch);puts("MDBList library: pagination/dedup, TTL, failure retention, 401/429, account isolation, write confirmation and precise local resume passed");return 0;
++}
+diff --git a/tests/mdbresume.c b/tests/mdbresume.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..6edefb000079570c2d936ecb99c368d4066ae1ac
+--- /dev/null
++++ b/tests/mdbresume.c
+@@ -0,0 +1,15 @@
++#include "mdbresume.h"
++#include <assert.h>
++#include <math.h>
++#include <stdio.h>
++int main(void) {
++ MdbItem item={.progress=70,.updated=999,.runtime=100};
++ assert(mdb_resume_apply(&item,1200,3600,1,90)==1);
++ assert(item.progress>33&&item.progress<34&&item.updated==1&&item.runtime==60);
++ assert(mdb_resume_apply(&item,3500,3600,1,90)==-1);
++ assert(mdb_resume_apply(&item,NAN,3600,1,90)==0);
++ assert(mdb_resume_apply(&item,30,0,1,90)==0);
++ assert(mdb_resume_apply(&item,0,3600,1,90)==-1);
++ item.next=1;assert(mdb_resume_apply(&item,10,3600,1,90)==1&&item.progress==0);
++ puts("MDBList resume: older precise local wins, completion veto, missing runtime and Up Next passed");return 0;
++}
+diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..b64fc40c8780aa7d19bbcacd40d9495ed88db29f
+--- /dev/null
++++ b/tests/tizen_improvements.sh
+@@ -0,0 +1,20 @@
++#!/bin/bash
++set -euo pipefail
++cd "$(dirname "$0")/.."
++out=$(mktemp -d)
++trap 'rm -rf "$out"' EXIT
++flags=(-std=gnu11 -O1 -g -Wall -Wextra -Isrc -DSDL_MAIN_HANDLED)
++read -ra sdl <<< "$(sdl2-config --cflags)"
++cc "${flags[@]}" tests/mdbformat.c src/mdbformat.c src/js.c -lm -o "$out/format"
++"$out/format"
++cc "${flags[@]}" tests/mdbresume.c src/mdbresume.c -lm -o "$out/resume"
++"$out/resume"
++cc "${flags[@]}" "${sdl[@]}" -Itests/stubs/mdblist tests/mdblistlibrary.c src/mdbformat.c src/mdbresume.c src/mdblistscrobble.c src/js.c -lm -o "$out/library"
++"$out/library"
++cc "${flags[@]}" "${sdl[@]}" tests/chartcache.c src/chartcache.c -lm -o "$out/charts"
++"$out/charts"
++cc "${flags[@]}" "${sdl[@]}" -ffunction-sections -fdata-sections tests/source_cache.c src/stream_parse.c src/js.c src/badges.c -Wl,--gc-sections -lm -o "$out/cache"
++"$out/cache"
++# Existing parser and quality/codec filtering regressions use the real badges.
++CPATH="$(sdl2-config --prefix)/include:${CPATH:-}" bash tests/stream_parser.sh
++CPATH="$(sdl2-config --prefix)/include:${CPATH:-}" bash tests/streamfit_parser.sh

@@ -1,0 +1,1182 @@
+diff --git a/src/ajustes.c b/src/ajustes.c
+index 077835b35ef21007e12c4fd93ce1a9c0bf84bc77..648593aac15b906e11ae76657f72ac18181b4d86 100644
+--- a/src/ajustes.c
++++ b/src/ajustes.c
+@@ -477,7 +477,7 @@ typedef enum {
+   AJ_FONTE_CONFERIR_VARIAS,
+   AJ_FONTE_PREPARAR,
+   AJ_MDB_RASTREAR, AJ_MDB_ESTADO, // append: persisted setting indices stay stable
+-  AJ_CACHE_ONLY,
++  AJ_CACHE_ONLY, AJ_SEASON_NUMBERS,
+   AJ_N
+ } OpcaoId;
+ 
+@@ -1295,6 +1295,7 @@ static const Opcao OPCOES[AJ_N] = {
+   ESC("Rastrear reprodução no MDBList", V_LIGA, 2),
+   LER("Estado do rastreamento MDBList"),
+   ESC("Somente fontes em cache por padrão", V_LIGA, 2),
++  ESC("Mostrar números da temporada", V_LIGA, 2),
+ };
+ 
+ // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
+@@ -1515,7 +1516,7 @@ static const char *CHAVE[] = {
+   "fonteConferirVariasLocal",
+   "fontePrepararLocal",
+   "mdblistScrobbleLocal", "-mdblistScrobbleEstado",
+-  "cachedOnlyDefaultLocal",
++  "cachedOnlyDefaultLocal", "showSeasonNumbersLocal",
+ };
+ // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
+ // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
+@@ -1830,6 +1831,7 @@ int ajustes_fonte_prazo_ms(void) {
+ int ajustes_fonte_tocar_conferindo(void) { return lig(AJ_FONTE_TOCAR_CONFERINDO); }
+ int ajustes_fonte_aquecer(void) { return lig(AJ_FONTE_AQUECER); }
+ int ajustes_fonte_conferir_varias(void) { return lig(AJ_FONTE_CONFERIR_VARIAS); }
++int ajustes_season_numbers(void) { return lig(AJ_SEASON_NUMBERS); }
+ int ajustes_cached_only(void) { return lig(AJ_CACHE_ONLY); }
+ int ajustes_fonte_preparar(void) { return lig(AJ_FONTE_PREPARAR); }
+ int ajustes_fonte_escopo(void)      { int v = valor[AJ_FONTE_ESCOPO]; return v < 0 || v > 2 ? 0 : v; }
+@@ -3809,6 +3811,7 @@ static int somenteDesteAparelho(int op) {
+     case AJ_FONTE_TOCAR_CONFERINDO:
+     case AJ_FONTE_AQUECER:
+     case AJ_FONTE_CONFERIR_VARIAS:
++    case AJ_SEASON_NUMBERS:
+     case AJ_CACHE_ONLY:
+     case AJ_FONTE_PREPARAR:
+     case AJ_FONTE_TEXTO:
+@@ -5037,6 +5040,7 @@ static const char *ajudaOpcao(int op) {
+       return "Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.";
+ #endif
+     case AJ_DET_SO_CINEMETA: return "Desligado (padrão): a ficha do título vem primeiro do add-on em cujo catálogo ele apareceu, com episódios e ids próprios (Kitsu, Xperience, AIOMetadata…), e o catálogo do Nuvio completa o que faltar (o Cinemeta só entra se o catálogo do Nuvio falhar). Ligado: só o catálogo do Nuvio, sem os add-ons.";
++    case AJ_SEASON_NUMBERS: return "Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.";
+     case AJ_DET_META_EXT: return "Prefere a ficha do addon de metadados à do Cinemeta. Útil quando o seu addon tem sinopse e elenco melhores.";
+     case AJ_DET_DATA_CHEIA: return "Escreve a data de estreia por extenso em vez de só o ano.";
+     case AJ_DET_VEU: return "Quanto a vinheta escura cobre a arte na tela do título. Cem por cento é o padrão; zero mostra a arte limpa — o texto pode ficar difícil de ler sobre cenas claras.";
+@@ -6942,7 +6946,7 @@ static AjPreview familiaPreviaOpcao(int op) {
+     case AJ_CW_ESTILO: case AJ_CW_THUMB: case AJ_CW_BLUR_PROX:
+     case AJ_CW_FURTHEST: case AJ_CW_NAO_EXIBIDOS: case AJ_CW_ORDEM: case AJ_CW_RETIDO_TAMBEM:
+       return AJPV_CONTINUAR;
+-    case AJ_DET_BLUR_NAO_VISTOS: case AJ_DET_TRAILER: case AJ_DET_META_EXT:
++    case AJ_DET_BLUR_NAO_VISTOS: case AJ_DET_TRAILER: case AJ_DET_META_EXT: case AJ_SEASON_NUMBERS:
+     case AJ_DET_SO_CINEMETA: case AJ_BUSCA_CINEMETA:
+     case AJ_DET_DATA_CHEIA: case AJ_DET_VEU: case AJ_DET_TRAILER_AUTO:
+     case AJ_DET_TRAILER_SOM:
+diff --git a/src/ajustes.h b/src/ajustes.h
+index c5eb697ded7effb0583dd79f464f3017e35eb1d7..4737ddb3cc2cb7cf4faf7829c4d0b893084acd72 100644
+--- a/src/ajustes.h
++++ b/src/ajustes.h
+@@ -616,5 +616,6 @@ int         ajustes_rapido_passo(int op, int dir);
+ int ajustes_shot_valor(const char *chave, int v);   // capturas: opcao pela chave
+ #endif
+ 
++int ajustes_season_numbers(void);
+ int ajustes_cached_only(void);
+ #endif
+diff --git a/src/ajustes_ux_padrao.inc b/src/ajustes_ux_padrao.inc
+index b849815c94d5e78b3d0b917724eacff6454cb7ff..b357ab6c6222f72370633c24c213da98dc627891 100644
+--- a/src/ajustes_ux_padrao.inc
++++ b/src/ajustes_ux_padrao.inc
+@@ -250,3 +250,4 @@
+   1, /* prepare the source when a title opens (2.0.2): Desligado */
+   1, 0, /* MDBList playback: opt-in, status (read-only) */
+   0, /* Cached Only default: ON, local device preference */
++  0, /* Season by the Numbers: ON */
+diff --git a/src/ajustes_ux_secoes.inc b/src/ajustes_ux_secoes.inc
+index 627d9311588ce609c9bebf85b6c9b290ecce819d..50b2921b4e1af68f34d84d5f780f3f1cf5aebd90 100644
+--- a/src/ajustes_ux_secoes.inc
++++ b/src/ajustes_ux_secoes.inc
+@@ -176,7 +176,7 @@ static int ajCenaSecao(int op) {
+       return AJC_TIT_NOTAS;
+     case AJ_TMDB_LIGADO: case AJ_TMDB_ARTE: case AJ_TMDB_BASICO: case AJ_TMDB_FICHA: case AJ_TMDB_DATAS:
+     case AJ_TMDB_ELENCO: case AJ_TMDB_PROD: case AJ_TMDB_REDES: case AJ_TMDB_EPS: case AJ_TMDB_TRAILERS:
+-    case AJ_TMDB_MAIS: case AJ_TMDB_COL: case AJ_TMDB_CW: case AJ_DET_META_EXT: case AJ_DET_SO_CINEMETA:
++    case AJ_TMDB_MAIS: case AJ_TMDB_COL: case AJ_TMDB_CW: case AJ_DET_META_EXT: case AJ_SEASON_NUMBERS: case AJ_DET_SO_CINEMETA:
+       return AJC_TIT_DADOS;
+     case AJ_BUSCA_CINEMETA: return AJC_TIT_BUSCA;
+     case AJ_EXPANDIR: case AJ_EXPANDIR_ATRASO: case AJ_BORDA_FOCO: case AJ_GRAD_CLASSICO: return AJC_CAR_FOCO;
+diff --git a/src/ajustes_ux_tela.inc b/src/ajustes_ux_tela.inc
+index 13bfecf934ecce09920f8ca653403eb9904340fe..9127a825681dab0c604e2729bafd433e132546ac 100644
+--- a/src/ajustes_ux_tela.inc
++++ b/src/ajustes_ux_tela.inc
+@@ -22,7 +22,7 @@ static const Item TELA[] = {
+ 
+   SEC("Página do título", "O que aparece, notas e dados do título", "aj_file-text"),
+     ROT("O que aparece"),
+-      OPC(AJ_DET_VEU), OPC(AJ_DET_DATA_CHEIA), OPC(AJ_DET_BLUR_NAO_VISTOS),
++      OPC(AJ_SEASON_NUMBERS), OPC(AJ_DET_VEU), OPC(AJ_DET_DATA_CHEIA), OPC(AJ_DET_BLUR_NAO_VISTOS),
+     ROT("Notas"),
+       OPC(AJ_MDB_CHAVE),
+       OPC(AJ_NT_IMDB), OPC(AJ_NT_TOMATES), OPC(AJ_NT_AUDIENCIA), OPC(AJ_NT_META),
+diff --git a/src/chartcache.c b/src/chartcache.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..7ad5dd7a04c85fee16a3059fb378f181413e6b77
+--- /dev/null
++++ b/src/chartcache.c
+@@ -0,0 +1,40 @@
++#include "chartcache.h"
++#include "ajustes.h"
++#include "text.h"
++#include <stdio.h>
++#include <math.h>
++/* Three panel targets together may use at most 6 MiB. Failure is a direct
++   rendering fallback, never a missing chart. No image-cache eviction. */
++static size_t allocated;
++#define CHART_BUDGET (6u * 1024u * 1024u)
++void chartcache_clear(ChartCache *c) {
++  allocated -= (size_t)c->target.w * (size_t)c->target.h * 4u;
++  gfx_mini_liberar(&c->target); c->valid=0;
++}
++int chartcache_draw(ChartCache *c, GfxRect r, uint64_t revision, ChartPaint paint, const void *data, float alpha) {
++  int w=(int)ceilf(r.w), h=(int)ceilf(r.h);
++  size_t bytes;
++  if (!gfx_mini_disponivel() || w<1 || h<1 || w>2048 || h>1080) return 0;
++  bytes=(size_t)w*(size_t)h*4u;
++  uint64_t key=revision ^ ((uint64_t)(unsigned)ajustes_idioma()<<48) ^ ((uint64_t)(unsigned)txt_fonte_interface()<<56);
++  if (c->target.w!=w || c->target.h!=h) {
++    chartcache_clear(c);
++    if (bytes>CHART_BUDGET-allocated || !gfx_mini_alvo(&c->target,w,h)) return 0;
++    allocated+=bytes;
++  }
++  if (!c->valid || c->key!=key) {
++    int pending=txt_pendentes, draws=gfx_n_rect, binds=gfx_n_bind;
++    Uint64 start=SDL_GetPerformanceCounter();
++    float opacity=gfx_opacidade_grupo;
++    gfx_opacidade_grupo=1;
++    gfx_mini_comecar(&c->target,0,0,1);
++    paint((GfxRect){0,0,r.w,r.h},data);
++    gfx_mini_terminar();
++    gfx_opacidade_grupo=opacity;
++    c->valid=txt_pendentes==pending; c->key=key; c->builds++;
++    if (ajustes_medidor_desempenho())
++      printf("[season-charts] bake=%u draws=%d binds=%d cpu_ms=%.3f memory_bytes=%zu\n",c->builds,gfx_n_rect-draws,gfx_n_bind-binds,1000.0*(double)(SDL_GetPerformanceCounter()-start)/(double)SDL_GetPerformanceFrequency(),allocated);
++  } else c->hits++;
++  gfx_mini_desenhar(&c->target,r,0,alpha);
++  return 1;
++}
+diff --git a/src/chartcache.h b/src/chartcache.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..6701a86cc1629fa47185cf279ece9ed581e8082c
+--- /dev/null
++++ b/src/chartcache.h
+@@ -0,0 +1,10 @@
++#ifndef NV_CHARTCACHE_H
++#define NV_CHARTCACHE_H
++#include "gfx.h"
++#include <stdint.h>
++typedef struct { GfxMini target; uint64_t key; int valid; unsigned hits, builds; } ChartCache;
++typedef void (*ChartPaint)(GfxRect r, const void *data);
++/* Render-thread only. Static content only: backgrounds and focus stay live. */
++int chartcache_draw(ChartCache *c, GfxRect r, uint64_t revision, ChartPaint paint, const void *data, float alpha);
++void chartcache_clear(ChartCache *c);
++#endif
+diff --git a/src/detail.c b/src/detail.c
+index 663bff68c7f4470d6ed02552cf03990f1aec1e89..f2e58350eccb4e2ec3de59edd1afbe49db25d5b0 100644
+--- a/src/detail.c
++++ b/src/detail.c
+@@ -74,6 +74,7 @@
+ #include <string.h>
+ #include <strings.h>
+ #include <math.h>
++#include <stdlib.h>
+ #include "ponteiro.h"
+ #include "plrui.h"
+ #include "svdesenho.h"
+@@ -625,9 +626,11 @@ static int audTemp(void) {
+ // Abre (ou troca) a audiencia para a temporada de audTemp(). As notas ja
+ // estao em memoria; serieaud_abrir na mesma temporada e barato.
+ static void abrirAudiencia(void) {
++  if (!ajustes_season_numbers()) return;
+   int t = audTemp();
+   const CatItem *ci = cat_item(idx);
+   if (ci && ci->imdb[0] && t >= 0) {
++    if (audAberta && audTempAberta == extras_temporada_numero(t)) return;
+     int numeros[EX_EP_MAX], notas[EX_EP_MAX];
+     int i, n = extras_n_eps(t);
+     if (n > EX_EP_MAX) n = EX_EP_MAX;
+@@ -1040,6 +1043,7 @@ static const NotasSecao *notasDados(void) {
+   int i;
+   for (i = 0; i < EX_NFONTES; i++) s.cru[i] = extras_nota(i);
+   if (!s.cru[EX_IMDB] && ajustes_mdblist_fonte(EX_IMDB)) s.cru[EX_IMDB] = notaDe(idx);
++  s.revisao = extras_ep_revisao();
+   s.nTemp = ehSerie() ? extras_n_temporadas() : 0;
+   s.tempNum = extras_temporada_numero;
+   s.nEps = extras_n_eps;
+@@ -1944,6 +1948,7 @@ static int secaoN(int r) {
+     // episodio e os numeros dos episodios saem todos do
+     // `seasons?extended=episodes,full`.
+     case SEC_AUD_ARCO: {
++      if (!ajustes_season_numbers()) return 0;
+       int t = audTemp(), n;
+       if (t < 0) return 0;
+       n = extras_n_eps(t);
+@@ -3217,7 +3222,13 @@ void detail_atualizar(float dt, Uint32 agora) {
+   // estao no mesmo titulo (e na mesma temporada, no caso da audiencia) —, entao
+   // chamar por quadro enquanto o foco esta aqui e a forma mais simples de nao
+   // precisar de uma borda de "entrou agora" que erra quando o catalogo remonta.
+-  if (nivel >= 1 && foco.fileira == SEC_NUMEROS) {
++  if (!ajustes_season_numbers() && audAberta) {
++    serieaud_fechar(); serieaud_bloco_reiniciar(); audAberta = 0;
++  }
++  if (!ajustes_season_numbers() && foco.fileira == SEC_NUMEROS) {
++    foco.fileira = SEC_EPISODIOS; foco.coluna = 0;
++  }
++  if (ajustes_season_numbers() && nivel >= 1 && foco.fileira == SEC_NUMEROS) {
+     // AS NOTAS JA ESTAO NA MAO. Vem do mesmo `seasons?extended=episodes,full`
+     // que desenha as pastilhas da aba "Avaliações"; so a retencao custa pedido.
+     abrirAudiencia();
+diff --git a/src/extras.c b/src/extras.c
+index 88ee7409c3a02d857cfd2cfe7aba2d75e52a4d36..51a33d803020338f7f6531f9abe7a6b39b7ff31e 100644
+--- a/src/extras.c
++++ b/src/extras.c
+@@ -15,6 +15,9 @@
+ extern void cat_historico_definir_id(const char *imdb, const char *tipo, int visto);
+ #include <pthread.h>
+ #include <stdint.h>
++#include <stdatomic.h>
++static atomic_uint epRevisao;
++unsigned extras_ep_revisao(void) { return atomic_load(&epRevisao); }
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -749,7 +752,7 @@ static void *buscar(void *arg) {
+       }
+       free(corpo);
+       pthread_mutex_lock(&trava);
+-      if (!strcmp(id, idPedido)) nTemps = nt;
++      if (!strcmp(id, idPedido)) { nTemps = nt; atomic_fetch_add(&epRevisao,1); }
+       pthread_mutex_unlock(&trava);
+     }
+   }
+@@ -1330,6 +1333,7 @@ static void relacionadosEPublicar(const char *id, int serie, int temTrakt) {
+            nRel ? rede_url_log(rel[0].poster, lb, sizeof lb) : "(sem)"); }
+   fflush(stdout);
+   fflush(stdout);
++  atomic_fetch_add(&epRevisao,1);
+   marco("extras: publicados");
+ }
+ 
+@@ -1366,6 +1370,7 @@ static void *lacoParte(void *arg) {
+ // de buscar — e o que um pedido que NAO VAI BUSCAR tambem tem de fazer.
+ static void zerarPublicado(void) {
+   notaTrakt = votosTrakt = nComent = nRel = nTemps = nCol = 0;
++  atomic_fetch_add(&epRevisao,1);
+   colNome[0] = colCapa[0] = colFundo[0] = colSinopse[0] = 0;
+   nTrailer = fichaDur = nEstudio = 0;
+   fichaStatus[0] = fichaPaises[0] = fichaCert[0] = fichaLanc[0] = 0;
+diff --git a/src/extras.h b/src/extras.h
+index b1148206ab70d60b9fc5e710feffc76d95897bdf..c45e576acf626a08f56d3f967abc130c8630d115 100644
+--- a/src/extras.h
++++ b/src/extras.h
+@@ -111,6 +111,7 @@ int  extras_comentario_ep_nota(int i);
+ // Park na T12 tambem.
+ #define EX_TEMP_MAX 64
+ #define EX_EP_MAX   30
++unsigned extras_ep_revisao(void);
+ int  extras_n_temporadas(void);
+ int  extras_temporada_numero(int t);
+ int  extras_n_eps(int t);
+diff --git a/src/gfx.c b/src/gfx.c
+index 29a4bee1ca6c4dae8120d93050086a8ec3ddfa7d..4feb9d42dcad9cdf46109937ac1431a519c7af43 100644
+--- a/src/gfx.c
++++ b/src/gfx.c
+@@ -3520,6 +3520,7 @@ static void desfEncerrar(void) {
+ // regiao [x0, x0 + w/esc] x [y0, y0 + h/esc] do layout cobre o alvo inteiro.
+ static GLint miniFboAnt, miniVpAnt[4];
+ static int miniRecAnt;
++int gfx_mini_disponivel(void) { return !miniAtiva; }
+ int gfx_mini_alvo(GfxMini *m, int w, int h) {
+   GLint ant;
+   GLenum st;
+diff --git a/src/gfx.h b/src/gfx.h
+index af08eb33d750d77165891e451cd4e179a7db86b7..5abdcdcaf0df96feafd422ca7ec42f8fa1e822d1 100644
+--- a/src/gfx.h
++++ b/src/gfx.h
+@@ -423,6 +423,7 @@ void gfx_tamanho_alvo(int w, int h);
+ // (x0, y0) cai no canto de cima do alvo e cada unidade vale `esc` pixels.
+ // Nada de gfx_desfocado/gfx_ambiente/snapshot la dentro.
+ typedef struct { GLuint fbo, tex; int w, h; } GfxMini;
++int gfx_mini_disponivel(void);
+ int  gfx_mini_alvo(GfxMini *m, int w, int h);   // cria ou recria; 0 = sem FBO
+ void gfx_mini_comecar(GfxMini *m, float x0, float y0, float esc);
+ void gfx_mini_terminar(void);
+diff --git a/src/idioma_bg.h b/src/idioma_bg.h
+index 9fa31f54f4545dc10f5fa946697f44046fc8e5b1..69b0aadb911d62de068b141bad0796deac1edb5f 100644
+--- a/src/idioma_bg.h
++++ b/src/idioma_bg.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Показва бутона за трейлър на страницата на заглавието, когато трейлърът е известен."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Показва бутона за трейлър на страницата на заглавието, когато трейлърът е известен. На този телевизор трейлърът се пуска без звук."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Показва предишния и следващия кадър до миниатюрата с времето на всеки. Става ясно, че има кадър на всеки 10 секунди."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Показва или скрива този източник в реда с оценки на страницата на заглавието."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Показва кадри в секунда, най-лошия кадър и паметта в острова на часовника, обновявани на всеки 3 с. Минимален стои на реда с часа, Компактен добавя втори ред, а Голям отваря целия панел. Когато островът показва известие, измервателят се скрива и после се връща."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Показва код от 4 букви: въведете го на plex.tv/link от телефона. На телевизора не се пише нищо; тук остава само токен."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Часовник"),
+   T("Mostrar minha foto", "Показвай моята снимка"),
+   T("Mostrar na Busca", "Показвай в Търсене"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Показвай какво гледам наскоро"),
+   T("Mostrar opções avançadas", "Показване на разширените опции"),
+   T("Mostrar ou ocultar", "Покажи или скрий"),
+diff --git a/src/idioma_bs.h b/src/idioma_bs.h
+index 3bfcdbc1e5de3048a603e17d93d67fe9dda02518..ae1e443ba86eb9ba3490c5023acfd322c70f5821 100644
+--- a/src/idioma_bs.h
++++ b/src/idioma_bs.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Prikazuje dugme za trailer na stranici naslova kada je trailer poznat."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Prikazuje dugme za trailer na stranici naslova kada je trailer poznat. Na ovom TV-u trailer se reprodukuje bez zvuka."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Pokazuje prethodni i sljedeći kadar pored sličice, s vremenom svakog. Jasno je da postoji kadar svakih 10 sekundi."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Prikazuje ili sakriva ovaj izvor u redu ocjena na stranici naslova."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Prikazuje sličice u sekundi, najgoru sličicu i memoriju u ostrvu sata, osvježeno svake 3 s. Minimalno ostaje u redu sata, Kompaktno dodaje drugi red, a Veliko otvara cijeli panel. Kad ostrvo prikaže obavještenje, mjerač se povuče i poslije vrati."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Prikazuje kôd od 4 slova: unesite ga na plex.tv/link na telefonu. Na TV-u se ništa ne upisuje; ovdje ostaje samo token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Sat"),
+   T("Mostrar minha foto", "Prikaži moju fotografiju"),
+   T("Mostrar na Busca", "Prikaži u Pretrazi"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Prikaži šta sam nedavno gledao"),
+   T("Mostrar opções avançadas", "Prikaži napredne opcije"),
+   T("Mostrar ou ocultar", "Prikaži ili sakrij"),
+diff --git a/src/idioma_cs.h b/src/idioma_cs.h
+index ddbf7fb9a1c04b73bfdade5e49defc894d0c305d..b826c090aa0f8dba6c6cdf03a7cc20cbec538477 100644
+--- a/src/idioma_cs.h
++++ b/src/idioma_cs.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Zobrazí tlačítko upoutávky na stránce titulu, pokud je upoutávka známa."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Zobrazí tlačítko upoutávky na stránce titulu, pokud je upoutávka známa. Na této televizi se upoutávka přehrává bez zvuku."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Zobrazí předchozí a další snímek vedle náhledu s časem každého. Je tak jasné, že snímek je každých 10 sekund."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Zobrazí nebo skryje tento zdroj v řadě hodnocení na stránce titulu."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Ukazuje snímky za sekundu, nejhorší snímek a paměť v ostrůvku hodin, aktualizováno každé 3 s. Minimální zůstává na řádku času, Kompaktní přidá druhý řádek a Velký otevře celý panel. Když ostrůvek ukazuje upozornění, měřič se stáhne a pak se vrátí."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Zobrazí čtyřpísmenný kód: zadejte ho na plex.tv/link v telefonu. V televizi se nic nepíše; zůstane tu jen token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Hodiny"),
+   T("Mostrar minha foto", "Zobrazit moji fotku"),
+   T("Mostrar na Busca", "Zobrazit ve vyhledávání"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Zobrazit, co jsem nedávno sledoval(a)"),
+   T("Mostrar opções avançadas", "Zobrazit pokročilé možnosti"),
+   T("Mostrar ou ocultar", "Zobrazit nebo skrýt"),
+diff --git a/src/idioma_da.h b/src/idioma_da.h
+index eca4bbaa3b152732378042a9ea4fba7de6ec61a7..3229ca9ec95f30c97123e919f24676de98b33098 100644
+--- a/src/idioma_da.h
++++ b/src/idioma_da.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Viser trailerknappen på titelsiden, når der findes en kendt trailer."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Viser trailerknappen på titelsiden, når der findes en kendt trailer. På dette tv afspilles traileren uden lyd."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Viser det forrige og det næste billede ved siden af miniaturen, med tiden for hvert. Gør det tydeligt, at der er et billede hvert 10. sekund."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Viser eller skjuler denne kilde i rækken med bedømmelser på titelsiden."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Viser billeder pr. sekund, det værste billede og hukommelsen i urøen, opdateret hvert 3. s. Minimal står på tidslinjen, Kompakt tilføjer en ekstra linje, og Stor åbner hele panelet. Når øen viser en besked, træder måleren til side og kommer tilbage bagefter."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Viser en kode på 4 bogstaver: indtast den på plex.tv/link på telefonen. Der skrives intet på dette TV; her bliver kun et token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Ur"),
+   T("Mostrar minha foto", "Vis mit foto"),
+   T("Mostrar na Busca", "Vis i Søg"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Vis, hvad jeg har set for nylig"),
+   T("Mostrar opções avançadas", "Vis avancerede indstillinger"),
+   T("Mostrar ou ocultar", "Vis eller skjul"),
+diff --git a/src/idioma_de.h b/src/idioma_de.h
+index 6c30ef5e854c6e5b3dce98057ee57e3fc60cc845..30d99eb0a4d3140a798cd2c04814bff6827a8881 100644
+--- a/src/idioma_de.h
++++ b/src/idioma_de.h
+@@ -2417,6 +2417,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Zeigt den Trailer-Button auf der Titelseite, wenn ein Trailer bekannt ist."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Zeigt den Trailer-Button auf der Titelseite, wenn ein Trailer bekannt ist. Auf diesem Fernseher läuft der Trailer stumm."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Zeigt das vorherige und das nächste Bild neben dem Vorschaubild, mit der jeweiligen Zeit. So sieht man: ein Bild alle 10 Sekunden."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Zeigt oder verbirgt diese Quelle in der Bewertungsreihe der Titelseite."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Zeigt Bilder pro Sekunde, das schlechteste Bild und den Speicher in der Uhr-Insel, alle 3 s aktualisiert. Minimal bleibt in der Uhrzeile, Kompakt fügt eine zweite Zeile hinzu und Groß öffnet das ganze Panel. Zeigt die Insel einen Hinweis, tritt die Anzeige zurück und kommt danach wieder."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Zeigt einen Code aus 4 Buchstaben: auf plex.tv/link am Handy eingeben. Am Fernseher wird nichts getippt; hier bleibt nur ein Token."),
+@@ -2434,6 +2435,7 @@
+   T("Mostrar hora", "Uhr"),
+   T("Mostrar minha foto", "Mein Foto anzeigen"),
+   T("Mostrar na Busca", "In der Suche anzeigen"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Zuletzt Gesehenes anzeigen"),
+   T("Mostrar opções avançadas", "Erweiterte Optionen anzeigen"),
+   T("Mostrar ou ocultar", "Ein- oder ausblenden"),
+diff --git a/src/idioma_el.h b/src/idioma_el.h
+index aa2d45408ff6eb6e6a3b51c648f43862ea327833..a88f22b66fafc845a680b0581c3aced7d953e5bd 100644
+--- a/src/idioma_el.h
++++ b/src/idioma_el.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Δείχνει το κουμπί τρέιλερ στη σελίδα του τίτλου όταν υπάρχει γνωστό τρέιλερ."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Δείχνει το κουμπί τρέιλερ στη σελίδα του τίτλου όταν υπάρχει γνωστό τρέιλερ. Σε αυτή την τηλεόραση το τρέιλερ παίζει χωρίς ήχο."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Δείχνει το προηγούμενο και το επόμενο καρέ δίπλα στη μικρογραφία, με τον χρόνο του καθενός. Φαίνεται ότι υπάρχει ένα καρέ κάθε 10 δευτερόλεπτα."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Εμφανίζει ή κρύβει αυτή την πηγή στη σειρά βαθμολογιών της σελίδας τίτλου."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Δείχνει καρέ ανά δευτερόλεπτο, το χειρότερο καρέ και τη μνήμη μέσα στο νησί του ρολογιού, με ενημέρωση κάθε 3 δ. Το Ελάχιστο μένει στη γραμμή της ώρας, το Συμπαγές προσθέτει δεύτερη γραμμή και το Μεγάλο ανοίγει όλο τον πίνακα. Όταν το νησί δείχνει ειδοποίηση, ο μετρητής αποσύρεται και επιστρέφει μετά."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Εμφανίζει κωδικό 4 γραμμάτων: εισαγάγετέ τον στο plex.tv/link από το κινητό. Στην τηλεόραση δεν πληκτρολογείται τίποτα· εδώ μένει μόνο ένα διακριτικό."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Ρολόι"),
+   T("Mostrar minha foto", "Εμφάνιση της φωτογραφίας μου"),
+   T("Mostrar na Busca", "Εμφάνιση στην Αναζήτηση"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Εμφάνιση όσων είδα πρόσφατα"),
+   T("Mostrar opções avançadas", "Εμφάνιση σύνθετων επιλογών"),
+   T("Mostrar ou ocultar", "Εμφάνιση ή απόκρυψη"),
+diff --git a/src/idioma_es.h b/src/idioma_es.h
+index 0c908e273fe94ae2c2776440149a9ab94ad997de..d5adf31b8e5f22471df155cda43f3ba3abc00522 100644
+--- a/src/idioma_es.h
++++ b/src/idioma_es.h
+@@ -2417,6 +2417,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Muestra el botón de tráiler en la pantalla del título, cuando hay un tráiler conocido."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Muestra el botón de tráiler en la pantalla del título, cuando hay un tráiler conocido. En esta TV el tráiler se reproduce sin sonido."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Muestra el fotograma anterior y el siguiente junto a la miniatura, con su tiempo. Deja claro que hay uno cada 10 segundos."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Muestra u oculta esta fuente en la fila de valoraciones de la página del título."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Muestra fotogramas por segundo, el peor fotograma y la memoria dentro de la isla del reloj, actualizados cada 3 s. Mínimo queda en la línea de la hora, Compacto añade una segunda línea y Grande abre el panel completo. Cuando la isla muestra un aviso, el medidor se retira y vuelve después."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Muestra un código de 4 letras: introdúcelo en plex.tv/link desde el móvil. No se escribe nada en esta TV; aquí solo queda un token."),
+@@ -2434,6 +2435,7 @@
+   T("Mostrar hora", "Mostrar hora"),
+   T("Mostrar minha foto", "Mostrar mi foto"),
+   T("Mostrar na Busca", "Mostrar en Búsqueda"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Mostrar lo que vi recientemente"),
+   T("Mostrar opções avançadas", "Mostrar opciones avanzadas"),
+   T("Mostrar ou ocultar", "Mostrar u ocultar"),
+diff --git a/src/idioma_fr.h b/src/idioma_fr.h
+index 5cd63b66d593aaf606bb7fcee54aade7dd57fdf4..26ae658ffd5c145c9217eff877c8743ac0487701 100644
+--- a/src/idioma_fr.h
++++ b/src/idioma_fr.h
+@@ -2417,6 +2417,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Affiche le bouton de bande-annonce sur la page du titre, quand une bande-annonce est connue."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Affiche le bouton de bande-annonce sur la page du titre, quand une bande-annonce est connue. Sur cette TV, la bande-annonce est lue sans son."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Affiche l’image précédente et la suivante à côté de la miniature, avec leur temps. On voit qu’il y a une image toutes les 10 secondes."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Affiche ou masque cette source dans la rangée des notes de la page du titre."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Affiche les images par seconde, la pire image et la mémoire dans l’îlot de l’horloge, mis à jour toutes les 3 s. Minimal reste sur la ligne de l’heure, Compact ajoute une deuxième ligne et Grand ouvre le panneau complet. Quand l’îlot affiche une alerte, le compteur s’efface puis revient."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Affiche un code de 4 lettres : saisissez-le sur plex.tv/link depuis votre téléphone. Rien n’est saisi sur cette TV ; seul un jeton reste ici."),
+@@ -2434,6 +2435,7 @@
+   T("Mostrar hora", "Horloge"),
+   T("Mostrar minha foto", "Afficher ma photo"),
+   T("Mostrar na Busca", "Afficher dans la Recherche"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Afficher ce que j'ai regardé récemment"),
+   T("Mostrar opções avançadas", "Afficher les options avancées"),
+   T("Mostrar ou ocultar", "Afficher ou masquer"),
+diff --git a/src/idioma_hu.h b/src/idioma_hu.h
+index b649646dc5d76941476c400d9bef4f02106c82d9..3b0d1231cec8700a59206a1b3ebff7a8c13a3f2a 100644
+--- a/src/idioma_hu.h
++++ b/src/idioma_hu.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Megjeleníti az előzetes gombját a cím oldalán, ha ismert az előzetes."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Megjeleníti az előzetes gombját a cím oldalán, ha ismert az előzetes. Ezen a TV-n az előzetes hang nélkül játszik."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Megmutatja az előző és a következő képkockát a miniatűr mellett, mindegyik idejével. Jól látszik, hogy 10 másodpercenként van egy kép."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Megjeleníti vagy elrejti ezt a forrást a cím oldalának értékelési sorában."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Megmutatja a képkocka/másodpercet, a legrosszabb képkockát és a memóriát az óra szigetében, 3 másodpercenként frissítve. A Minimális az idő sorában marad, a Tömör egy második sort ad hozzá, a Nagy pedig a teljes panelt nyitja meg. Ha a sziget értesítést mutat, a mérő félrehúzódik, majd visszatér."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "4 betűs kódot mutat: add meg a plex.tv/link oldalon a telefonodon. A TV-n semmit nem kell beírni; itt csak egy token marad."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Óra"),
+   T("Mostrar minha foto", "Fotóm megjelenítése"),
+   T("Mostrar na Busca", "Megjelenítés a keresésben"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Nemrég nézettek megjelenítése"),
+   T("Mostrar opções avançadas", "Speciális beállítások megjelenítése"),
+   T("Mostrar ou ocultar", "Megjelenítés vagy elrejtés"),
+diff --git a/src/idioma_id.h b/src/idioma_id.h
+index e89be67e7e3793de1dd574dfcb7ab89502df1313..e155af365fcf1f47f3e49e64687df30ab042aa18 100644
+--- a/src/idioma_id.h
++++ b/src/idioma_id.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Menampilkan tombol trailer di halaman judul saat trailer diketahui."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Menampilkan tombol trailer di halaman judul saat trailer diketahui. Di TV ini trailer diputar tanpa suara."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Menampilkan bingkai sebelum dan sesudah di samping thumbnail, lengkap dengan waktunya. Jadi jelas ada satu bingkai setiap 10 detik."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Menampilkan atau menyembunyikan sumber ini di baris rating halaman judul."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Menampilkan frame per detik, frame terburuk, dan memori di dalam pulau jam, diperbarui setiap 3 dtk. Minimal tetap di baris jam, Ringkas menambah baris kedua, dan Besar membuka panel lengkap. Saat pulau menampilkan pemberitahuan, pengukur menyingkir lalu kembali."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Menampilkan kode 4 huruf: masukkan di plex.tv/link lewat ponsel. Tidak ada yang diketik di TV ini; hanya token yang tersimpan di sini."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Jam"),
+   T("Mostrar minha foto", "Tampilkan fotoku"),
+   T("Mostrar na Busca", "Tampilkan di Pencarian"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Tampilkan yang baru kutonton"),
+   T("Mostrar opções avançadas", "Tampilkan opsi lanjutan"),
+   T("Mostrar ou ocultar", "Tampilkan atau sembunyikan"),
+diff --git a/src/idioma_it.h b/src/idioma_it.h
+index 4b6db156a4efc8440daf725eb63c7d55794083c5..72a04396763c3e25e84fda118a98317530cbcb2b 100644
+--- a/src/idioma_it.h
++++ b/src/idioma_it.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Mostra il pulsante del trailer nella pagina del titolo quando è noto un trailer."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Mostra il pulsante del trailer nella pagina del titolo quando è noto un trailer. Su questa TV il trailer parte senza audio."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Mostra il fotogramma precedente e il successivo accanto alla miniatura, con il tempo di ciascuno. Chiarisce che c’è un fotogramma ogni 10 secondi."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Mostra o nasconde questa fonte nella riga dei voti della pagina del titolo."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Mostra fotogrammi al secondo, il fotogramma peggiore e la memoria nell’isola dell’orologio, aggiornati ogni 3 s. Minimo resta sulla riga dell’ora, Compatto aggiunge una seconda riga e Grande apre il pannello completo. Quando l’isola mostra un avviso, il misuratore si ritira e poi torna."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Mostra un codice di 4 lettere: inseriscilo su plex.tv/link dal telefono. Su questa TV non si digita nulla; qui resta solo un token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Mostra ora"),
+   T("Mostrar minha foto", "Mostra la mia foto"),
+   T("Mostrar na Busca", "Mostra nella Ricerca"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Mostra cosa ho guardato di recente"),
+   T("Mostrar opções avançadas", "Mostra le opzioni avanzate"),
+   T("Mostrar ou ocultar", "Mostra o nascondi"),
+diff --git a/src/idioma_ja.h b/src/idioma_ja.h
+index c51c236ac626a2ef31914ef1c2d2f14bedd4d01b..2bd715e9a52bffed5ad98b309082d2dff41b70ea 100644
+--- a/src/idioma_ja.h
++++ b/src/idioma_ja.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "既知の予告編がある場合に、作品ページに予告編ボタンを表示します。"),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "既知の予告編がある場合に、作品ページに予告編ボタンを表示します。このテレビでは予告編は音なしで再生されます。"),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "サムネイルの横に前後のフレームを、それぞれの時刻つきで表示します。10秒ごとに1フレームあることが分かります。"),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "作品ページの評価の行で、このソースを表示または非表示にします。"),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "時計のアイランド内にフレームレート、最悪フレーム、メモリを表示し、3 秒ごとに更新します。最小は時刻の行に、コンパクトは2行目を追加し、大は全パネルを開きます。アイランドに通知が出ている間は計測表示が引っ込み、その後戻ります。"),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "4文字のコードを表示します。スマートフォンで plex.tv/link に入力してください。このテレビでは何も入力せず、トークンだけが残ります。"),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "時計"),
+   T("Mostrar minha foto", "自分の写真を表示"),
+   T("Mostrar na Busca", "検索に表示"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "最近視聴した作品を表示"),
+   T("Mostrar opções avançadas", "詳細オプションを表示"),
+   T("Mostrar ou ocultar", "表示/非表示"),
+diff --git a/src/idioma_lt.h b/src/idioma_lt.h
+index 25adf72e5feb51db317f8b7d134b98de3bbf18cc..49523c460481d557217d8427a176ad6d7f5895f5 100644
+--- a/src/idioma_lt.h
++++ b/src/idioma_lt.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Rodo anonso mygtuką pavadinimo puslapyje, kai anonsas žinomas."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Rodo anonso mygtuką pavadinimo puslapyje, kai anonsas žinomas. Šiame televizoriuje anonsas groja be garso."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Šalia miniatiūros rodo ankstesnį ir kitą kadrą su jų laiku. Aišku, kad kadras yra kas 10 sekundžių."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Rodo arba slepia šį šaltinį pavadinimo puslapio įvertinimų eilutėje."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Rodo kadrus per sekundę, blogiausią kadrą ir atmintį laikrodžio saloje, atnaujinama kas 3 s. Minimalus lieka laiko eilutėje, Kompaktiškas prideda antrą eilutę, o Didelis atveria visą skydelį. Kai sala rodo pranešimą, matuoklis pasitraukia ir vėliau grįžta."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Parodo 4 raidžių kodą: įveskite jį plex.tv/link telefone. Televizoriuje nieko nerašoma; čia lieka tik prieigos raktas."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Laikrodis"),
+   T("Mostrar minha foto", "Rodyti mano nuotrauką"),
+   T("Mostrar na Busca", "Rodyti Paieškoje"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Rodyti, ką neseniai žiūrėjau"),
+   T("Mostrar opções avançadas", "Rodyti išplėstines parinktis"),
+   T("Mostrar ou ocultar", "Rodyti arba slėpti"),
+diff --git a/src/idioma_nl.h b/src/idioma_nl.h
+index c0f5100be2da70117098c7e5871f936d9cd4da86..388a94363efd5784513a3d916c891b07e23b8d70 100644
+--- a/src/idioma_nl.h
++++ b/src/idioma_nl.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Toont de trailerknop op de titelpagina als er een trailer bekend is."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Toont de trailerknop op de titelpagina als er een trailer bekend is. Op deze tv speelt de trailer zonder geluid af."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Toont het vorige en het volgende beeld naast de miniatuur, met de tijd van elk. Zo zie je dat er om de 10 seconden een beeld is."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Toont of verbergt deze bron in de beoordelingsrij van de titelpagina."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Toont beelden per seconde, het slechtste beeld en het geheugen in het klokeiland, elke 3 s bijgewerkt. Minimaal blijft op de tijdregel, Compact voegt een tweede regel toe en Groot opent het volledige paneel. Als het eiland een melding toont, wijkt de meter en komt daarna terug."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Toont een code van 4 letters: voer die op je telefoon in op plex.tv/link. Op deze tv wordt niets getypt; hier blijft alleen een token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Klok"),
+   T("Mostrar minha foto", "Mijn foto tonen"),
+   T("Mostrar na Busca", "Tonen in Zoeken"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Tonen wat ik onlangs heb bekeken"),
+   T("Mostrar opções avançadas", "Geavanceerde opties tonen"),
+   T("Mostrar ou ocultar", "Tonen of verbergen"),
+diff --git a/src/idioma_no.h b/src/idioma_no.h
+index 5152b6596d1f53bcbaf8bb8aa368ba87d555c109..0a10593670868f6c41e3698b8c74cbbbd404191d 100644
+--- a/src/idioma_no.h
++++ b/src/idioma_no.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Viser trailerknappen på tittelsiden når det finnes en kjent trailer."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Viser trailerknappen på tittelsiden når det finnes en kjent trailer. På denne TV-en spilles traileren av uten lyd."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Viser forrige og neste bilde ved siden av miniatyren, med tiden for hvert. Gjør det tydelig at det er ett bilde hvert 10. sekund."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Viser eller skjuler denne kilden i raden med vurderinger på tittelsiden."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Viser bilder per sekund, det verste bildet og minnet i klokkeøya, oppdatert hvert 3. s. Minimal står på klokkelinjen, Kompakt legger til en linje til, og Stor åpner hele panelet. Når øya viser et varsel, trekker måleren seg unna og kommer tilbake etterpå."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Viser en kode på 4 bokstaver: skriv den inn på plex.tv/link på mobilen. Ingenting skrives på denne TV-en; her blir bare et token igjen."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Klokke"),
+   T("Mostrar minha foto", "Vis bildet mitt"),
+   T("Mostrar na Busca", "Vis i Søk"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Vis det jeg har sett nylig"),
+   T("Mostrar opções avançadas", "Vis avanserte innstillinger"),
+   T("Mostrar ou ocultar", "Vis eller skjul"),
+diff --git a/src/idioma_pl.h b/src/idioma_pl.h
+index 7b59d52e27980eac2e55e0bae7d23170571d9be7..30d1275d9d44e3829d3dd2b830a4b00b3f20bac0 100644
+--- a/src/idioma_pl.h
++++ b/src/idioma_pl.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Pokazuje przycisk zwiastuna na stronie tytułu, gdy zwiastun jest znany."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Pokazuje przycisk zwiastuna na stronie tytułu, gdy zwiastun jest znany. Na tym telewizorze zwiastun odtwarza się bez dźwięku."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Pokazuje poprzednią i następną klatkę obok miniatury, z czasem każdej. Widać, że klatka jest co 10 sekund."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Pokazuje lub ukrywa to źródło w rzędzie ocen na stronie tytułu."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Pokazuje klatki na sekundę, najgorszą klatkę i pamięć w wyspie zegara, odświeżane co 3 s. Minimalny zostaje w wierszu godziny, Kompaktowy dodaje drugi wiersz, a Duży otwiera pełny panel. Gdy wyspa pokazuje powiadomienie, miernik się chowa i potem wraca."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Pokazuje 4-literowy kod: wpisz go na plex.tv/link na telefonie. Na telewizorze nic się nie wpisuje; zostaje tu tylko token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Zegar"),
+   T("Mostrar minha foto", "Pokaż moje zdjęcie"),
+   T("Mostrar na Busca", "Pokaż w wyszukiwaniu"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Pokaż, co ostatnio oglądałem"),
+   T("Mostrar opções avançadas", "Pokaż opcje zaawansowane"),
+   T("Mostrar ou ocultar", "Pokaż lub ukryj"),
+diff --git a/src/idioma_ptpt.h b/src/idioma_ptpt.h
+index 96a9bd63d38d6a02a3ed61b6bd72f5e221176a56..dab73061b67e1ffb41283a5567da1a5a18836c83 100644
+--- a/src/idioma_ptpt.h
++++ b/src/idioma_ptpt.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Mostra o botão de trailer no ecrã do título, quando existe um trailer conhecido."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Mostra o botão de trailer no ecrã do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Mostra o fotograma anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um fotograma a cada 10 segundos."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Mostra ou esconde esta fonte na fila de classificações da página do título."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Mostra fotogramas por segundo, o pior fotograma e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Compacto ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor recolhe-se e volta depois."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Mostra um código de 4 letras: introduza-o em plex.tv/link no telemóvel. Nada é escrito nesta TV; só um token fica aqui."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Mostrar hora"),
+   T("Mostrar minha foto", "Mostrar a minha foto"),
+   T("Mostrar na Busca", "Mostrar na Pesquisa"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Mostrar o que vi recentemente"),
+   T("Mostrar opções avançadas", "Mostrar opções avançadas"),
+   T("Mostrar ou ocultar", "Mostrar ou ocultar"),
+diff --git a/src/idioma_ro.h b/src/idioma_ro.h
+index bc0d11b14257ff1bc4d9fa84e4879a1347648dc0..3dbc2561a61d66c2ad9c75ce006eb2ae66e6c349 100644
+--- a/src/idioma_ro.h
++++ b/src/idioma_ro.h
+@@ -2417,6 +2417,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Arată butonul de trailer pe pagina titlului, când există un trailer cunoscut."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Arată butonul de trailer pe pagina titlului, când există un trailer cunoscut. Pe acest televizor trailerul rulează fără sunet."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Arată cadrul anterior și cel următor lângă miniatură, cu timpul fiecăruia. Se vede clar că există un cadru la fiecare 10 secunde."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Arată sau ascunde această sursă în rândul de note de pe pagina titlului."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Arată cadrele pe secundă, cel mai slab cadru și memoria în insula ceasului, actualizate la fiecare 3 s. Minim stă pe linia orei, Compact adaugă un al doilea rând, iar Mare deschide panoul complet. Când insula arată o notificare, indicatorul se retrage și revine după."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Afișează un cod de 4 litere: introdu-l la plex.tv/link de pe telefon. Nu se scrie nimic pe acest TV; aici rămâne doar un token."),
+@@ -2434,6 +2435,7 @@
+   T("Mostrar hora", "Arată ora"),
+   T("Mostrar minha foto", "Arată fotografia mea"),
+   T("Mostrar na Busca", "Arată în Căutare"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Arată ce am vizionat recent"),
+   T("Mostrar opções avançadas", "Arată opțiunile avansate"),
+   T("Mostrar ou ocultar", "Arată sau ascunde"),
+diff --git a/src/idioma_ru.h b/src/idioma_ru.h
+index e1a1ba8dbed59078688d0b3c505f733bd6aa5be0..dfb23d437d60e904a392778f02ad6f88909e49b4 100644
+--- a/src/idioma_ru.h
++++ b/src/idioma_ru.h
+@@ -2417,6 +2417,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Показывает кнопку трейлера на странице названия, когда известен трейлер."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Показывает кнопку трейлера на странице названия, когда известен трейлер. На этом телевизоре трейлер воспроизводится без звука."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Показывает предыдущий и следующий кадры рядом с миниатюрой и время каждого. Видно, что кадр есть каждые 10 секунд."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Показывает или скрывает этот источник в ряду оценок на странице названия."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Показывает кадры в секунду, худший кадр и память в острове часов, обновляя каждые 3 с. Минимальный — в строке времени, Компактный добавляет вторую строку, Большой открывает полную панель. Когда остров показывает уведомление, счётчик прячется и потом возвращается."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Показывает код из 4 букв: введите его на plex.tv/link на телефоне. На телевизоре ничего не вводится; здесь остаётся только токен."),
+@@ -2434,6 +2435,7 @@
+   T("Mostrar hora", "Часы"),
+   T("Mostrar minha foto", "Показывать моё фото"),
+   T("Mostrar na Busca", "Показывать в поиске"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Показывать, что я недавно смотрел"),
+   T("Mostrar opções avançadas", "Показывать дополнительные параметры"),
+   T("Mostrar ou ocultar", "Показать или скрыть"),
+diff --git a/src/idioma_sk.h b/src/idioma_sk.h
+index b7abe3cefc89e1010f605d5086be2788644cc010..0c4afac0eee35ab1f85c587502e8b7ffb86dbd52 100644
+--- a/src/idioma_sk.h
++++ b/src/idioma_sk.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Zobrazí tlačidlo upútavky na stránke titulu, ak je upútavka známa."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Zobrazí tlačidlo upútavky na stránke titulu, ak je upútavka známa. Na tomto televízore sa upútavka prehráva bez zvuku."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Zobrazí predchádzajúci a nasledujúci snímok vedľa náhľadu s časom každého. Je tak jasné, že snímka je každých 10 sekúnd."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Zobrazí alebo skryje tento zdroj v riadku hodnotení na stránke titulu."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Ukazuje snímky za sekundu, najhorší snímok a pamäť v ostrovčeku hodín, aktualizované každé 3 s. Minimálny zostáva v riadku času, Kompaktný pridá druhý riadok a Veľký otvorí celý panel. Keď ostrovček ukazuje upozornenie, merač sa stiahne a potom sa vráti."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Zobrazí štvorpísmenový kód: zadajte ho na plex.tv/link v telefóne. V televízore sa nič nepíše; ostane tu len token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Hodiny"),
+   T("Mostrar minha foto", "Zobraziť moju fotku"),
+   T("Mostrar na Busca", "Zobraziť vo vyhľadávaní"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Zobraziť, čo som nedávno pozeral(a)"),
+   T("Mostrar opções avançadas", "Zobraziť pokročilé možnosti"),
+   T("Mostrar ou ocultar", "Zobraziť alebo skryť"),
+diff --git a/src/idioma_sl.h b/src/idioma_sl.h
+index f73bedaa6de1b4a07204b8c3fcab40f47de781bf..ef62dd5bb90bcabdba3f4d3f1e3da7bd27b00fc8 100644
+--- a/src/idioma_sl.h
++++ b/src/idioma_sl.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Prikaže gumb za napovednik na strani naslova, kadar je napovednik znan."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Prikaže gumb za napovednik na strani naslova, kadar je napovednik znan. Na tem televizorju se napovednik predvaja brez zvoka."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Poleg sličice prikaže prejšnji in naslednji kader s časom vsakega. Jasno je, da je kader na vsakih 10 sekund."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Prikaže ali skrije ta vir v vrstici ocen na strani naslova."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Prikazuje sličice na sekundo, najslabšo sličico in pomnilnik v otoku ure, osveženo vsake 3 s. Minimalno ostane v vrstici ure, Strnjeno doda drugo vrstico, Veliko pa odpre celotno ploščo. Ko otok prikaže obvestilo, se merilnik umakne in se nato vrne."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Prikaže 4-črkovno kodo: vnesite jo na plex.tv/link na telefonu. Na televizorju se nič ne vpisuje; tu ostane le žeton."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Ura"),
+   T("Mostrar minha foto", "Pokaži mojo fotografijo"),
+   T("Mostrar na Busca", "Prikaži v iskanju"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Pokaži, kaj sem nedavno gledal(a)"),
+   T("Mostrar opções avançadas", "Pokaži napredne možnosti"),
+   T("Mostrar ou ocultar", "Pokaži ali skrij"),
+diff --git a/src/idioma_sr.h b/src/idioma_sr.h
+index 3810436c00a69cb258d29e39294511de46c51d89..3eaa591885224164f14db90b3f40d804072f4a74 100644
+--- a/src/idioma_sr.h
++++ b/src/idioma_sr.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Prikazuje dugme za trejler na stranici naslova kada je trejler poznat."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Prikazuje dugme za trejler na stranici naslova kada je trejler poznat. Na ovom TV-u trejler se reprodukuje bez zvuka."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Pokazuje prethodni i sledeći kadar pored sličice, sa vremenom svakog. Jasno je da postoji kadar na svakih 10 sekundi."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Prikazuje ili sakriva ovaj izvor u redu ocena na stranici naslova."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Prikazuje sličice u sekundi, najgoru sličicu i memoriju u ostrvu sata, osveženo svake 3 s. Minimalno ostaje u redu sata, Kompaktno dodaje drugi red, a Veliko otvara ceo panel. Kad ostrvo prikaže obaveštenje, merač se povuče i posle vrati."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Prikazuje kôd od 4 slova: unesite ga na plex.tv/link na telefonu. Na TV-u se ništa ne upisuje; ovde ostaje samo token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Sat"),
+   T("Mostrar minha foto", "Prikaži moju fotografiju"),
+   T("Mostrar na Busca", "Prikaži u Pretrazi"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Prikaži šta sam nedavno gledao"),
+   T("Mostrar opções avançadas", "Prikaži napredne opcije"),
+   T("Mostrar ou ocultar", "Prikaži ili sakrij"),
+diff --git a/src/idioma_sv.h b/src/idioma_sv.h
+index 950af1c5632905bfe5a3c16b9686ef26af49641c..cdcb426cdb13bc61842736acbcade98f168d2fee 100644
+--- a/src/idioma_sv.h
++++ b/src/idioma_sv.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Visar trailerknappen på titelsidan när det finns en känd trailer."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Visar trailerknappen på titelsidan när det finns en känd trailer. På den här TV:n spelas trailern utan ljud."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Visar föregående och nästa bildruta bredvid miniatyren, med tiden för var och en. Visar tydligt att det finns en bildruta var 10:e sekund."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Visar eller döljer den här källan i betygsraden på titelsidan."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Visar bilder per sekund, den sämsta bildrutan och minnet i klockön, uppdaterat var 3:e s. Minimal ligger på klockraden, Kompakt lägger till en andra rad och Stor öppnar hela panelen. När ön visar ett meddelande drar sig mätaren undan och kommer tillbaka efteråt."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Visar en kod med 4 bokstäver: ange den på plex.tv/link på mobilen. Inget skrivs på den här TV:n; här finns bara en token kvar."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Klocka"),
+   T("Mostrar minha foto", "Visa mitt foto"),
+   T("Mostrar na Busca", "Visa i Sök"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Visa vad jag nyligen har sett"),
+   T("Mostrar opções avançadas", "Visa avancerade alternativ"),
+   T("Mostrar ou ocultar", "Visa eller dölj"),
+diff --git a/src/idioma_tab.h b/src/idioma_tab.h
+index e9282d31fd866517c8f5545b8aefc38979524f2d..0a7c87517487e06715b3ccf40443e2bfe2c3cf59 100644
+--- a/src/idioma_tab.h
++++ b/src/idioma_tab.h
+@@ -2417,6 +2417,7 @@
+   { "Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Shows the trailer button on the title page when a trailer is known." },
+   { "Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Shows the trailer button on the title page when a trailer is known. On this TV the trailer plays muted." },
+   { "Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Shows the previous and next frames beside the thumbnail, with the time of each. Makes it clear there is one frame every 10 seconds." },
++  { "Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available." },
+   { "Mostra ou esconde esta fonte na fileira de notas da página do título.", "Shows or hides this source in the ratings row of the title page." },
+   { "Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Shows frames per second, the worst frame and memory inside the clock island, updated every 3 s. Minimal stays on the clock line, Compact adds a second line and Large opens the full panel. When the island shows a notice, the meter steps aside and comes back afterwards." },
+   { "Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Shows a 4-letter code: enter it at plex.tv/link on your phone. Nothing is typed on this TV; only a token stays here." },
+@@ -2434,6 +2435,7 @@
+   { "Mostrar hora", "Show clock" },
+   { "Mostrar minha foto", "Show my photo" },
+   { "Mostrar na Busca", "Show in Search" },
++  { "Mostrar números da temporada", "Show Season by the Numbers" },
+   { "Mostrar o que assisti recentemente", "Show what I watched recently" },
+   { "Mostrar opções avançadas", "Show advanced options" },
+   { "Mostrar ou ocultar", "Show or hide" },
+diff --git a/src/idioma_tr.h b/src/idioma_tr.h
+index bbc06ebad5318353edbeea4e7468170c83d08bb4..435650cb4f671f70ae2c4edb00d9becc061df083 100644
+--- a/src/idioma_tr.h
++++ b/src/idioma_tr.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Fragman biliniyorsa başlık sayfasında fragman düğmesini gösterir."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Fragman biliniyorsa başlık sayfasında fragman düğmesini gösterir. Bu TV'de fragman sessiz oynar."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Küçük resmin yanında önceki ve sonraki kareyi, her birinin zamanıyla gösterir. Her 10 saniyede bir kare olduğunu netleştirir."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Bu kaynağı başlık sayfasının puan satırında gösterir veya gizler."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Saniyedeki kare sayısını, en kötü kareyi ve belleği saat adasında gösterir, 3 sn'de bir güncellenir. Minimum saat satırında kalır, Kompakt ikinci bir satır ekler, Büyük tam paneli açar. Ada bir bildirim gösterdiğinde ölçer çekilir ve sonra geri gelir."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "4 harflik bir kod gösterir: telefonunuzdan plex.tv/link adresine girin. Bu TV’de hiçbir şey yazılmaz; burada yalnızca bir belirteç kalır."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Saat"),
+   T("Mostrar minha foto", "Fotoğrafımı göster"),
+   T("Mostrar na Busca", "Aramada göster"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Son izlediklerimi göster"),
+   T("Mostrar opções avançadas", "Gelişmiş seçenekleri göster"),
+   T("Mostrar ou ocultar", "Göster veya gizle"),
+diff --git a/src/idioma_uk.h b/src/idioma_uk.h
+index ee1c8a0fe6cb0aca9072e2afa4dc5e85b7a4c504..b9538b6dc13d7673a06add8014b1b4ea79a613df 100644
+--- a/src/idioma_uk.h
++++ b/src/idioma_uk.h
+@@ -2417,6 +2417,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Показує кнопку трейлера на сторінці назви, коли відомий трейлер."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Показує кнопку трейлера на сторінці назви, коли відомий трейлер. На цьому телевізорі трейлер відтворюється без звуку."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Показує попередній і наступний кадри біля мініатюри з часом кожного. Видно, що кадр є кожні 10 секунд."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Показує або ховає це джерело в ряду оцінок на сторінці назви."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Показує кадри за секунду, найгірший кадр і пам’ять в острові годинника, оновлюючи кожні 3 с. Мінімальний — у рядку часу, Компактний додає другий рядок, Великий відкриває повну панель. Коли острів показує сповіщення, лічильник ховається і потім повертається."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Показує код із 4 літер: введіть його на plex.tv/link на телефоні. На телевізорі нічого не вводиться; тут лишається тільки токен."),
+@@ -2434,6 +2435,7 @@
+   T("Mostrar hora", "Годинник"),
+   T("Mostrar minha foto", "Показувати моє фото"),
+   T("Mostrar na Busca", "Показувати в пошуку"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Показувати, що я нещодавно дивився"),
+   T("Mostrar opções avançadas", "Показувати додаткові параметри"),
+   T("Mostrar ou ocultar", "Показати або сховати"),
+diff --git a/src/idioma_vi.h b/src/idioma_vi.h
+index 01219b9aed0d1a7fb6244b6325340da27663a856..cd07d9feee35caedaf6de111c079207053e0f1d0 100644
+--- a/src/idioma_vi.h
++++ b/src/idioma_vi.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "Hiển thị nút trailer trên trang tựa phim khi có trailer."),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "Hiển thị nút trailer trên trang tựa phim khi có trailer. Trên TV này trailer phát không tiếng."),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "Hiện khung hình trước và sau cạnh ảnh thu nhỏ, kèm thời gian của từng khung. Cho thấy rõ cứ 10 giây có một khung."),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "Hiện hoặc ẩn nguồn này ở hàng điểm đánh giá của trang tựa phim."),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "Hiển thị khung hình mỗi giây, khung hình tệ nhất và bộ nhớ trong đảo đồng hồ, cập nhật mỗi 3 giây. Tối giản nằm trên dòng giờ, Gọn thêm một dòng thứ hai và Lớn mở bảng đầy đủ. Khi đảo hiển thị thông báo, đồng hồ đo tạm ẩn rồi quay lại."),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "Hiện mã gồm 4 chữ cái: nhập tại plex.tv/link trên điện thoại. Không gõ gì trên TV này; ở đây chỉ còn lại một token."),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "Đồng hồ"),
+   T("Mostrar minha foto", "Hiển thị ảnh của tôi"),
+   T("Mostrar na Busca", "Hiển thị trong Tìm kiếm"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "Hiển thị nội dung tôi đã xem gần đây"),
+   T("Mostrar opções avançadas", "Hiện tùy chọn nâng cao"),
+   T("Mostrar ou ocultar", "Hiện hoặc ẩn"),
+diff --git a/src/idioma_zhcn.h b/src/idioma_zhcn.h
+index 88b5335d905dc2dffe0a3e55526d9c8447a46287..d4fb28e19c461ed0485060759d5902778bc9c3e4 100644
+--- a/src/idioma_zhcn.h
++++ b/src/idioma_zhcn.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "当有已知预告片时，在作品页显示预告片按钮。"),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "当有已知预告片时，在作品页显示预告片按钮。在这台电视上，预告片静音播放。"),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "在缩略图旁显示前后两帧及各自的时间，可以看出每 10 秒一帧。"),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "在作品页的评分行中显示或隐藏此来源。"),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "在时钟岛内显示每秒帧数、最差帧和内存，每 3 秒更新。最小显示在时间行上，紧凑增加第二行，大则打开完整面板。岛上显示通知时，监测器会暂时收起，随后恢复。"),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "显示 4 个字母的代码：请在手机上打开 plex.tv/link 输入。这台电视上不需要输入任何内容，只保留令牌。"),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "时钟"),
+   T("Mostrar minha foto", "显示我的头像"),
+   T("Mostrar na Busca", "在搜索中显示"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "显示我最近观看的内容"),
+   T("Mostrar opções avançadas", "显示高级选项"),
+   T("Mostrar ou ocultar", "显示或隐藏"),
+diff --git a/src/idioma_zhtw.h b/src/idioma_zhtw.h
+index 3ebbf256a4a15d8eb7abd43593423fddff84cf07..a361ead8f22a4c8852c62c3cd89f752f5c6e1085 100644
+--- a/src/idioma_zhtw.h
++++ b/src/idioma_zhtw.h
+@@ -2418,6 +2418,7 @@
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido.", "當有已知預告片時，在作品頁顯示預告片按鈕。"),
+   T("Mostra o botão de trailer na tela do título, quando existe um trailer conhecido. Nesta TV o trailer toca sem som.", "當有已知預告片時，在作品頁顯示預告片按鈕。在這台電視上，預告片靜音播放。"),
+   T("Mostra o quadro anterior e o seguinte ao lado da miniatura, com o tempo de cada um. Deixa claro que há um quadro a cada 10 segundos.", "在縮圖旁顯示前後兩幀及各自的時間，可以看出每 10 秒一幀。"),
++  T("Mostra os gráficos da temporada. Desligado remove a seção, a navegação e as consultas exclusivas dos gráficos. Os episódios continuam disponíveis.", "Shows season charts. Off removes the section, navigation and chart-only requests. Episode information remains available."),
+   T("Mostra ou esconde esta fonte na fileira de notas da página do título.", "在作品頁的評分列中顯示或隱藏此來源。"),
+   T("Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.", "在時鐘島內顯示每秒影格數、最差影格和記憶體，每 3 秒更新。最小顯示在時間列上，精簡增加第二列，大則開啟完整面板。島上顯示通知時，監測器會暫時收起，之後恢復。"),
+   T("Mostra um código de 4 letras: digite em plex.tv/link no celular. Nada é digitado nesta TV; só um token fica aqui.", "顯示 4 個字母的代碼：請在手機上開啟 plex.tv/link 輸入。這台電視上不需要輸入任何內容，只保留權杖。"),
+@@ -2435,6 +2436,7 @@
+   T("Mostrar hora", "時鐘"),
+   T("Mostrar minha foto", "顯示我的大頭貼"),
+   T("Mostrar na Busca", "在搜尋中顯示"),
++  T("Mostrar números da temporada", "Show Season by the Numbers"),
+   T("Mostrar o que assisti recentemente", "顯示我最近觀看的內容"),
+   T("Mostrar opções avançadas", "顯示進階選項"),
+   T("Mostrar ou ocultar", "顯示或隱藏"),
+diff --git a/src/notasui.c b/src/notasui.c
+index b3712bfccb37f4a6eeae03ce88b10cf38172e371..eef70fa69630c92b4ddb35ff658853424be951f7 100644
+--- a/src/notasui.c
++++ b/src/notasui.c
+@@ -1,4 +1,8 @@
+ #include "notasui.h"
++#include "chartcache.h"
++static ChartCache mapaCache;
++static int mapaAssando;
++static struct { float gx,gy,cw,ch,gap; int nt; } mapaGeo;
+ #include "ajustes.h"
+ #include "badges.h"
+ #include "idioma.h"
+@@ -305,7 +309,7 @@ void notasui_cor_rampa(int d, float *r, float *g, float *b) {
+ void notasui_painel(GfxRect r, float raio, float a) { painel(r, raio, a); }
+ 
+ static TextoGate gateFontes;
+-void notasui_reiniciar(void) { textogate_reiniciar(&gateFontes); }
++void notasui_reiniciar(void) { textogate_reiniciar(&gateFontes); chartcache_clear(&mapaCache); }
+ 
+ typedef struct {
+   int nFontes;
+@@ -535,14 +539,14 @@ float notasui_fontes_desenhar(const NotasSecao *s, float x, float y, float a,
+ #define MAPA_ROT_W   60.0f
+ #define MAPA_GAP      6.0f
+ 
+-void notasui_mapa_card(const NotasSecao *s, GfxRect c, int selT, int selI, float aa) {
++static void mapaDireto(const NotasSecao *s, GfxRect c, int selT, int selI, float aa) {
+   int t, i, nt = 0, maxEps = 0;
+   int melhorT = -1, melhorI = -1, piorT = -1, piorI = -1, melhor = 0, pior = 1000;
+   float px = c.x + MAPA_PAD, pw = c.w - MAPA_PAD * 2.0f, py = c.y + 30.0f;
+   float gx, gw, gy, gh, cw, ch;
+   TxtLinha lt;
+   if (c.y >= NV_TELA_H || c.y + c.h <= 0.0f) return;
+-  painel(c, CARD_RAIO, aa);
++  if (!mapaAssando) painel(c, CARD_RAIO, aa);
+   lt = texto(TXT_G26B, "Notas por episódio", 245);
+   txt_desenhar_alpha(lt, px, py, aa);
+   py += (float)lt.h + 6.0f;
+@@ -579,6 +583,7 @@ void notasui_mapa_card(const NotasSecao *s, GfxRect c, int selT, int selI, float
+       if (ntD < 1) ntD = 1;
+     }
+     { float gap = ch < 20.0f ? 3.0f : MAPA_GAP;
++      if (mapaAssando) { mapaGeo.gx=gx; mapaGeo.gy=gy; mapaGeo.cw=cw; mapaGeo.ch=ch; mapaGeo.gap=gap; mapaGeo.nt=ntD; }
+       int numDentro = cw >= 40.0f && ch >= 28.0f;
+       int rotTodos = ch >= 18.0f;
+       for (t = 0; t < ntD; t++) {
+@@ -643,3 +648,21 @@ void notasui_mapa_card(const NotasSecao *s, GfxRect c, int selT, int selI, float
+                     pw, 26.0f, aa, 2);
+   }
+ }
++
++static void mapaPintar(GfxRect r, const void *data) {
++  mapaGeo.nt=0; mapaAssando=1;
++  mapaDireto(data,r,-1,-1,1);
++  mapaAssando=0;
++}
++void notasui_mapa_card(const NotasSecao *s,GfxRect c,int selT,int selI,float a) {
++  if (c.y>=NV_TELA_H || c.y+c.h<=0) return;
++  uint64_t key=s ? ((uint64_t)s->revisao<<16) ^ (unsigned)s->nTemp : 0;
++  painel(c,CARD_RAIO,a);
++  if (!chartcache_draw(&mapaCache,c,key,mapaPintar,s,a)) { mapaAssando=1; mapaDireto(s,c,selT,selI,a); mapaAssando=0; return; }
++  /* The cached content has transparency; the live material goes underneath.
++     Draw order is handled by the caller below, before the content. */
++  if (s && selT>=0 && selT<mapaGeo.nt && selI>=0 && selI<s->nEps(selT)) {
++    GfxRect q={c.x+mapaGeo.gx+(mapaGeo.cw+MAPA_GAP)*selI,c.y+mapaGeo.gy+(mapaGeo.ch+mapaGeo.gap)*selT,mapaGeo.cw,mapaGeo.ch};
++    gfx_anel_fora(q,(q.h<20?4.0f:10.0f)/q.h,2,2,1,1,1,.85f*a);
++  }
++}
+diff --git a/src/notasui.h b/src/notasui.h
+index 4468975694d7d33c4e5d85da3ebaa66bea3ba694..85814eb1318f7e83f4c208e657a7dbc23f7db671 100644
+--- a/src/notasui.h
++++ b/src/notasui.h
+@@ -31,6 +31,7 @@ float notasui_desenhar_linha(const NotasPlano *p, float x, float yc, float a);
+ typedef struct {
+   int cru[EX_NFONTES];           // extras_nota(f) (IMDb ja com a reserva do catalogo)
+   // Notas por episodio (serie). nTemp 0 = sem grade. Decimos: 72 = 7.2.
++  unsigned revisao;
+   int nTemp;
+   int (*tempNum)(int t);
+   int (*nEps)(int t);
+diff --git a/src/serieaud.c b/src/serieaud.c
+index ca320b370c6b654089c605e922e3cc333fc160e1..14d975493968af2faa2b493c053de4cb7fe77f8d 100644
+--- a/src/serieaud.c
++++ b/src/serieaud.c
+@@ -54,6 +54,12 @@
+ // grafico rasterizado para textura seria mais uma arte de tela grande
+ // disputando o mesmo espaco por uma coisa que e geometria pura.
+ #include "serieaud.h"
++#include "chartcache.h"
++#include <stdatomic.h>
++static atomic_uint saRevision;
++static ChartCache retCache,digCache;
++static int saBaking,saNoPanel;
++static struct { float gx,top,bot,step; int lo,hi,valid; } retGeo;
+ #include "trakt.h"
+ #include "rede.h"
+ #include "js.h"
+@@ -284,6 +290,7 @@ static void *buscar(void *arg) {
+     bruto = dados_ler(nomeC);            /* I/O FORA da trava do modulo */
+     pthread_mutex_lock(&trava);
+     achados = aplicarCache(bruto, imdb, temp);
++    atomic_fetch_add(&saRevision,1);
+     pthread_mutex_unlock(&trava);
+     free(bruto);
+     if (achados >= nEps && achados > 0) {
+@@ -331,7 +338,7 @@ static void *buscar(void *arg) {
+       free(corpo);
+       pthread_mutex_lock(&trava);
+       if (!strcmp(imdb, imdbPedido) && temp == tempPedida) {
+-        playsSerie = pl; watchersSerie = wt;
++        playsSerie = pl; watchersSerie = wt; atomic_fetch_add(&saRevision,1);
+       }
+       pthread_mutex_unlock(&trava);
+     }
+@@ -366,6 +373,7 @@ static void *buscar(void *arg) {
+       eps[i].plays = d.plays;
+       eps[i].comentarios = d.comentarios;
+       eps[i].votos = d.votos;
++      atomic_fetch_add(&saRevision,1);
+     }
+     pthread_mutex_unlock(&trava);
+   }
+@@ -404,6 +412,7 @@ void serieaud_abrir(const char *imdb, int temporada, const int *epNum,
+   nEps = n;
+   selecionado = 0;
+   playsSerie = watchersSerie = -1;
++  atomic_fetch_add(&saRevision,1);
+   snprintf(imdbAtual, sizeof imdbAtual, "%s", id);
+   temporadaAtual = temporada;
+   snprintf(imdbPedido, sizeof imdbPedido, "%s", id);
+@@ -750,7 +759,7 @@ static int eixoBruto(int i, int eixo) {
+ #define BL_CEL_GAP    6.0f
+ 
+ static TextoGate gateBloco;
+-void serieaud_bloco_reiniciar(void) { textogate_reiniciar(&gateBloco); }
++void serieaud_bloco_reiniciar(void) { textogate_reiniciar(&gateBloco); chartcache_clear(&retCache); chartcache_clear(&digCache); notasui_reiniciar(); }
+ float serieaud_bloco_altura(void) { return BL_CAB + BL_RET_H + BL_GAP + BL_DIG_H; }
+ 
+ // Frase de estado de um cartao sem dado: tres situacoes diferentes, e dizer
+@@ -801,7 +810,7 @@ static void cardRetencao(GfxRect c, const SaBloco *b, int usar, float a) {
+   int i, ult = -1, lo = 0x7fffffff, hi = -1, queda = 0, quedaI = -1;
+   char txt[160], s1[32], s2[32];
+   TxtLinha lt = txt_linha(TXT_G26B, "Retenção", 245, 245, 245, 255);
+-  notasui_painel(c, BL_RAIO, a);
++  if (!saBaking && !saNoPanel) notasui_painel(c, BL_RAIO, a);
+   txt_desenhar_alpha(lt, px, py, a);
+   py += (float)lt.h + 14.0f;
+   if (!usar || !serieaud_pronto()) { mensagem(px, py, pw, estadoVazio(b->aberto), a); return; }
+@@ -842,6 +851,7 @@ static void cardRetencao(GfxRect c, const SaBloco *b, int usar, float a) {
+   gx = px + 12.0f; gw = pw - 24.0f;
+   top = py + 30.0f; bot = c.y + c.h - 30.0f - 30.0f;
+   passo = nEps > 1 ? gw / (float)(nEps - 1) : gw;
++  if (saBaking) { retGeo.gx=gx; retGeo.top=top; retGeo.bot=bot; retGeo.step=passo; retGeo.lo=lo; retGeo.hi=hi; retGeo.valid=1; }
+ #define BL_RY(v) (top + (bot - top) * (float)(hi - (v)) / (float)(hi - lo))
+   gfx_cor((GfxRect){ gx, bot, gw, 1.0f }, 0.0f, 1, 1, 1, 0.12f * a);
+   // O episodio em foco: um fio vertical claro, o mesmo episodio dos outros dois cartoes.
+@@ -930,8 +940,8 @@ static void cardDigital(GfxRect c, const SaBloco *b, int usar, float a) {
+   TxtLinha lt;
+   snprintf(txt, sizeof txt, i18n("Impressão digital · E%d"), b->selEp);
+   lt = txt_linha(TXT_G26B, txt, 245, 245, 245, 255);
+-  notasui_painel(c, BL_RAIO, a);
+-  txt_desenhar_alpha(lt, px, py, a);
++  if (!saBaking && !saNoPanel) notasui_painel(c, BL_RAIO, a);
++  if (!saBaking) txt_desenhar_alpha(lt, px, py, a);
+   py += (float)lt.h + 14.0f;
+   if (usar)
+     for (i = 0; i < nEps; i++)
+@@ -1021,7 +1031,10 @@ static void cardDigital(GfxRect c, const SaBloco *b, int usar, float a) {
+   }
+ }
+ 
++static void cachedRet(GfxRect c,const SaBloco *b,int usar,float a);
++static void cachedDig(GfxRect c,const SaBloco *b,int usar,float a);
+ float serieaud_bloco(float x, float y, const SaBloco *b, float a) {
++  if (!ajustes_season_numbers()) return 0;
+   float alt = serieaud_bloco_altura(), aa, y0 = y + BL_CAB;
+   int pend0 = txt_pendentes, aberto, usar;
+   char txt[200];
+@@ -1047,8 +1060,8 @@ float serieaud_bloco(float x, float y, const SaBloco *b, float a) {
+       ls = txt_linha_corta(TXT_DET_META2, txt, 180, 184, 192, 255, NV_TELA_W - 2.0f * x);
+       txt_desenhar_alpha(ls, x, y + (float)l.h + 8.0f, aa);
+     } }
+-  cardRetencao((GfxRect){ x, y0, BL_ESQ_W, BL_RET_H }, b, usar, aa);
+-  cardDigital((GfxRect){ x, y0 + BL_RET_H + BL_GAP, BL_ESQ_W, BL_DIG_H }, b, usar, aa);
++  cachedRet((GfxRect){ x, y0, BL_ESQ_W, BL_RET_H }, b, usar, aa);
++  cachedDig((GfxRect){ x, y0 + BL_RET_H + BL_GAP, BL_ESQ_W, BL_DIG_H }, b, usar, aa);
+   notasui_mapa_card(b->notas,
+                     (GfxRect){ x + BL_ESQ_W + BL_GAP, y0,
+                                NV_TELA_W - 2.0f * x - BL_ESQ_W - BL_GAP,
+@@ -1057,3 +1070,69 @@ float serieaud_bloco(float x, float y, const SaBloco *b, float a) {
+   if (!aberto) textogate_passo(&gateBloco, txt_pendentes - pend0, SDL_GetTicks());
+   return alt;
+ }
++
++typedef struct { SaBloco block; int use; } SaPaint;
++static void paintRet(GfxRect r,const void *data) {
++  const SaPaint *p=data; saBaking=1; retGeo.valid=0;
++  cardRetencao(r,&p->block,p->use,1); saBaking=0;
++}
++static void paintDig(GfxRect r,const void *data) {
++  const SaPaint *p=data; saBaking=1;
++  cardDigital(r,&p->block,p->use,1); saBaking=0;
++}
++static uint64_t saKey(const SaBloco *b,int usar) {
++  return ((uint64_t)atomic_load(&saRevision)<<16) ^ ((unsigned)b->temporada<<2) ^ (unsigned)usar ^ ((unsigned)serieaud_carregando()<<1);
++}
++static void cachedRet(GfxRect c,const SaBloco *b,int usar,float a) {
++  if (c.y>=NV_TELA_H || c.y+c.h<=0) return;
++  SaPaint p={*b,usar}; p.block.sel=-1;
++  notasui_painel(c,BL_RAIO,a);
++  if (!chartcache_draw(&retCache,c,saKey(b,usar),paintRet,&p,a)) {
++    saNoPanel=1; cardRetencao(c,b,usar,a); saNoPanel=0; return;
++  }
++  if (retGeo.valid && usar && dentro(b->sel) && serieaud_retencao(b->sel)>=0) {
++    float xs=c.x+retGeo.gx+retGeo.step*b->sel;
++    float ys=c.y+retGeo.top+(retGeo.bot-retGeo.top)*(retGeo.hi-serieaud_retencao(b->sel))/(float)(retGeo.hi-retGeo.lo);
++    gfx_cor((GfxRect){xs-1,c.y+retGeo.top-10,2,retGeo.bot-retGeo.top+10},0,1,1,1,.18f*a);
++    ponto(xs,ys,14,1,1,1,a);
++    char text[16]; snprintf(text,sizeof text,"E%d",eps[b->sel].ep);
++    TxtLinha l=txt_linha(TXT_LOG_18B,text,245,245,245,255);
++    txt_desenhar_alpha(l,xs-l.w*.5f,c.y+retGeo.bot+10,a);
++  }
++}
++static void cachedDig(GfxRect c,const SaBloco *b,int usar,float a) {
++  if (c.y>=NV_TELA_H || c.y+c.h<=0) return;
++  SaPaint p={*b,usar}; p.block.sel=-1; p.block.selEp=0;
++  notasui_painel(c,BL_RAIO,a);
++  if (!chartcache_draw(&digCache,c,saKey(b,usar),paintDig,&p,a)) {
++    saNoPanel=1; cardDigital(c,b,usar,a); saNoPanel=0; return;
++  }
++  char text[160]; float px=c.x+BL_PAD,pw=c.w-BL_PAD*2,py=c.y+30;
++  snprintf(text,sizeof text,i18n("Impressão digital · E%d"),b->selEp);
++  TxtLinha title=txt_linha(TXT_G26B,text,245,245,245,255);
++  txt_desenhar_alpha(title,px,py,a); py+=title.h+14+30;
++  if (!usar || !dentro(b->sel)) return;
++  float gx=px+130,gw=pw-130,cw=(gw-BL_CEL_GAP*(nEps-1))/(float)nEps;
++  if (cw>90) cw=90;
++  snprintf(text,sizeof text,"%d",eps[b->sel].ep);
++  TxtLinha number=txt_linha(TXT_LOG_18B,text,245,245,245,255);
++  txt_desenhar_alpha(number,gx+(cw+BL_CEL_GAP)*b->sel+cw*.5f-number.w*.5f,py-30,a);
++  for (int e=0;e<SA_NEIXOS;e++) {
++    GfxRect q={gx+(cw+BL_CEL_GAP)*b->sel,py+(BL_CEL_H+BL_CEL_GAP)*e,cw,BL_CEL_H};
++    gfx_anel_fora(q,raioPx(q.w,q.h,9),2,2,1,1,1,.85f*a);
++  }
++  py+=(BL_CEL_H+BL_CEL_GAP)*SA_NEIXOS-BL_CEL_GAP+18;
++  if (eps[b->sel].tem) {
++    char q[32]; curto(q,sizeof q,eps[b->sel].watchers);
++    snprintf(text,sizeof text,i18n("E%d · %s pessoas marcaram no Trakt"),eps[b->sel].ep,q);
++  } else snprintf(text,sizeof text,i18n("E%d · sem dados de audiência"),eps[b->sel].ep);
++  TxtLinha l=txt_linha_corta(TXT_ILHA_SUB,text,210,214,222,255,pw);
++  txt_desenhar_alpha(l,px,py,a);
++  /* Selected-episode descriptions are cheap and independent of chart
++     geometry; retain the original best/most-discussed annotations. */
++  int mr=-1,mc=-1,com=0; const char *sup=NULL;
++  for (int i=0;i<nEps;i++) if (eps[i].tem) { com++; if(mr<0||serieaud_rever(i)>serieaud_rever(mr))mr=i; if(mc<0||eixoBruto(i,SA_CONV)>eixoBruto(mc,SA_CONV))mc=i; }
++  if(com>=3&&eps[b->sel].tem) { if(mr==b->sel&&mc==b->sel)sup="O mais revisto e o mais comentado da temporada."; else if(mr==b->sel)sup="O mais revisto da temporada."; else if(mc==b->sel)sup="O mais comentado da temporada."; }
++  if(!sup&&serieaud_melhor()==b->sel) { int count=0; for(int i=0;i<nEps;i++)count+=eps[i].nota>0; if(count>=3)sup="A maior nota da temporada."; }
++  if(sup)txt_desenhar_alpha(txt_linha_corta(TXT_ILHA_SUB,sup,150,153,162,255,pw),px,py+l.h+4,a);
++}
+diff --git a/tests/chartcache.c b/tests/chartcache.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..53864752a0aa178423fc4e900932dcfaddec51e5
+--- /dev/null
++++ b/tests/chartcache.c
+@@ -0,0 +1,35 @@
++#include "chartcache.h"
++#include "text.h"
++#include <SDL2/SDL.h>
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++static int paints,available=1,language,font,pending;
++int txt_pendentes,gfx_n_rect,gfx_n_bind;
++float gfx_opacidade_grupo=1;
++int ajustes_idioma(void) { return language; }
++int ajustes_medidor_desempenho(void) { return 0; }
++TxtFamilia txt_fonte_interface(void) { return (TxtFamilia)font; }
++Uint64 SDLCALL SDL_GetPerformanceCounter(void) { return 100; }
++Uint64 SDLCALL SDL_GetPerformanceFrequency(void) { return 1000; }
++int gfx_mini_disponivel(void) { return available; }
++int gfx_mini_alvo(GfxMini *m,int w,int h) { m->w=w;m->h=h;m->fbo=m->tex=1;return 1; }
++void gfx_mini_liberar(GfxMini *m) { memset(m,0,sizeof *m); }
++void gfx_mini_comecar(GfxMini *m,float x,float y,float s) { (void)m;(void)x;(void)y;(void)s; }
++void gfx_mini_terminar(void) {}
++void gfx_mini_desenhar(const GfxMini *m,GfxRect r,float radius,float a) { (void)m;(void)r;(void)radius;(void)a; }
++static void paint(GfxRect r,const void *p) { (void)r;(void)p;paints++;txt_pendentes+=pending; }
++int main(void) {
++ ChartCache c={0},other={0};GfxRect r={0,0,900,800};
++ assert(chartcache_draw(&c,r,1,paint,NULL,1)); assert(paints==1);
++ r.y=-200; assert(chartcache_draw(&c,r,1,paint,NULL,.5f));assert(paints==1);
++ assert(chartcache_draw(&c,r,2,paint,NULL,1));assert(paints==2);
++ language++;chartcache_draw(&c,r,2,paint,NULL,1);assert(paints==3);
++ font++;chartcache_draw(&c,r,2,paint,NULL,1);assert(paints==4);
++ assert(!chartcache_draw(&other,(GfxRect){0,0,1200,800},1,paint,NULL,1));
++ chartcache_clear(&c);assert(chartcache_draw(&other,(GfxRect){0,0,1200,800},1,paint,NULL,1));
++ chartcache_clear(&other);available=0;assert(!chartcache_draw(&c,r,1,paint,NULL,1));available=1;
++ pending=1;chartcache_draw(&c,r,8,paint,NULL,1);assert(!c.valid);
++ pending=0;int before=paints;chartcache_draw(&c,r,8,paint,NULL,1);assert(c.valid&&paints==before+1);
++ chartcache_clear(&c);puts("chart cache: scrolling, revision/font/language invalidation, pending text, nesting and memory budget passed");
++}

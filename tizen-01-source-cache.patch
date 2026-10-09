@@ -1,0 +1,1350 @@
+diff --git a/src/addons.c b/src/addons.c
+index 5c6e1fcf030c56b561e9971b598efbf063db0887..f87a0a59ff584f75efda25ca890c8db02797df89 100644
+--- a/src/addons.c
++++ b/src/addons.c
+@@ -1883,7 +1883,7 @@ static void *fioFontes(void *u) {
+     prazoS = prazoDoAddon(c, i);
+     corpo = pedidoCoube(i, nv_addon_url(url, sizeof url, addon[i].base, "/stream/%s/%s.json",
+                                     t1, idUrl), sizeof url) && idUrl[0]
+-            ? rede_baixar(url, prazoS) : NULL;
++            ? rede_baixar_com(url, prazoS, (const char *const[]){ "User-Agent: AIO-Compatible/NuvioNativeLegacy", NULL }) : NULL;
+     achados = NULL; n = 0;
+     if (corpo) n = stream_extrair(corpo, addon[i].nome, &achados);
+     // CANAL AO VIVO TEM DOIS NOMES DE TIPO NO PROTOCOLO, e addons diferentes
+@@ -1913,7 +1913,7 @@ static void *fioFontes(void *u) {
+       char *alt;
+       alt = pedidoCoube(i, nv_addon_url(url, sizeof url, addon[i].base, "/stream/%s/%s.json",
+                                     t2, idUrl), sizeof url) && idUrl[0]
+-            ? rede_baixar(url, prazoS) : NULL;
++            ? rede_baixar_com(url, prazoS, (const char *const[]){ "User-Agent: AIO-Compatible/NuvioNativeLegacy", NULL }) : NULL;
+       if (alt) {
+         Stream *a2 = NULL;
+         int n2 = stream_extrair(alt, addon[i].nome, &a2);
+diff --git a/src/ajustes.c b/src/ajustes.c
+index e3dd784a131357355c31b24a8a3fb29f2b699ab1..077835b35ef21007e12c4fd93ce1a9c0bf84bc77 100644
+--- a/src/ajustes.c
++++ b/src/ajustes.c
+@@ -477,6 +477,7 @@ typedef enum {
+   AJ_FONTE_CONFERIR_VARIAS,
+   AJ_FONTE_PREPARAR,
+   AJ_MDB_RASTREAR, AJ_MDB_ESTADO, // append: persisted setting indices stay stable
++  AJ_CACHE_ONLY,
+   AJ_N
+ } OpcaoId;
+ 
+@@ -1293,6 +1294,7 @@ static const Opcao OPCOES[AJ_N] = {
+   ESC("Preparar a fonte ao abrir o título", V_LIGA, 2),   // local: fontePrepararLocal
+   ESC("Rastrear reprodução no MDBList", V_LIGA, 2),
+   LER("Estado do rastreamento MDBList"),
++  ESC("Somente fontes em cache por padrão", V_LIGA, 2),
+ };
+ 
+ // Nome de cada opcao no arquivo. O formato era POSICIONAL — uma linha por
+@@ -1513,6 +1515,7 @@ static const char *CHAVE[] = {
+   "fonteConferirVariasLocal",
+   "fontePrepararLocal",
+   "mdblistScrobbleLocal", "-mdblistScrobbleEstado",
++  "cachedOnlyDefaultLocal",
+ };
+ // QUATRO VETORES PARALELOS indexados pelo mesmo enum AJ_*: OPCOES, CHAVE,
+ // valor e as secoes. OPCOES ja e declarado [AJ_N], e `valor` aceita inicializacao
+@@ -1827,6 +1830,7 @@ int ajustes_fonte_prazo_ms(void) {
+ int ajustes_fonte_tocar_conferindo(void) { return lig(AJ_FONTE_TOCAR_CONFERINDO); }
+ int ajustes_fonte_aquecer(void) { return lig(AJ_FONTE_AQUECER); }
+ int ajustes_fonte_conferir_varias(void) { return lig(AJ_FONTE_CONFERIR_VARIAS); }
++int ajustes_cached_only(void) { return lig(AJ_CACHE_ONLY); }
+ int ajustes_fonte_preparar(void) { return lig(AJ_FONTE_PREPARAR); }
+ int ajustes_fonte_escopo(void)      { int v = valor[AJ_FONTE_ESCOPO]; return v < 0 || v > 2 ? 0 : v; }
+ int ajustes_fonte_regex_modo(void)  { int v = valor[AJ_FONTE_REGEX]; return v < 0 || v > 2 ? 0 : v; }
+@@ -3805,6 +3809,7 @@ static int somenteDesteAparelho(int op) {
+     case AJ_FONTE_TOCAR_CONFERINDO:
+     case AJ_FONTE_AQUECER:
+     case AJ_FONTE_CONFERIR_VARIAS:
++    case AJ_CACHE_ONLY:
+     case AJ_FONTE_PREPARAR:
+     case AJ_FONTE_TEXTO:
+     case AJ_SALVOS_DEST:
+@@ -4964,6 +4969,7 @@ static const char *ajudaOpcao(int op) {
+     case AJ_FONTE_TOCAR_CONFERINDO: return "Abre o player com a primeira fonte do automático na hora em que a conferência dela começa, em vez de esperar o resultado. Se a conferência reprovar a fonte, volta a esperar e segue para a próxima, sem baixar a qualidade. Torrent e fonte que precisa ser resolvida antes seguem o caminho de sempre.";
+     case AJ_FONTE_AQUECER: return "Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.";
+     case AJ_FONTE_CONFERIR_VARIAS: return "Confere até 3 fontes já prontas no debrid ao mesmo tempo, em vez de uma por vez, e toca a melhor que servir. Fontes que ainda não estão prontas seguem uma por vez, sem baixar nada a mais. Só vale com a Fonte automática em Melhor fonte.";
++    case AJ_CACHE_ONLY: return "Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.";
+     case AJ_FONTE_PREPARAR: return "Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.";
+     case AJ_FONTE_REPOR: return "Quantas outras fontes o automático tenta quando a escolhida não abre. Cada tentativa pode adicionar um arquivo na sua conta de debrid.";
+ 
+@@ -6911,7 +6917,7 @@ static AjPreview familiaPreviaOpcao(int op) {
+     case AJ_DV_MKV:
+     case AJ_LEG_FORCADA:
+     case AJ_AUD_LINGUA: case AJ_PAUSA_OVERLAY: case AJ_PLR_CLASSIF: case AJ_FONTE_MANUAL:
+-    case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_TEXTO: case AJ_SELOS_CORES: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR:
++    case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_TEXTO: case AJ_SELOS_CORES: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR: case AJ_CACHE_ONLY:
+     case AJ_FONTE_PRIORIDADE: case AJ_FONTE_HDR:
+     case AJ_SELOS_PACOTE:
+     case AJ_REACAO_CREDITOS:
+diff --git a/src/ajustes.h b/src/ajustes.h
+index f95def340fcb91063da6b309527c1c5f1b2a0663..c5eb697ded7effb0583dd79f464f3017e35eb1d7 100644
+--- a/src/ajustes.h
++++ b/src/ajustes.h
+@@ -616,4 +616,5 @@ int         ajustes_rapido_passo(int op, int dir);
+ int ajustes_shot_valor(const char *chave, int v);   // capturas: opcao pela chave
+ #endif
+ 
++int ajustes_cached_only(void);
+ #endif
+diff --git a/src/ajustes_ux_dados.inc b/src/ajustes_ux_dados.inc
+index 3c7a486680d20ad897353b8a9898196424572852..660694462c4de72ec19148a18a3f6e82c638eca1 100644
+--- a/src/ajustes_ux_dados.inc
++++ b/src/ajustes_ux_dados.inc
+@@ -177,7 +177,7 @@ static const char *uxSinonimos(int op) {
+     case AJ_TRAILER_ZOOM_TPK: return "trailer zoom barras pretas tarja ampliar recorte tela preta samsung experimental";
+     case AJ_FONTE_ORDEM: case AJ_FONTE_ORDEM_USO:
+       return "ordem ordenar subir descer prioridade add-on addon plugin primeiro desempate estrita auto-play autoplay automatico order priority tie strict";
+-    case AJ_FONTE_PREPARAR: return "preparar fonte ao abrir titulo antecipar resolver antecipado play instantaneo inicio rapido debrid painel arquivo prepare source ahead instant start";
++    case AJ_FONTE_PREPARAR: case AJ_CACHE_ONLY: return "preparar fonte ao abrir titulo antecipar resolver antecipado play instantaneo inicio rapido debrid painel arquivo prepare source ahead instant start";
+     case AJ_FONTE_CONFERIR_VARIAS: return "conferir varias fontes ao mesmo tempo paralelo paralela simultaneo verificar verificacao automatico rapido inicio debrid painel arquivos parallel check several sources speed";
+     case AJ_FONTE_AQUECER: return "aquecer conexoes conexao rede dns tls antecipar preparar abrir titulo inicio rapido lento demora warm preconnect connection network speed";
+     case AJ_FONTE_TOCAR_CONFERINDO: return "tocar enquanto confere verificar verificacao abrir player mais rapido rapido inicio demora lento comecar play paralelo start fast verify while playing speed";
+@@ -236,7 +236,7 @@ static const char *uxCaminhoAntigo(int op) {
+     case AJ_MDB_RASTREAR: case AJ_MDB_ESTADO:
+     case AJ_HIST_CONTA: case AJ_SOCIAL:
+       return "Contas e serviços";
+-    case AJ_FONTE_MANUAL: case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_PRIORIDADE: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR:
++    case AJ_FONTE_MANUAL: case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_PRIORIDADE: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR: case AJ_CACHE_ONLY:
+     case AJ_FONTE_HDR: case AJ_FONTE_PRAZO: case AJ_FONTE_TEXTO: case AJ_TAM_MAX: case AJ_TAM_MIN:
+     case AJ_FONTE_ESCOPO: case AJ_FONTE_ADDONS_PERM: case AJ_FONTE_PLUGINS_PERM: case AJ_FONTE_OUTROS:
+     case AJ_FONTE_REGEX: case AJ_FONTE_REGEX_PADRAO: case AJ_FONTE_REGEX_MODELO:
+diff --git a/src/ajustes_ux_padrao.inc b/src/ajustes_ux_padrao.inc
+index a632d6b85ca205e22ca9fb3661ccc637db7599c0..b849815c94d5e78b3d0b917724eacff6454cb7ff 100644
+--- a/src/ajustes_ux_padrao.inc
++++ b/src/ajustes_ux_padrao.inc
+@@ -249,3 +249,4 @@
+   0, /* check several sources at once (2.0.2; only sources ready on the debrid): Ligado */
+   1, /* prepare the source when a title opens (2.0.2): Desligado */
+   1, 0, /* MDBList playback: opt-in, status (read-only) */
++  0, /* Cached Only default: ON, local device preference */
+diff --git a/src/ajustes_ux_secoes.inc b/src/ajustes_ux_secoes.inc
+index 7ed4ed4a6f2e1445d2dfd86cafa6d65a2080cacb..627d9311588ce609c9bebf85b6c9b290ecce819d 100644
+--- a/src/ajustes_ux_secoes.inc
++++ b/src/ajustes_ux_secoes.inc
+@@ -194,7 +194,7 @@ static int ajCenaSecao(int op) {
+       return AJC_TRL_SOM;
+     case AJ_VIDRO: case AJ_VIDRO_CONTORNO: case AJ_VIDRO_OPAC: case AJ_VIDRO_FOSCO: return AJC_APA_VIDRO;
+     case AJ_ANIM: case AJ_RELOGIO: case AJ_RELOGIO_12H: return AJC_APA_MOVIMENTO;
+-    case AJ_FONTE_MANUAL: case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_PRIORIDADE: case AJ_FONTE_HDR: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR:
++    case AJ_FONTE_MANUAL: case AJ_FONTE_AUTO: case AJ_FONTE_REPOR: case AJ_FONTE_PRIORIDADE: case AJ_FONTE_HDR: case AJ_FONTE_TOCAR_CONFERINDO: case AJ_FONTE_AQUECER: case AJ_FONTE_CONFERIR_VARIAS: case AJ_FONTE_PREPARAR: case AJ_CACHE_ONLY:
+     case AJ_FONTE_PRAZO: case AJ_FONTE_TEXTO: case AJ_TAM_MAX: case AJ_TAM_MIN: case AJ_SELOS_CORES: case AJ_SELOS_PACOTE: case AJ_SELOS_PACOTE_ADD:
+     case AJ_FONTE_ESCOPO: case AJ_FONTE_ADDONS_PERM: case AJ_FONTE_PLUGINS_PERM: case AJ_FONTE_OUTROS:
+     case AJ_FONTE_REGEX: case AJ_FONTE_REGEX_PADRAO: case AJ_FONTE_REGEX_MODELO:
+diff --git a/src/ajustes_ux_tela.inc b/src/ajustes_ux_tela.inc
+index 592831f4b7d12a4ea6af865ad99aaf634a939a25..13bfecf934ecce09920f8ca653403eb9904340fe 100644
+--- a/src/ajustes_ux_tela.inc
++++ b/src/ajustes_ux_tela.inc
+@@ -99,7 +99,7 @@ static const Item TELA[] = {
+       OPC(AJ_ADDONS), OPC(AJ_PLUGINS), OPC(AJ_ADDONS_PRINCIPAL), OPC(AJ_BUSCA_CINEMETA),
+     ROT("Escolha da fonte"),
+       OPC(AJ_FONTE_MANUAL), OPC(AJ_FONTE_AUTO), OPC(AJ_FONTE_REPOR),
+-      OPC(AJ_FONTE_PRIORIDADE), OPC(AJ_FONTE_HDR), OPC(AJ_FONTE_PRAZO), OPC(AJ_FONTE_TOCAR_CONFERINDO), OPC(AJ_FONTE_AQUECER), OPC(AJ_FONTE_CONFERIR_VARIAS), OPC(AJ_FONTE_PREPARAR),
++      OPC(AJ_FONTE_PRIORIDADE), OPC(AJ_FONTE_HDR), OPC(AJ_FONTE_PRAZO), OPC(AJ_FONTE_TOCAR_CONFERINDO), OPC(AJ_FONTE_AQUECER), OPC(AJ_FONTE_CONFERIR_VARIAS), OPC(AJ_FONTE_PREPARAR), OPC(AJ_CACHE_ONLY),
+       // #202: o "Auto-play streams" do oficial (fonteregra.h).
+       OPC(AJ_FONTE_ESCOPO), OPC(AJ_FONTE_ADDONS_PERM), OPC(AJ_FONTE_PLUGINS_PERM),
+       OPC(AJ_FONTE_ORDEM), OPC(AJ_FONTE_ORDEM_USO),
+diff --git a/src/idioma_bg.h b/src/idioma_bg.h
+index 48d31dff9ba4693eaf6dd44f89a563dfd4ff5c73..9fa31f54f4545dc10f5fa946697f44046fc8e5b1 100644
+--- a/src/idioma_bg.h
++++ b/src/idioma_bg.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Година: най-новите първо"),
+   T("Antes", "Преди"),
+   T("Antes de começar", "Преди да започнете"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Когато се отвори страницата на заглавие и когато пристигнат източниците, предварително отваря връзката с debrid и със сървърите на първите източници, за да не губи Пускането това време. Не разрешава нито една връзка и не създава файл в debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Когато се отвори страницата на заглавие, вече избира и подготвя първия автоматичен източник, за да се отвори Пускането веднага. Това добавя файла в панела на debrid, дори да не го гледате."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "При превъртане напред или назад миниатюра показва сцената. Нужен е вашият безплатен ключ за Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Кешът за превъртане е изключен: дискът е пълен"),
+   T("Cache de seek desligado: pouco espaço livre", "Кешът за превъртане е изключен: малко свободно място"),
+   T("Cache de seek em disco", "Кеш за превъртане на диска"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Студен кеш"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Всяка добавка показва дали има каталог с канали, включително и изключените."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Тук всеки канал има до 18 с във всеки режим на плейъра, за да се отвори, след като мрежата отговори."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Няма активни редове"),
+   T("Nenhuma fileira conhecida ainda", "Още няма известни редове"),
+   T("Nenhuma fileira ligada", "Няма включени редове"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Няма източник с директна връзка за измерване."),
+   T("Nenhuma fonte deste canal abriu agora", "В момента нито един източник за този канал не се отвори"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Няма наличен директен източник. Използвайте Презареди, за да опитате отново."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Звук на трейлъра в акцента"),
+   T("Som e imagem", "Звук и образ"),
+   T("Sombra", "Сянка"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Изследват се манифести и източници"),
+   T("Sondando manifestos, catálogos e fontes", "Изследват се манифести, каталози и източници"),
+   T("Sorte guiada", "Насочен шанс"),
+diff --git a/src/idioma_bs.h b/src/idioma_bs.h
+index 9b90908949f31060ec5704d0dffbf1595f6110d9..3bfcdbc1e5de3048a603e17d93d67fe9dda02518 100644
+--- a/src/idioma_bs.h
++++ b/src/idioma_bs.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Godina: najnovije prvo"),
+   T("Antes", "Prije"),
+   T("Antes de começar", "Prije nego što počnete"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Kad se otvori stranica naslova i kad stignu izvori, unaprijed otvara vezu s debridom i s hostovima prvih izvora, da Reprodukcija ne gubi to vrijeme. Ne razrješava nijednu vezu i ne stvara datoteke u debridu."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Kad se otvori stranica naslova, već bira i priprema prvi automatski izvor da se Reprodukcija otvori odmah. Ovo dodaje datoteku u debrid panel čak i ako je ne gledate."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Pri premotavanju naprijed ili nazad sličica pokazuje scenu. Potreban je tvoj besplatni Seekr ključ."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Keš premotavanja isključen: disk je pun"),
+   T("Cache de seek desligado: pouco espaço livre", "Keš premotavanja isključen: malo slobodnog prostora"),
+   T("Cache de seek em disco", "Keš premotavanja na disku"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Hladna keš memorija"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Svaki dodatak navodi ima li katalog kanala, uključujući i isključene."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Svaki kanal ovdje ima do 18 s u svakom načinu plejera da se otvori, nakon što mreža odgovori."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Nema aktivnih redova"),
+   T("Nenhuma fileira conhecida ainda", "Još nema poznatih redova"),
+   T("Nenhuma fileira ligada", "Nema uključenih redova"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nema izvora s direktnom vezom za mjerenje."),
+   T("Nenhuma fonte deste canal abriu agora", "Trenutno se nijedan izvor za ovaj kanal nije otvorio"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nema dostupnog direktnog izvora. Koristite Ponovo učitaj da pokušate ponovo."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Zvuk trejlera u istaknutom"),
+   T("Som e imagem", "Zvuk i slika"),
+   T("Sombra", "Sjena"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Ispituju se manifesti i izvori"),
+   T("Sondando manifestos, catálogos e fontes", "Ispituju se manifesti, katalozi i izvori"),
+   T("Sorte guiada", "Vođena sreća"),
+diff --git a/src/idioma_cs.h b/src/idioma_cs.h
+index 08b56885adcc65c31315d052a9aeeb603ad96634..ddbf7fb9a1c04b73bfdade5e49defc894d0c305d 100644
+--- a/src/idioma_cs.h
++++ b/src/idioma_cs.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Rok: nejnovější první"),
+   T("Antes", "Před"),
+   T("Antes de começar", "Než začnete"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Při otevření stránky titulu a když dorazí zdroje, předem otevře připojení k debridu a k hostitelům prvních zdrojů, aby Přehrát neztrácelo tento čas. Nevyřeší žádný odkaz a nevytvoří žádný soubor v debridu."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Při otevření stránky titulu už vybere a připraví první automatický zdroj, aby se Přehrát otevřelo okamžitě. Tím se soubor přidá do panelu debridu, i když se na něj nepodíváte."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Při posunu vpřed nebo vzad ukáže náhled scénu. Potřebuješ svůj bezplatný klíč Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Mezipaměť přetáčení vypnuta: disk je plný"),
+   T("Cache de seek desligado: pouco espaço livre", "Mezipaměť přetáčení vypnuta: málo volného místa"),
+   T("Cache de seek em disco", "Mezipaměť přetáčení na disku"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Studená mezipaměť"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Každý doplněk uvádí, zda má katalog kanálů, včetně vypnutých."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Každý kanál má tady v každém režimu přehrávače až 18 s na otevření, poté co síť odpoví."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Žádné aktivní řady"),
+   T("Nenhuma fileira conhecida ainda", "Zatím nejsou známé žádné řady"),
+   T("Nenhuma fileira ligada", "Nejsou zapnuté žádné řady"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Žádný zdroj s přímým odkazem k měření."),
+   T("Nenhuma fonte deste canal abriu agora", "Žádný zdroj pro tento kanál se teď neotevřel"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Není dostupný žádný přímý zdroj. Zkuste to znovu tlačítkem Načíst znovu."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Zvuk traileru v úvodu"),
+   T("Som e imagem", "Zvuk a obraz"),
+   T("Sombra", "Stín"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Zkoumají se manifesty a zdroje"),
+   T("Sondando manifestos, catálogos e fontes", "Zkoumají se manifesty, katalogy a zdroje"),
+   T("Sorte guiada", "Řízené štěstí"),
+diff --git a/src/idioma_da.h b/src/idioma_da.h
+index d260af509efcee9df9bc6b6c08f26da9c5241ccd..eca4bbaa3b152732378042a9ea4fba7de6ec61a7 100644
+--- a/src/idioma_da.h
++++ b/src/idioma_da.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "År: nyeste først"),
+   T("Antes", "Før"),
+   T("Antes de começar", "Før du går i gang"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Når en titelside åbnes, og når kilderne kommer, åbnes forbindelsen til debrid og til værterne for de første kilder på forhånd, så Afspil ikke mister den tid. Ingen link opløses, og der oprettes ingen fil i debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Når titelsiden åbnes, vælges og forberedes den første automatiske kilde allerede, så Afspil starter med det samme. Det lægger filen i dit debrid-panel, selv om du ikke ser den."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Når du spoler frem eller tilbage, viser en miniature scenen. Det kræver din gratis Seekr-nøgle."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Spolecache fra: disken er fuld"),
+   T("Cache de seek desligado: pouco espaço livre", "Spolecache fra: lidt ledig plads"),
+   T("Cache de seek em disco", "Spolecache på disk"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Kold cache"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Hvert add-on angiver, om det har en kanalkatalog, også de slåede fra."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Hver kanal får her op til 18 s i hver afspillertilstand til at åbne, efter at netværket har svaret."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Ingen aktive rækker"),
+   T("Nenhuma fileira conhecida ainda", "Ingen kendte rækker endnu"),
+   T("Nenhuma fileira ligada", "Ingen rækker aktiveret"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Ingen kilde med et direkte link at måle."),
+   T("Nenhuma fonte deste canal abriu agora", "Ingen kilde til denne kanal blev åbnet lige nu"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Ingen direkte kilde tilgængelig. Brug Genindlæs for at prøve igen."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Lyd på trailer i toppen"),
+   T("Som e imagem", "Lyd og billede"),
+   T("Sombra", "Skygge"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Undersøger manifester og kilder"),
+   T("Sondando manifestos, catálogos e fontes", "Undersøger manifester, kataloger og kilder"),
+   T("Sorte guiada", "Guidet held"),
+diff --git a/src/idioma_de.h b/src/idioma_de.h
+index cb5d793fb6e494050dbf9af5875d2aa921994936..6c30ef5e854c6e5b3dce98057ee57e3fc60cc845 100644
+--- a/src/idioma_de.h
++++ b/src/idioma_de.h
+@@ -596,6 +596,7 @@
+   T("Ano: mais recentes", "Jahr: neueste zuerst"),
+   T("Antes", "Vorher"),
+   T("Antes de começar", "Bevor du loslegst"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Beim Öffnen der Titelseite und wenn die Quellen eintreffen, wird die Verbindung zum Debrid und zu den Hosts der ersten Quellen vorab geöffnet, damit Play diese Zeit nicht verliert. Es löst keinen Link auf und legt keine Datei im Debrid an."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Beim Öffnen der Titelseite wird bereits die erste automatische Quelle gewählt und vorbereitet, damit Play sofort startet. Dadurch landet die Datei in Ihrem Debrid-Panel, auch wenn Sie sie nicht ansehen."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Beim Vor- oder Zurückspulen zeigt ein Vorschaubild die Szene. Dafür brauchst du deinen kostenlosen Seekr-Schlüssel."),
+@@ -936,6 +937,7 @@
+   T("Cache de seek desligado: o disco encheu", "Spul-Cache aus: der Speicher ist voll"),
+   T("Cache de seek desligado: pouco espaço livre", "Spul-Cache aus: wenig freier Speicher"),
+   T("Cache de seek em disco", "Spul-Cache auf dem Speicher"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Kalter Cache"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Jedes Addon gibt an, ob es einen Senderkatalog hat, auch die ausgeschalteten."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Jeder Sender hat hier in jedem Player-Modus bis zu 18 s zum Öffnen, nachdem das Netzwerk geantwortet hat."),
+@@ -2574,6 +2576,7 @@
+   T("Nenhuma fileira ativa", "Keine aktive Reihe"),
+   T("Nenhuma fileira conhecida ainda", "Noch keine Reihen bekannt"),
+   T("Nenhuma fileira ligada", "Keine Reihe aktiviert"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Keine Quelle mit direktem Link zum Messen."),
+   T("Nenhuma fonte deste canal abriu agora", "Keine Quelle dieses Kanals hat sich gerade geöffnet"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Keine direkte Quelle verfügbar. Mit Neu laden erneut versuchen."),
+@@ -4010,6 +4013,7 @@
+   T("Som do trailer no destaque", "Ton des Trailers im Highlight"),
+   T("Som e imagem", "Ton und Bild"),
+   T("Sombra", "Schatten"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Manifeste und Quellen werden geprüft"),
+   T("Sondando manifestos, catálogos e fontes", "Manifeste, Kataloge und Quellen werden geprüft"),
+   T("Sorte guiada", "Geführtes Glück"),
+diff --git a/src/idioma_el.h b/src/idioma_el.h
+index 8a575cf531af8c00f11e19b57d6310339d57d444..aa2d45408ff6eb6e6a3b51c648f43862ea327833 100644
+--- a/src/idioma_el.h
++++ b/src/idioma_el.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Έτος: πρώτα τα νεότερα"),
+   T("Antes", "Πριν"),
+   T("Antes de começar", "Πριν ξεκινήσεις"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Όταν ανοίγει η σελίδα ενός τίτλου και όταν φτάνουν οι πηγές, ανοίγει εκ των προτέρων τη σύνδεση με το debrid και με τους διακομιστές των πρώτων πηγών, ώστε η αναπαραγωγή να μη χάνει αυτόν τον χρόνο. Δεν επιλύει κανέναν σύνδεσμο και δεν δημιουργεί αρχείο στο debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Όταν ανοίγει η σελίδα του τίτλου, επιλέγει και προετοιμάζει ήδη την πρώτη αυτόματη πηγή, ώστε η αναπαραγωγή να ανοίγει αμέσως. Αυτό προσθέτει το αρχείο στον πίνακα του debrid ακόμη κι αν δεν το δείτε."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Όταν προχωράτε μπροστά ή πίσω, μια μικρογραφία δείχνει τη σκηνή. Χρειάζεται το δωρεάν κλειδί σας Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Η μνήμη μετακίνησης απενεργοποιήθηκε: ο δίσκος γέμισε"),
+   T("Cache de seek desligado: pouco espaço livre", "Η μνήμη μετακίνησης απενεργοποιήθηκε: λίγος ελεύθερος χώρος"),
+   T("Cache de seek em disco", "Προσωρινή μνήμη μετακίνησης στον δίσκο"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Κρύα προσωρινή μνήμη"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Κάθε πρόσθετο λέει αν έχει κατάλογο καναλιών, ακόμα και όσα είναι απενεργοποιημένα."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Εδώ κάθε κανάλι έχει έως 18 δευτ. σε κάθε λειτουργία αναπαραγωγής για να ανοίξει, αφού απαντήσει το δίκτυο."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Καμία ενεργή σειρά"),
+   T("Nenhuma fileira conhecida ainda", "Καμία γνωστή σειρά ακόμα"),
+   T("Nenhuma fileira ligada", "Καμία ενεργοποιημένη σειρά"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Καμία πηγή με άμεσο σύνδεσμο για μέτρηση."),
+   T("Nenhuma fonte deste canal abriu agora", "Καμία πηγή για αυτό το κανάλι δεν άνοιξε αυτή τη στιγμή"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Δεν υπάρχει άμεση πηγή. Χρησιμοποίησε το Επαναφόρτωση για να δοκιμάσεις ξανά."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Ήχος τρέιλερ στην προβολή"),
+   T("Som e imagem", "Ήχος και εικόνα"),
+   T("Sombra", "Σκιά"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Έλεγχος manifests και πηγών"),
+   T("Sondando manifestos, catálogos e fontes", "Έλεγχος manifests, καταλόγων και πηγών"),
+   T("Sorte guiada", "Κατευθυνόμενη τύχη"),
+diff --git a/src/idioma_es.h b/src/idioma_es.h
+index 69134f250228f90532cc538343788722b859a409..0c908e273fe94ae2c2776440149a9ab94ad997de 100644
+--- a/src/idioma_es.h
++++ b/src/idioma_es.h
+@@ -596,6 +596,7 @@
+   T("Ano: mais recentes", "Año: más recientes"),
+   T("Antes", "Antes"),
+   T("Antes de começar", "Antes de empezar"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Al abrir la página de un título y cuando llegan las fuentes, abre de antemano la conexión con el debrid y con los hosts de las primeras fuentes, para que Reproducir no pierda ese tiempo. No resuelve ningún enlace ni crea ningún archivo en el debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Al abrir la página del título, ya elige y prepara la primera fuente automática para que Reproducir abra al instante. Esto añade el archivo a tu panel de debrid aunque no lo veas."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Al avanzar o retroceder, una miniatura muestra la escena. Necesita tu clave gratuita de Seekr."),
+@@ -936,6 +937,7 @@
+   T("Cache de seek desligado: o disco encheu", "Caché de avance desactivada: el disco se llenó"),
+   T("Cache de seek desligado: pouco espaço livre", "Caché de avance desactivada: poco espacio libre"),
+   T("Cache de seek em disco", "Caché de avance en disco"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Caché fría"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Cada addon indica si tiene catálogo de canales, incluidos los desactivados."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Aquí cada canal tiene hasta 18 s en cada modo del reproductor para abrirse, después de que responda la red."),
+@@ -2574,6 +2576,7 @@
+   T("Nenhuma fileira ativa", "Ninguna fila activa"),
+   T("Nenhuma fileira conhecida ainda", "Ninguna fila conocida todavía"),
+   T("Nenhuma fileira ligada", "Ninguna fila activada"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Ninguna fuente con enlace directo para medir."),
+   T("Nenhuma fonte deste canal abriu agora", "Ninguna fuente de este canal se abrió ahora"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Ninguna fuente directa disponible. Usa Recargar para intentarlo de nuevo."),
+@@ -4010,6 +4013,7 @@
+   T("Som do trailer no destaque", "Sonido del tráiler destacado"),
+   T("Som e imagem", "Sonido e imagen"),
+   T("Sombra", "Sombra"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Sondeando manifiestos y fuentes"),
+   T("Sondando manifestos, catálogos e fontes", "Sondeando manifiestos, catálogos y fuentes"),
+   T("Sorte guiada", "Suerte guiada"),
+diff --git a/src/idioma_fr.h b/src/idioma_fr.h
+index 70fa0eb73aaf121b79a9c717f478b028bbf27e78..5cd63b66d593aaf606bb7fcee54aade7dd57fdf4 100644
+--- a/src/idioma_fr.h
++++ b/src/idioma_fr.h
+@@ -596,6 +596,7 @@
+   T("Ano: mais recentes", "Année: plus récents"),
+   T("Antes", "Avant"),
+   T("Antes de começar", "Avant de commencer"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "À l'ouverture de la page d'un titre et à l'arrivée des sources, ouvre d'avance la connexion au debrid et aux hôtes des premières sources, pour que la lecture ne perde pas ce temps. Ne résout aucun lien et ne crée aucun fichier dans le debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "À l'ouverture de la page d'un titre, choisit et prépare déjà la première source automatique pour que la lecture démarre aussitôt. Cela ajoute le fichier à votre panneau debrid même si vous ne le regardez pas."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "En avançant ou en reculant, une miniature montre la scène. Il faut votre clé Seekr gratuite."),
+@@ -936,6 +937,7 @@
+   T("Cache de seek desligado: o disco encheu", "Cache de navigation désactivé : le disque est plein"),
+   T("Cache de seek desligado: pouco espaço livre", "Cache de navigation désactivé : peu d'espace libre"),
+   T("Cache de seek em disco", "Cache de navigation sur disque"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Cache froid"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Chaque addon indique s'il a un catalogue de chaînes, y compris ceux qui sont désactivés."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Ici, chaque chaîne a jusqu'à 18 s dans chaque mode du lecteur pour s'ouvrir, une fois que le réseau a répondu."),
+@@ -2574,6 +2576,7 @@
+   T("Nenhuma fileira ativa", "Aucune rangée active"),
+   T("Nenhuma fileira conhecida ainda", "Aucune rangée connue pour l'instant"),
+   T("Nenhuma fileira ligada", "Aucune rangée activée"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Aucune source avec lien direct à mesurer."),
+   T("Nenhuma fonte deste canal abriu agora", "Aucune source de cette chaîne ne s'est ouverte pour l'instant"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Aucune source directe disponible. Utilisez Recharger pour réessayer."),
+@@ -4010,6 +4013,7 @@
+   T("Som do trailer no destaque", "Son de la bande-annonce en vedette"),
+   T("Som e imagem", "Son et image"),
+   T("Sombra", "Ombre"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Sondage des manifestes et des sources"),
+   T("Sondando manifestos, catálogos e fontes", "Sondage des manifestes, catalogues et sources"),
+   T("Sorte guiada", "Chance guidée"),
+diff --git a/src/idioma_hu.h b/src/idioma_hu.h
+index 86fbb9579ee6972e22434ea8762cced654c43990..b649646dc5d76941476c400d9bef4f02106c82d9 100644
+--- a/src/idioma_hu.h
++++ b/src/idioma_hu.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Év: legújabb elöl"),
+   T("Antes", "Előtte"),
+   T("Antes de começar", "Mielőtt elkezded"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "A cím oldalának megnyitásakor és a források megérkezésekor előre megnyitja a kapcsolatot a debriddel és az első források szervereivel, hogy a Lejátszás ne veszítsen ezzel időt. Nem old fel egyetlen hivatkozást sem, és nem hoz létre fájlt a debridben."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "A cím oldalának megnyitásakor már kiválasztja és előkészíti az első automatikus forrást, hogy a Lejátszás azonnal elinduljon. Ez akkor is felkerül a debrid panelre, ha nem nézi meg."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Előre- vagy hátratekeréskor egy bélyegkép mutatja a jelenetet. Ehhez kell az ingyenes Seekr-kulcsod."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Tekerési gyorsítótár kikapcsolva: megtelt a lemez"),
+   T("Cache de seek desligado: pouco espaço livre", "Tekerési gyorsítótár kikapcsolva: kevés a szabad hely"),
+   T("Cache de seek em disco", "Tekerési gyorsítótár a lemezen"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Hideg gyorsítótár"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Minden bővítmény jelzi, hogy van-e csatornakatalógusa, a kikapcsoltakat is beleértve."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Itt minden csatorna a lejátszó minden módjában legfeljebb 18 mp-et kap a megnyitásra, miután a hálózat válaszolt."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Nincs aktív sor"),
+   T("Nenhuma fileira conhecida ainda", "Még nem ismert egy sor sem"),
+   T("Nenhuma fileira ligada", "Egy sor sincs bekapcsolva"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nincs közvetlen hivatkozású forrás a méréshez."),
+   T("Nenhuma fonte deste canal abriu agora", "Ehhez a csatornához most egyik forrás sem nyílt meg"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nincs elérhető közvetlen forrás. Próbáld újra az Újratöltéssel."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Kiemelt előzetes hangja"),
+   T("Som e imagem", "Hang és kép"),
+   T("Sombra", "Árnyék"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Manifesztek és források vizsgálata"),
+   T("Sondando manifestos, catálogos e fontes", "Manifesztek, katalógusok és források vizsgálata"),
+   T("Sorte guiada", "Irányított szerencse"),
+diff --git a/src/idioma_id.h b/src/idioma_id.h
+index 777e40804b989b913a7fd8f7864de33416371594..e89be67e7e3793de1dd574dfcb7ab89502df1313 100644
+--- a/src/idioma_id.h
++++ b/src/idioma_id.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Tahun: terbaru dulu"),
+   T("Antes", "Sebelum"),
+   T("Antes de começar", "Sebelum mulai"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Saat halaman judul dibuka dan saat sumber tiba, membuka lebih dulu koneksi ke debrid dan ke host sumber-sumber pertama, agar Putar tidak membuang waktu itu. Tidak menyelesaikan tautan apa pun dan tidak membuat berkas di debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Saat halaman judul dibuka, langsung memilih dan menyiapkan sumber otomatis pertama agar Putar terbuka seketika. Ini menambahkan berkas ke panel debrid Anda meskipun tidak Anda tonton."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Saat maju atau mundur, gambar kecil menampilkan adegannya. Perlu kunci Seekr gratis milik Anda."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Cache lompat mati: disk penuh"),
+   T("Cache de seek desligado: pouco espaço livre", "Cache lompat mati: ruang kosong sedikit"),
+   T("Cache de seek em disco", "Cache lompat di disk"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Cache dingin"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Setiap addon menyebutkan apakah punya katalog kanal, termasuk yang dimatikan."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Di sini setiap kanal punya waktu hingga 18 dtk di setiap mode pemutar untuk terbuka, setelah jaringan merespons."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Tidak ada baris aktif"),
+   T("Nenhuma fileira conhecida ainda", "Belum ada baris yang dikenal"),
+   T("Nenhuma fileira ligada", "Tidak ada baris yang diaktifkan"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Tidak ada sumber dengan tautan langsung untuk diukur."),
+   T("Nenhuma fonte deste canal abriu agora", "Tidak ada sumber untuk kanal ini yang terbuka saat ini"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Tidak ada sumber langsung. Gunakan Muat ulang untuk mencoba lagi."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Suara trailer sorotan"),
+   T("Som e imagem", "Suara dan gambar"),
+   T("Sombra", "Bayangan"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Memeriksa manifest dan sumber"),
+   T("Sondando manifestos, catálogos e fontes", "Memeriksa manifest, katalog, dan sumber"),
+   T("Sorte guiada", "Keberuntungan terarah"),
+diff --git a/src/idioma_it.h b/src/idioma_it.h
+index e6bc11a9ec37fb9c41d009d9d2769c6851a1aeb6..4b6db156a4efc8440daf725eb63c7d55794083c5 100644
+--- a/src/idioma_it.h
++++ b/src/idioma_it.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Anno: dal più recente"),
+   T("Antes", "Prima"),
+   T("Antes de começar", "Prima di iniziare"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "All'apertura della pagina di un titolo e all'arrivo delle fonti, apre in anticipo la connessione al debrid e agli host delle prime fonti, così la riproduzione non perde quel tempo. Non risolve alcun link e non crea alcun file nel debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "All'apertura della pagina del titolo sceglie e prepara già la prima fonte automatica, così la riproduzione parte subito. Questo aggiunge il file al tuo pannello debrid anche se non lo guardi."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Mentre vai avanti o indietro, una miniatura mostra la scena. Serve la tua chiave gratuita di Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Cache di avanzamento disattivata: il disco è pieno"),
+   T("Cache de seek desligado: pouco espaço livre", "Cache di avanzamento disattivata: poco spazio libero"),
+   T("Cache de seek em disco", "Cache di avanzamento su disco"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Cache fredda"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Ogni add-on indica se ha un catalogo di canali, anche quelli disattivati."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Qui ogni canale ha fino a 18 s in ogni modalità del lettore per aprirsi, dopo che la rete ha risposto."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Nessuna riga attiva"),
+   T("Nenhuma fileira conhecida ainda", "Ancora nessuna riga nota"),
+   T("Nenhuma fileira ligada", "Nessuna riga attivata"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nessuna fonte con link diretto da misurare."),
+   T("Nenhuma fonte deste canal abriu agora", "Nessuna fonte per questo canale si è aperta al momento"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nessuna fonte diretta disponibile. Usa Ricarica per riprovare."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Audio del trailer in evidenza"),
+   T("Som e imagem", "Suono e immagine"),
+   T("Sombra", "Ombra"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Verifica di manifest e fonti"),
+   T("Sondando manifestos, catálogos e fontes", "Verifica di manifest, cataloghi e fonti"),
+   T("Sorte guiada", "Fortuna guidata"),
+diff --git a/src/idioma_ja.h b/src/idioma_ja.h
+index e649d2326a973fb492ad728cb4703d1790fefd1b..c51c236ac626a2ef31914ef1c2d2f14bedd4d01b 100644
+--- a/src/idioma_ja.h
++++ b/src/idioma_ja.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "年: 新しい順"),
+   T("Antes", "前"),
+   T("Antes de começar", "始める前に"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "タイトルのページを開いたときとソースが届いたときに、debrid と最初のソースのホストへの接続を先に開き、再生でその時間を使わないようにします。リンクの解決やdebridでのファイル作成は行いません。"),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "タイトルのページを開いた時点で最初の自動ソースを選んで準備しておき、再生をすぐ始められるようにします。見なくても、そのファイルが debrid のパネルに追加されます。"),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "早送りや巻き戻しのとき、サムネイルでシーンを表示します。無料の Seekr キーが必要です。"),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "シークキャッシュをオフ：ディスクがいっぱいです"),
+   T("Cache de seek desligado: pouco espaço livre", "シークキャッシュをオフ：空き容量が不足しています"),
+   T("Cache de seek em disco", "ディスクのシークキャッシュ"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "コールドキャッシュ"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "各アドオンが、オフのものも含め、チャンネルカタログを持っているかを表示します。"),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "ここでは、ネットワークの応答後、各チャンネルにプレーヤーのモードごとに最大 18 秒の猶予があります。"),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "有効な行がありません"),
+   T("Nenhuma fileira conhecida ainda", "既知の行はまだありません"),
+   T("Nenhuma fileira ligada", "オンになっている行がありません"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "計測できる直接リンクのソースがありません。"),
+   T("Nenhuma fonte deste canal abriu agora", "このチャンネルのソースは今のところ開けませんでした"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "利用できる直接ソースがありません。「再読み込み」でもう一度お試しください。"),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "ヒーロー予告編の音声"),
+   T("Som e imagem", "音声と映像"),
+   T("Sombra", "影"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "マニフェストとソースを調査しています"),
+   T("Sondando manifestos, catálogos e fontes", "マニフェスト、カタログ、ソースを調査しています"),
+   T("Sorte guiada", "導かれる偶然"),
+diff --git a/src/idioma_lt.h b/src/idioma_lt.h
+index edfd6de266d249e9e62370c730a7dd7bfa040fa0..25adf72e5feb51db317f8b7d134b98de3bbf18cc 100644
+--- a/src/idioma_lt.h
++++ b/src/idioma_lt.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Metai: naujausi pirma"),
+   T("Antes", "Prieš"),
+   T("Antes de começar", "Prieš pradedant"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Atidarius pavadinimo puslapį ir kai atkeliauja šaltiniai, iš anksto atidaro ryšį su debrid ir pirmųjų šaltinių serveriais, kad Leisti neprarastų šio laiko. Jis neišsprendžia jokios nuorodos ir nesukuria failų debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Atidarius pavadinimo puslapį, jau pasirenka ir paruošia pirmąjį automatinį šaltinį, kad Leisti atsidarytų iškart. Tai prideda failą į debrid skydelį, net jei jo nežiūrėsite."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Sukant pirmyn ar atgal, miniatiūra rodo sceną. Reikia tavo nemokamo Seekr rakto."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Prasukimo podėlis išjungtas: diskas pilnas"),
+   T("Cache de seek desligado: pouco espaço livre", "Prasukimo podėlis išjungtas: mažai laisvos vietos"),
+   T("Cache de seek em disco", "Prasukimo podėlis diske"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Šalta talpykla"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Kiekvienas papildinys nurodo, ar turi kanalų katalogą, įskaitant išjungtus."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Kiekvienas kanalas čia kiekvienu grotuvo režimu turi iki 18 s atsidaryti, kai tinklas atsako."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Nėra aktyvių eilučių"),
+   T("Nenhuma fileira conhecida ainda", "Dar nėra žinomų eilučių"),
+   T("Nenhuma fileira ligada", "Nėra įjungtų eilučių"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nėra šaltinio su tiesiogine nuoroda matavimui."),
+   T("Nenhuma fonte deste canal abriu agora", "Šiuo metu neatsidarė joks šio kanalo šaltinis"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Tiesioginio šaltinio nėra. Naudokite Perkrauti, kad bandytumėte dar kartą."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Išskirto anonso garsas"),
+   T("Som e imagem", "Garsas ir vaizdas"),
+   T("Sombra", "Šešėlis"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Tikrinami manifestai ir šaltiniai"),
+   T("Sondando manifestos, catálogos e fontes", "Tikrinami manifestai, katalogai ir šaltiniai"),
+   T("Sorte guiada", "Kryptinga laimė"),
+diff --git a/src/idioma_nl.h b/src/idioma_nl.h
+index 55df37ea2be2f562e44c4c001595b7672edc45eb..c0f5100be2da70117098c7e5871f936d9cd4da86 100644
+--- a/src/idioma_nl.h
++++ b/src/idioma_nl.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Jaar: nieuwste eerst"),
+   T("Antes", "Ervoor"),
+   T("Antes de começar", "Voordat je begint"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Bij het openen van de titelpagina en wanneer de bronnen binnenkomen, wordt de verbinding met de debrid en met de hosts van de eerste bronnen alvast geopend, zodat Afspelen die tijd niet kwijt is. Er wordt geen link opgelost en geen bestand in de debrid aangemaakt."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Bij het openen van de titelpagina wordt de eerste automatische bron al gekozen en voorbereid, zodat Afspelen meteen start. Hierdoor komt het bestand in je debrid-paneel, ook als je het niet kijkt."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Bij vooruit- of terugspoelen toont een miniatuur de scène. Je hebt je gratis Seekr-sleutel nodig."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Spoelcache uit: de schijf is vol"),
+   T("Cache de seek desligado: pouco espaço livre", "Spoelcache uit: weinig vrije ruimte"),
+   T("Cache de seek em disco", "Spoelcache op schijf"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Koude cache"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Elke add-on geeft aan of hij een kanaalcatalogus heeft, ook de uitgeschakelde."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Elk kanaal krijgt hier in elke spelermodus tot 18 s om te openen, nadat het netwerk heeft geantwoord."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Geen actieve rijen"),
+   T("Nenhuma fileira conhecida ainda", "Nog geen rijen bekend"),
+   T("Nenhuma fileira ligada", "Geen rijen ingeschakeld"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Geen bron met een directe link om te meten."),
+   T("Nenhuma fonte deste canal abriu agora", "Er ging nu geen bron voor dit kanaal open"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Geen directe bron beschikbaar. Gebruik Opnieuw laden om het nog eens te proberen."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Geluid van trailer in uitgelicht"),
+   T("Som e imagem", "Geluid en beeld"),
+   T("Sombra", "Schaduw"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Manifesten en bronnen testen"),
+   T("Sondando manifestos, catálogos e fontes", "Manifesten, catalogi en bronnen testen"),
+   T("Sorte guiada", "Begeleid toeval"),
+diff --git a/src/idioma_no.h b/src/idioma_no.h
+index 84ea111e359ef88fb96afe7efc645b5b624f6c50..5152b6596d1f53bcbaf8bb8aa368ba87d555c109 100644
+--- a/src/idioma_no.h
++++ b/src/idioma_no.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "År: nyeste først"),
+   T("Antes", "Før"),
+   T("Antes de começar", "Før du begynner"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Når en tittelside åpnes og når kildene kommer inn, åpnes tilkoblingen til debrid og til vertene for de første kildene på forhånd, slik at Spill av ikke taper den tiden. Ingen lenke løses opp, og ingen fil opprettes i debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Når titelsiden åpnes, velges og forberedes den første automatiske kilden allerede da, slik at Spill av starter med en gang. Det legger filen i debrid-panelet ditt selv om du ikke ser på den."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Når du spoler frem eller tilbake, viser et miniatyrbilde scenen. Det krever den gratis Seekr-nøkkelen din."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Spolebuffer av: disken er full"),
+   T("Cache de seek desligado: pouco espaço livre", "Spolebuffer av: lite ledig plass"),
+   T("Cache de seek em disco", "Spolebuffer på disk"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Kald hurtigbuffer"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Hver add-on oppgir om den har en kanalkatalog, også de som er slått av."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Hver kanal får her opptil 18 s i hver spillermodus til å åpnes, etter at nettverket har svart."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Ingen aktive rader"),
+   T("Nenhuma fileira conhecida ainda", "Ingen kjente rader ennå"),
+   T("Nenhuma fileira ligada", "Ingen rader aktivert"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Ingen kilde med direktelenke å måle."),
+   T("Nenhuma fonte deste canal abriu agora", "Ingen kilde for denne kanalen åpnet seg akkurat nå"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Ingen direktekilde tilgjengelig. Bruk Last på nytt for å prøve igjen."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Lyd på trailer i toppen"),
+   T("Som e imagem", "Lyd og bilde"),
+   T("Sombra", "Skygge"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Undersøker manifester og kilder"),
+   T("Sondando manifestos, catálogos e fontes", "Undersøker manifester, kataloger og kilder"),
+   T("Sorte guiada", "Guidet flaks"),
+diff --git a/src/idioma_pl.h b/src/idioma_pl.h
+index 24fc34e437af3a92439d9852d7c5acc33784af3b..7b59d52e27980eac2e55e0bae7d23170571d9be7 100644
+--- a/src/idioma_pl.h
++++ b/src/idioma_pl.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Rok: od najnowszych"),
+   T("Antes", "Przed"),
+   T("Antes de começar", "Zanim zaczniesz"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Przy otwarciu strony tytułu i gdy nadchodzą źródła, z wyprzedzeniem otwiera połączenie z debridem i z hostami pierwszych źródeł, aby odtwarzanie nie traciło na to czasu. Nie rozwiązuje żadnego linku i nie tworzy plików w debridzie."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Po otwarciu strony tytułu od razu wybiera i przygotowuje pierwsze automatyczne źródło, aby odtwarzanie ruszało natychmiast. To dodaje plik do panelu debrid, nawet jeśli go nie obejrzysz."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Przy przewijaniu miniatura pokazuje scenę. Potrzebny jest twój darmowy klucz Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Pamięć przewijania wyłączona: dysk jest pełny"),
+   T("Cache de seek desligado: pouco espaço livre", "Pamięć przewijania wyłączona: mało wolnego miejsca"),
+   T("Cache de seek em disco", "Pamięć przewijania na dysku"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Zimna pamięć podręczna"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Każdy dodatek informuje, czy ma katalog kanałów, także wyłączone."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Każdy kanał ma tu do 18 s w każdym trybie odtwarzacza na otwarcie, po odpowiedzi sieci."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Brak aktywnych rzędów"),
+   T("Nenhuma fileira conhecida ainda", "Nie znamy jeszcze żadnych rzędów"),
+   T("Nenhuma fileira ligada", "Brak włączonych rzędów"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Brak źródła z bezpośrednim linkiem do zmierzenia."),
+   T("Nenhuma fonte deste canal abriu agora", "Żadne źródło tego kanału nie otworzyło się teraz"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Brak źródła bezpośredniego. Użyj Wczytaj ponownie, aby spróbować jeszcze raz."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Dźwięk zwiastuna w wyróżnieniu"),
+   T("Som e imagem", "Dźwięk i obraz"),
+   T("Sombra", "Cień"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Sondowanie manifestów i źródeł"),
+   T("Sondando manifestos, catálogos e fontes", "Sondowanie manifestów, katalogów i źródeł"),
+   T("Sorte guiada", "Kierowany przypadek"),
+diff --git a/src/idioma_ptpt.h b/src/idioma_ptpt.h
+index a501e7a378775fec937e13543eeb3e2e160a34e8..96a9bd63d38d6a02a3ed61b6bd72f5e221176a56 100644
+--- a/src/idioma_ptpt.h
++++ b/src/idioma_ptpt.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Ano: mais recentes"),
+   T("Antes", "Antes"),
+   T("Antes de começar", "Antes de começar"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Ao abrir a página de um título e quando chegam as fontes, abre de antemão a ligação ao debrid e aos hosts das primeiras fontes, para o Reproduzir não perder esse tempo. Não resolve nenhuma ligação nem cria ficheiros no debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Ao abrir a página do título, escolhe e prepara logo a primeira fonte automática para o Reproduzir abrir de imediato. Isto adiciona o ficheiro ao seu painel de debrid mesmo que não o veja."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Ao avançar ou recuar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Cache de avanço desligada: o disco encheu"),
+   T("Cache de seek desligado: pouco espaço livre", "Cache de avanço desligada: pouco espaço livre"),
+   T("Cache de seek em disco", "Cache de avanço no disco"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Cache frio"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Cada add-on indica se tem catálogo de canais, incluindo os desligados."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Cada canal abre aqui durante até 18 s em cada modo do leitor, depois de a rede responder."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Nenhuma fila ativa"),
+   T("Nenhuma fileira conhecida ainda", "Ainda nenhuma fila conhecida"),
+   T("Nenhuma fileira ligada", "Nenhuma fila ativada"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nenhuma fonte com ligação direta para medir."),
+   T("Nenhuma fonte deste canal abriu agora", "Nenhuma fonte deste canal abriu neste momento"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nenhuma fonte direta disponível. Usa Recarregar para tentar novamente."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Som do trailer em destaque"),
+   T("Som e imagem", "Som e imagem"),
+   T("Sombra", "Sombra"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "A sondar manifestos e fontes"),
+   T("Sondando manifestos, catálogos e fontes", "A sondar manifestos, catálogos e fontes"),
+   T("Sorte guiada", "Sorte guiada"),
+diff --git a/src/idioma_ro.h b/src/idioma_ro.h
+index 91be5d31d7255beb87ca1c948241fdd2d404c115..bc0d11b14257ff1bc4d9fa84e4879a1347648dc0 100644
+--- a/src/idioma_ro.h
++++ b/src/idioma_ro.h
+@@ -596,6 +596,7 @@
+   T("Ano: mais recentes", "An: cele mai recente"),
+   T("Antes", "Înainte"),
+   T("Antes de começar", "Înainte de a începe"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Când se deschide pagina unui titlu și când sosesc sursele, deschide din timp conexiunea cu debrid și cu gazdele primelor surse, ca Redarea să nu piardă acest timp. Nu rezolvă niciun link și nu creează niciun fișier în debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "La deschiderea paginii titlului, alege și pregătește deja prima sursă automată, ca Redarea să se deschidă imediat. Aceasta adaugă fișierul în panoul debrid chiar dacă nu îl vizionezi."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "La derulare înainte sau înapoi, o miniatură arată scena. Ai nevoie de cheia ta gratuită Seekr."),
+@@ -936,6 +937,7 @@
+   T("Cache de seek desligado: o disco encheu", "Cache de derulare oprit: discul s-a umplut"),
+   T("Cache de seek desligado: pouco espaço livre", "Cache de derulare oprit: spațiu liber redus"),
+   T("Cache de seek em disco", "Cache de derulare pe disc"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Cache rece"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Fiecare addon spune dacă are catalog de canale, inclusiv cele dezactivate."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Fiecare canal are aici până la 18 s în fiecare mod al playerului ca să se deschidă, după ce răspunde rețeaua."),
+@@ -2574,6 +2576,7 @@
+   T("Nenhuma fileira ativa", "Niciun rând activ"),
+   T("Nenhuma fileira conhecida ainda", "Încă niciun rând cunoscut"),
+   T("Nenhuma fileira ligada", "Niciun rând activat"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nicio sursă cu link direct de măsurat."),
+   T("Nenhuma fonte deste canal abriu agora", "Nicio sursă pentru acest canal nu s-a deschis acum"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nicio sursă directă disponibilă. Folosește Reîncarcă pentru a încerca din nou."),
+@@ -4010,6 +4013,7 @@
+   T("Som do trailer no destaque", "Sunet trailer în evidență"),
+   T("Som e imagem", "Sunet și imagine"),
+   T("Sombra", "Umbră"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Se sondează manifestele și sursele"),
+   T("Sondando manifestos, catálogos e fontes", "Se sondează manifestele, cataloagele și sursele"),
+   T("Sorte guiada", "Noroc ghidat"),
+diff --git a/src/idioma_ru.h b/src/idioma_ru.h
+index 4b4e0a507e813c9f90956de72acdb1f0168d9b31..e1a1ba8dbed59078688d0b3c505f733bd6aa5be0 100644
+--- a/src/idioma_ru.h
++++ b/src/idioma_ru.h
+@@ -596,6 +596,7 @@
+   T("Ano: mais recentes", "Год: сначала новые"),
+   T("Antes", "До"),
+   T("Antes de começar", "Прежде чем начать"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Когда открывается страница тайтла и когда приходят источники, заранее открывает соединение с debrid и с хостами первых источников, чтобы воспроизведение не тратило на это время. Не разрешает ни одной ссылки и не создаёт файлов в debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Когда открывается страница тайтла, сразу выбирает и готовит первый автоматический источник, чтобы воспроизведение начиналось мгновенно. Это добавляет файл в панель debrid, даже если вы его не смотрите."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "При перемотке вперёд или назад миниатюра показывает сцену. Нужен ваш бесплатный ключ Seekr."),
+@@ -936,6 +937,7 @@
+   T("Cache de seek desligado: o disco encheu", "Кэш перемотки отключён: диск заполнен"),
+   T("Cache de seek desligado: pouco espaço livre", "Кэш перемотки отключён: мало свободного места"),
+   T("Cache de seek em disco", "Кэш перемотки на диске"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Холодный кеш"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Каждый аддон сообщает, есть ли у него каталог каналов, включая отключённые."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Каждому каналу здесь даётся до 18 с в каждом режиме плеера, чтобы открыться, после ответа сети."),
+@@ -2574,6 +2576,7 @@
+   T("Nenhuma fileira ativa", "Нет активных рядов"),
+   T("Nenhuma fileira conhecida ainda", "Известных рядов пока нет"),
+   T("Nenhuma fileira ligada", "Нет включённых рядов"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Нет источников с прямой ссылкой для измерения."),
+   T("Nenhuma fonte deste canal abriu agora", "Ни один источник для этого канала сейчас не открылся"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Нет доступных прямых источников. Воспользуйтесь «Перезагрузить», чтобы попробовать снова."),
+@@ -4010,6 +4013,7 @@
+   T("Som do trailer no destaque", "Звук трейлера в баннере"),
+   T("Som e imagem", "Звук и изображение"),
+   T("Sombra", "Тень"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Проверка манифестов и источников"),
+   T("Sondando manifestos, catálogos e fontes", "Проверка манифестов, каталогов и источников"),
+   T("Sorte guiada", "Направленная удача"),
+diff --git a/src/idioma_sk.h b/src/idioma_sk.h
+index df3d107dafd4440288ffdf67663f3a311270b15d..b7abe3cefc89e1010f605d5086be2788644cc010 100644
+--- a/src/idioma_sk.h
++++ b/src/idioma_sk.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Rok: najnovšie prvé"),
+   T("Antes", "Pred"),
+   T("Antes de começar", "Skôr než začnete"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Pri otvorení stránky titulu a keď prídu zdroje, vopred otvorí pripojenie k debridu a k hostiteľom prvých zdrojov, aby Prehrať nestrácalo tento čas. Nevyrieši žiadny odkaz a nevytvorí žiadny súbor v debride."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Pri otvorení stránky titulu už vyberie a pripraví prvý automatický zdroj, aby sa Prehrať otvorilo okamžite. Tým sa súbor pridá do panela debridu, aj keď sa naň nepozriete."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Pri posune vpred alebo vzad ukáže náhľad scénu. Potrebuješ svoj bezplatný kľúč Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Pamäť pretáčania vypnutá: disk je plný"),
+   T("Cache de seek desligado: pouco espaço livre", "Pamäť pretáčania vypnutá: málo voľného miesta"),
+   T("Cache de seek em disco", "Vyrovnávacia pamäť pretáčania na disku"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Studená vyrovnávacia pamäť"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Každý doplnok uvádza, či má katalóg kanálov, vrátane vypnutých."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Každý kanál má tu v každom režime prehrávača až 18 s na otvorenie, potom ako sieť odpovie."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Žiadne aktívne riadky"),
+   T("Nenhuma fileira conhecida ainda", "Zatiaľ nie sú známe žiadne riadky"),
+   T("Nenhuma fileira ligada", "Nie sú zapnuté žiadne riadky"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Žiadny zdroj s priamym odkazom na meranie."),
+   T("Nenhuma fonte deste canal abriu agora", "Žiadny zdroj pre tento kanál sa teraz neotvoril"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nie je dostupný žiadny priamy zdroj. Skúste to znova tlačidlom Načítať znova."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Zvuk traileru v úvode"),
+   T("Som e imagem", "Zvuk a obraz"),
+   T("Sombra", "Tieň"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Skúmajú sa manifesty a zdroje"),
+   T("Sondando manifestos, catálogos e fontes", "Skúmajú sa manifesty, katalógy a zdroje"),
+   T("Sorte guiada", "Riadené šťastie"),
+diff --git a/src/idioma_sl.h b/src/idioma_sl.h
+index 00b5eeae0b9ffdceecd74bc7b55c86fd451d96d5..f73bedaa6de1b4a07204b8c3fcab40f47de781bf 100644
+--- a/src/idioma_sl.h
++++ b/src/idioma_sl.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Leto: najnovejše prvo"),
+   T("Antes", "Prej"),
+   T("Antes de começar", "Preden začnete"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Ob odprtju strani naslova in ko prispejo viri vnaprej odpre povezavo z debridom in z gostitelji prvih virov, da Predvajaj ne izgublja tega časa. Ne razreši nobene povezave in v debridu ne ustvari nobene datoteke."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Ob odprtju strani naslova že izbere in pripravi prvi samodejni vir, da se Predvajaj odpre takoj. S tem se datoteka doda v ploščo debrida, tudi če je ne boste gledali."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Ob previjanju naprej ali nazaj sličica pokaže prizor. Potrebuješ svoj brezplačni ključ Seekr."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Predpomnilnik previjanja izklopljen: disk je poln"),
+   T("Cache de seek desligado: pouco espaço livre", "Predpomnilnik previjanja izklopljen: malo prostega prostora"),
+   T("Cache de seek em disco", "Predpomnilnik previjanja na disku"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Hladen predpomnilnik"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Vsak dodatek pove, ali ima katalog kanalov, vključno z izklopljenimi."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Vsak kanal ima tu v vsakem načinu predvajalnika do 18 s, da se odpre, potem ko omrežje odgovori."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Ni aktivnih vrstic"),
+   T("Nenhuma fileira conhecida ainda", "Zaenkrat ni znanih vrstic"),
+   T("Nenhuma fileira ligada", "Nobena vrstica ni vklopljena"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Ni vira z neposredno povezavo za merjenje."),
+   T("Nenhuma fonte deste canal abriu agora", "Noben vir za ta kanal se trenutno ni odprl"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Ni na voljo nobenega neposrednega vira. Poskusite znova z gumbom Naloži znova."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Zvok napovednika v izpostavljenem"),
+   T("Som e imagem", "Zvok in slika"),
+   T("Sombra", "Senca"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Preverjanje manifestov in virov"),
+   T("Sondando manifestos, catálogos e fontes", "Preverjanje manifestov, katalogov in virov"),
+   T("Sorte guiada", "Vodena sreča"),
+diff --git a/src/idioma_sr.h b/src/idioma_sr.h
+index bae5c8193e1c946c7220ad872c1aba9211786907..3810436c00a69cb258d29e39294511de46c51d89 100644
+--- a/src/idioma_sr.h
++++ b/src/idioma_sr.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Godina: najnovije prvo"),
+   T("Antes", "Pre"),
+   T("Antes de começar", "Pre nego što počnete"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Kad se otvori stranica naslova i kad stignu izvori, unapred otvara vezu sa debridom i sa hostovima prvih izvora, da Reprodukcija ne gubi to vreme. Ne razrešava nijednu vezu i ne stvara datoteke u debridu."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Kad se otvori stranica naslova, već bira i priprema prvi automatski izvor da se Reprodukcija otvori odmah. Ovo dodaje datoteku u debrid panel čak i ako je ne gledate."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Pri premotavanju napred ili nazad sličica pokazuje scenu. Potreban je tvoj besplatni Seekr ključ."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Keš premotavanja isključen: disk je pun"),
+   T("Cache de seek desligado: pouco espaço livre", "Keš premotavanja isključen: malo slobodnog prostora"),
+   T("Cache de seek em disco", "Keš premotavanja na disku"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Hladan keš"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Svaki dodatak navodi da li ima katalog kanala, uključujući i isključene."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Svaki kanal ovde ima do 18 s u svakom načinu plejera da se otvori, pošto mreža odgovori."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Nema aktivnih redova"),
+   T("Nenhuma fileira conhecida ainda", "Još nema poznatih redova"),
+   T("Nenhuma fileira ligada", "Nema uključenih redova"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Nema izvora sa direktnom vezom za merenje."),
+   T("Nenhuma fonte deste canal abriu agora", "Trenutno se nijedan izvor za ovaj kanal nije otvorio"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Nema dostupnog direktnog izvora. Koristite Ponovo učitaj da pokušate ponovo."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Zvuk trejlera u istaknutom"),
+   T("Som e imagem", "Zvuk i slika"),
+   T("Sombra", "Senka"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Ispituju se manifesti i izvori"),
+   T("Sondando manifestos, catálogos e fontes", "Ispituju se manifesti, katalozi i izvori"),
+   T("Sorte guiada", "Vođena sreća"),
+diff --git a/src/idioma_sv.h b/src/idioma_sv.h
+index 457c369ef50a31e1a0a2b8a65f882da66dff574a..950af1c5632905bfe5a3c16b9686ef26af49641c 100644
+--- a/src/idioma_sv.h
++++ b/src/idioma_sv.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "År: nyaste först"),
+   T("Antes", "Före"),
+   T("Antes de começar", "Innan du börjar"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "När en titelsida öppnas och när källorna kommer in öppnas anslutningen till debrid och till värdarna för de första källorna i förväg, så att Spela inte förlorar den tiden. Ingen länk löses upp och ingen fil skapas i debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "När titelsidan öppnas väljs och förbereds den första automatiska källan redan då, så att Spela startar direkt. Det lägger filen i din debrid-panel även om du inte tittar på den."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "När du spolar framåt eller bakåt visar en miniatyr scenen. Det kräver din gratis Seekr-nyckel."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Spolningscache av: disken är full"),
+   T("Cache de seek desligado: pouco espaço livre", "Spolningscache av: lite ledigt utrymme"),
+   T("Cache de seek em disco", "Spolningscache på disk"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Kall cache"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Varje add-on anger om den har en kanalkatalog, även de som är avstängda."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Varje kanal får här upp till 18 s i varje spelarläge för att öppnas, efter att nätverket har svarat."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Inga aktiva rader"),
+   T("Nenhuma fileira conhecida ainda", "Inga kända rader än"),
+   T("Nenhuma fileira ligada", "Inga rader aktiverade"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Ingen källa med direktlänk att mäta."),
+   T("Nenhuma fonte deste canal abriu agora", "Ingen källa för den här kanalen öppnades just nu"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Ingen direktkälla tillgänglig. Använd Ladda om för att försöka igen."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Ljud för trailer i toppen"),
+   T("Som e imagem", "Ljud och bild"),
+   T("Sombra", "Skugga"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Undersöker manifest och källor"),
+   T("Sondando manifestos, catálogos e fontes", "Undersöker manifest, kataloger och källor"),
+   T("Sorte guiada", "Guidad lycka"),
+diff --git a/src/idioma_tab.h b/src/idioma_tab.h
+index 94e1563bb2530d120395e359f80abf073a212f4c..e9282d31fd866517c8f5545b8aefc38979524f2d 100644
+--- a/src/idioma_tab.h
++++ b/src/idioma_tab.h
+@@ -596,6 +596,7 @@
+   { "Ano: mais recentes", "Year: newest first" },
+   { "Antes", "Before" },
+   { "Antes de começar", "Before you start" },
++  { "Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV." },
+   { "Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "When a title page opens and when the sources arrive, opens the connection to the debrid and to the hosts of the first sources ahead of time, so Play does not spend that time. It resolves no link and creates no file in the debrid." },
+   { "Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "When the title page opens, already picks and prepares the first automatic source so Play opens right away. This adds the file to your debrid panel even if you do not watch it." },
+   { "Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "When you skip forward or back, a thumbnail shows the scene. It needs your free Seekr key." },
+@@ -936,6 +937,7 @@
+   { "Cache de seek desligado: o disco encheu", "Seek cache off: the disk is full" },
+   { "Cache de seek desligado: pouco espaço livre", "Seek cache off: low free space" },
+   { "Cache de seek em disco", "Seek cache on disk" },
++  { "Cache desconhecido", "Unknown cache status" },
+   { "Cache frio", "Cold cache" },
+   { "Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Each add-on says whether it has a channel catalog, including the ones turned off." },
+   { "Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Each channel opens here for up to 18 s in each player mode, after the network responds." },
+@@ -2574,6 +2576,7 @@
+   { "Nenhuma fileira ativa", "No active rows" },
+   { "Nenhuma fileira conhecida ainda", "No rows known yet" },
+   { "Nenhuma fileira ligada", "No rows enabled" },
++  { "Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources." },
+   { "Nenhuma fonte com link direto para medir.", "No source with a direct link to measure." },
+   { "Nenhuma fonte deste canal abriu agora", "No source for this channel opened right now" },
+   { "Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "No direct source available. Use Reload to try again." },
+@@ -4010,6 +4013,7 @@
+   { "Som do trailer no destaque", "Hero trailer sound" },
+   { "Som e imagem", "Sound and picture" },
+   { "Sombra", "Shadow" },
++  { "Somente fontes em cache por padrão", "Cached Only by default" },
+   { "Sondando manifestos e fontes", "Probing manifests and sources" },
+   { "Sondando manifestos, catálogos e fontes", "Probing manifests, catalogs and sources" },
+   { "Sorte guiada", "Guided luck" },
+diff --git a/src/idioma_tr.h b/src/idioma_tr.h
+index 3f6d0f32b6c8170e6cccfe8ae88b50426dd1a09d..bbc06ebad5318353edbeea4e7468170c83d08bb4 100644
+--- a/src/idioma_tr.h
++++ b/src/idioma_tr.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Yıl: en yeni önce"),
+   T("Antes", "Önce"),
+   T("Antes de começar", "Başlamadan önce"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Bir başlık sayfası açıldığında ve kaynaklar geldiğinde, Oynat'ın bu süreyi harcamaması için debrid ile ilk kaynakların sunucularına bağlantıyı önceden açar. Hiçbir bağlantıyı çözmez ve debrid'de dosya oluşturmaz."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Başlık sayfası açıldığında ilk otomatik kaynağı hemen seçip hazırlar, böylece Oynat anında açılır. Bu, izlemeseniz bile dosyayı debrid panelinize ekler."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "İleri veya geri sararken bir küçük resim sahneyi gösterir. Ücretsiz Seekr anahtarın gerekir."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Sarma önbelleği kapandı: disk doldu"),
+   T("Cache de seek desligado: pouco espaço livre", "Sarma önbelleği kapandı: boş alan az"),
+   T("Cache de seek em disco", "Diskte sarma önbelleği"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Soğuk önbellek"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Her eklenti, kapalı olanlar dahil, kanal kataloğu olup olmadığını belirtir."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Her kanal, ağ yanıt verdikten sonra burada oynatıcının her modunda açılmak için 18 sn'ye kadar süre alır."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Etkin satır yok"),
+   T("Nenhuma fileira conhecida ainda", "Henüz bilinen satır yok"),
+   T("Nenhuma fileira ligada", "Etkinleştirilmiş satır yok"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Ölçülecek doğrudan bağlantılı kaynak yok."),
+   T("Nenhuma fonte deste canal abriu agora", "Bu kanal için şu an hiçbir kaynak açılmadı"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Doğrudan kaynak yok. Tekrar denemek için Yeniden yükle'yi kullan."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Öne çıkan fragman sesi"),
+   T("Som e imagem", "Ses ve görüntü"),
+   T("Sombra", "Gölge"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Manifestolar ve kaynaklar yoklanıyor"),
+   T("Sondando manifestos, catálogos e fontes", "Manifestolar, kataloglar ve kaynaklar yoklanıyor"),
+   T("Sorte guiada", "Yönlendirilmiş şans"),
+diff --git a/src/idioma_uk.h b/src/idioma_uk.h
+index 5f317a912a33b33aed8cd278fc91da00c04bafb4..ee1c8a0fe6cb0aca9072e2afa4dc5e85b7a4c504 100644
+--- a/src/idioma_uk.h
++++ b/src/idioma_uk.h
+@@ -596,6 +596,7 @@
+   T("Ano: mais recentes", "Рік: спочатку нові"),
+   T("Antes", "До"),
+   T("Antes de começar", "Перш ніж почати"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Коли відкривається сторінка тайтлу і коли надходять джерела, заздалегідь відкриває з'єднання з debrid і з хостами перших джерел, щоб відтворення не витрачало на це час. Не розв'язує жодного посилання і не створює файлів у debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Коли відкривається сторінка тайтлу, одразу обирає й готує перше автоматичне джерело, щоб відтворення починалося миттєво. Це додає файл до панелі debrid, навіть якщо ви його не дивитесь."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Під час перемотування вперед або назад мініатюра показує сцену. Потрібен ваш безкоштовний ключ Seekr."),
+@@ -936,6 +937,7 @@
+   T("Cache de seek desligado: o disco encheu", "Кеш перемотування вимкнено: диск заповнено"),
+   T("Cache de seek desligado: pouco espaço livre", "Кеш перемотування вимкнено: мало вільного місця"),
+   T("Cache de seek em disco", "Кеш перемотування на диску"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Холодний кеш"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Кожен аддон повідомляє, чи має каталог каналів, зокрема вимкнені."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Кожен канал має тут до 18 с у кожному режимі плеєра, щоб відкритися, після відповіді мережі."),
+@@ -2574,6 +2576,7 @@
+   T("Nenhuma fileira ativa", "Немає активних рядів"),
+   T("Nenhuma fileira conhecida ainda", "Відомих рядів поки немає"),
+   T("Nenhuma fileira ligada", "Немає ввімкнених рядів"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Немає джерел із прямим посиланням для вимірювання."),
+   T("Nenhuma fonte deste canal abriu agora", "Жодне джерело для цього каналу зараз не відкрилося"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Немає доступних прямих джерел. Скористайтеся «Перезавантажити», щоб спробувати знову."),
+@@ -4010,6 +4013,7 @@
+   T("Som do trailer no destaque", "Звук трейлера в банері"),
+   T("Som e imagem", "Звук і зображення"),
+   T("Sombra", "Тінь"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Перевірка маніфестів і джерел"),
+   T("Sondando manifestos, catálogos e fontes", "Перевірка маніфестів, каталогів і джерел"),
+   T("Sorte guiada", "Керована удача"),
+diff --git a/src/idioma_vi.h b/src/idioma_vi.h
+index 6d19b6fafc8e45f2a04c5417911489e2ad5030f0..01219b9aed0d1a7fb6244b6325340da27663a856 100644
+--- a/src/idioma_vi.h
++++ b/src/idioma_vi.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "Năm: mới nhất trước"),
+   T("Antes", "Trước"),
+   T("Antes de começar", "Trước khi bắt đầu"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "Khi trang của một tựa phim mở ra và khi các nguồn về tới, mở sẵn kết nối tới debrid và tới máy chủ của những nguồn đầu tiên, để Phát không mất thời gian đó. Không phân giải liên kết nào và không tạo tệp trong debrid."),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "Khi trang của một tựa phim mở ra, chọn và chuẩn bị sẵn nguồn tự động đầu tiên để Phát mở ngay lập tức. Việc này thêm tệp vào bảng debrid của bạn dù bạn không xem."),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "Khi tua tới hoặc lùi, hình thu nhỏ hiển thị cảnh. Cần khóa Seekr miễn phí của bạn."),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "Đã tắt bộ nhớ đệm tua: ổ đĩa đầy"),
+   T("Cache de seek desligado: pouco espaço livre", "Đã tắt bộ nhớ đệm tua: ít dung lượng trống"),
+   T("Cache de seek em disco", "Bộ nhớ đệm tua trên ổ đĩa"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "Bộ nhớ đệm lạnh"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "Mỗi tiện ích cho biết nó có danh mục kênh hay không, kể cả những tiện ích đang tắt."),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "Ở đây mỗi kênh có tối đa 18 giây trong mỗi chế độ trình phát để mở, sau khi mạng phản hồi."),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "Không có hàng nào đang bật"),
+   T("Nenhuma fileira conhecida ainda", "Chưa có hàng nào được biết"),
+   T("Nenhuma fileira ligada", "Không có hàng nào được bật"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "Không có nguồn nào có liên kết trực tiếp để đo."),
+   T("Nenhuma fonte deste canal abriu agora", "Hiện không có nguồn nào của kênh này mở được"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "Không có nguồn trực tiếp. Dùng Tải lại để thử lần nữa."),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "Âm thanh trailer nổi bật"),
+   T("Som e imagem", "Âm thanh và hình ảnh"),
+   T("Sombra", "Bóng đổ"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "Đang thăm dò manifest và nguồn"),
+   T("Sondando manifestos, catálogos e fontes", "Đang thăm dò manifest, danh mục và nguồn"),
+   T("Sorte guiada", "May mắn có định hướng"),
+diff --git a/src/idioma_zhcn.h b/src/idioma_zhcn.h
+index 115ca3ac249f532780b592a47ed073c810f1be2c..88b5335d905dc2dffe0a3e55526d9c8447a46287 100644
+--- a/src/idioma_zhcn.h
++++ b/src/idioma_zhcn.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "年份：最新优先"),
+   T("Antes", "之前"),
+   T("Antes de começar", "开始之前"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "打开影片页面以及来源送达时，提前建立与 debrid 和前几个来源主机的连接，让播放不再花这段时间。不会解析任何链接，也不会在 debrid 中创建文件。"),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "打开影片页面时就选好并准备第一个自动来源，让播放立即开始。即使你不观看，文件也会被添加到 debrid 面板。"),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "快进或快退时，缩略图会显示画面。需要你的免费 Seekr 密钥。"),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "拖动缓存已关闭：磁盘已满"),
+   T("Cache de seek desligado: pouco espaço livre", "拖动缓存已关闭：可用空间不足"),
+   T("Cache de seek em disco", "磁盘拖动缓存"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "冷缓存"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "每个附加组件都会说明它是否有频道片库，包括已关闭的。"),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "网络响应后，每个频道在这里的每种播放器模式下最多有 18 秒来打开。"),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "没有已启用的行"),
+   T("Nenhuma fileira conhecida ainda", "目前还没有已知的行"),
+   T("Nenhuma fileira ligada", "没有开启的行"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "没有可测量的直链片源。"),
+   T("Nenhuma fonte deste canal abriu agora", "这个频道目前没有片源能打开"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "没有可用的直连片源。请点“重新加载”再试。"),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "焦点预告片声音"),
+   T("Som e imagem", "声音和画面"),
+   T("Sombra", "阴影"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "正在探测清单和片源"),
+   T("Sondando manifestos, catálogos e fontes", "正在探测清单、片库和片源"),
+   T("Sorte guiada", "被引导的好运"),
+diff --git a/src/idioma_zhtw.h b/src/idioma_zhtw.h
+index 6f45f87acc2551889318a22ff85dae9ab6bb5054..3ebbf256a4a15d8eb7abd43593423fddff84cf07 100644
+--- a/src/idioma_zhtw.h
++++ b/src/idioma_zhtw.h
+@@ -597,6 +597,7 @@
+   T("Ano: mais recentes", "年份：最新優先"),
+   T("Antes", "之前"),
+   T("Antes de começar", "開始之前"),
++  T("Ao abrir Fontes, mostra apenas cache confirmado pelo add-on. Estado desconhecido fica oculto. Desligue Em cache para ver todas as fontes. A preferência é salva nesta TV.", "Sources opens with confirmed cached streams only. Unknown status is hidden. Turn off Cached to show all sources. This preference is saved on this TV."),
+   T("Ao abrir a página de um título e quando as fontes chegam, abre antes a conexão com o debrid e com os hosts das primeiras fontes, para o Play não gastar esse tempo. Não resolve nenhum link e não cria arquivo no debrid.", "開啟影片頁面以及來源送達時，提前建立與 debrid 和前幾個來源主機的連線，讓播放不必再花這段時間。不會解析任何連結，也不會在 debrid 中建立檔案。"),
+   T("Ao abrir a página do título, já escolhe e prepara a primeira fonte do automático, para o Play abrir na hora. Isso adiciona o arquivo ao painel do seu debrid mesmo que você não assista.", "開啟影片頁面時就選好並準備第一個自動來源，讓播放立即開始。即使你不觀看，檔案也會被加入 debrid 面板。"),
+   T("Ao avançar ou voltar, uma miniatura mostra a cena. Precisa da sua chave gratuita do Seekr.", "快進或快退時，縮圖會顯示畫面。需要你的免費 Seekr 金鑰。"),
+@@ -937,6 +938,7 @@
+   T("Cache de seek desligado: o disco encheu", "拖曳快取已關閉：磁碟已滿"),
+   T("Cache de seek desligado: pouco espaço livre", "拖曳快取已關閉：可用空間不足"),
+   T("Cache de seek em disco", "磁碟拖曳快取"),
++  T("Cache desconhecido", "Unknown cache status"),
+   T("Cache frio", "冷快取"),
+   T("Cada addon diz se tem catálogo de canal, inclusive os desligados.", "每個附加元件都會說明它是否有頻道片庫，包括已關閉的。"),
+   T("Cada canal abre aqui por até 18 s em cada modo do player, depois de a rede responder.", "網路回應後，每個頻道在這裡的每種播放器模式下最多有 18 秒可以開啟。"),
+@@ -2575,6 +2577,7 @@
+   T("Nenhuma fileira ativa", "沒有已啟用的列"),
+   T("Nenhuma fileira conhecida ainda", "目前還沒有已知的列"),
+   T("Nenhuma fileira ligada", "沒有開啟的列"),
++  T("Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.", "No confirmed cached sources. Turn off Cached at the top to show all sources."),
+   T("Nenhuma fonte com link direto para medir.", "沒有可測量的直連片源。"),
+   T("Nenhuma fonte deste canal abriu agora", "這個頻道目前沒有片源能開啟"),
+   T("Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.", "沒有可用的直連片源。請點「重新載入」再試。"),
+@@ -4011,6 +4014,7 @@
+   T("Som do trailer no destaque", "焦點預告片聲音"),
+   T("Som e imagem", "聲音和畫面"),
+   T("Sombra", "陰影"),
++  T("Somente fontes em cache por padrão", "Cached Only by default"),
+   T("Sondando manifestos e fontes", "正在探測資訊清單和片源"),
+   T("Sondando manifestos, catálogos e fontes", "正在探測資訊清單、片庫和片源"),
+   T("Sorte guiada", "被引導的好運"),
+diff --git a/src/stream_parse.c b/src/stream_parse.c
+index 1ba79f8188195019a55bd869a3cdf74d082820ac..76e2906ce58b51c18f0efd76c5c1502f1ac8779a 100644
+--- a/src/stream_parse.c
++++ b/src/stream_parse.c
+@@ -42,6 +42,25 @@ static const char *valorRaiz(const char *p, const char *fim, const char *nome) {
+   return NULL;
+ }
+ 
++/* AIOStreams' optional structured response extension. Only literal booleans
++   in this stream's streamData.service object count; text, filenames, nested
++   headers and a neighbouring stream cannot supply cache evidence. */
++int stream_cache_metadata(const char *obj, const char *fim) {
++  const char *data, *df, *service, *sf, *value;
++  data = valorRaiz(obj, fim, "streamData");
++  if (!data || *data != '{' || !(df = js_fim(data)) || df > fim) return STREAM_CACHE_UNKNOWN;
++  service = valorRaiz(data, df, "service");
++  if (!service || *service != '{' || !(sf = js_fim(service)) || sf > df) return STREAM_CACHE_UNKNOWN;
++  value = valorRaiz(service, sf, "cached");
++  if (!value) return STREAM_CACHE_UNKNOWN;
++  int len = !strncmp(value, "true", 4) ? 4 : !strncmp(value, "false", 5) ? 5 : 0;
++  if (!len || value + len >= sf) return STREAM_CACHE_UNKNOWN;
++  const char *end = value + len;
++  while (end < sf && isspace((unsigned char)*end)) end++;
++  if (end >= sf || (*end != ',' && *end != '}')) return STREAM_CACHE_UNKNOWN;
++  return len == 4 ? STREAM_CACHE_CACHED : STREAM_CACHE_UNCACHED;
++}
++
+ // Decimal integers only, parsed without double rounding. Numeric strings
+ // are accepted for compatibility, but fractions/exponents/overflow are
+ // unavailable for fit. Legacy display size remains separate below.
+@@ -286,7 +305,8 @@ int stream_extrair(const char *json, const char *provedor, Stream **saida) {
+       s.dolbyAtmos = token(texto, "atmos");
+       s.badges = badges_detectar(texto);
+       s.mp4 = token(texto, "mp4") || contem(s.url, ".mp4");
+-      s.foraCache = stream_texto_fora_de_cache(texto);
++      s.cacheEstado = stream_cache_metadata(p, fim);
++      s.foraCache = s.cacheEstado == STREAM_CACHE_UNCACHED;
+       if (s.infoHash[0]) s.temSemeadores = lerSemeadores(texto, &s.semeadores);
+       s.tamanhoBytes = bytesExatos(p, fim);
+       double bytes = js_num(p, fim, "videoSize", 0);
+@@ -312,6 +332,16 @@ int stream_extrair(const char *json, const char *provedor, Stream **saida) {
+     }
+     p = js_prox(fim);
+   }
++  /* Privacy-safe response diagnostics: no provider names, URLs, identifiers,
++     hashes, keys, response snippets or user configuration. */
++  if (n) {
++    int cached = 0, uncached = 0;
++    for (int i = 0; i < n; i++) {
++      cached += v[i].cacheEstado == STREAM_CACHE_CACHED;
++      uncached += v[i].cacheEstado == STREAM_CACHE_UNCACHED;
++    }
++    printf("[source-cache] explicit cached=%d uncached=%d unknown=%d\n", cached, uncached, n-cached-uncached);
++  }
+   *saida = v;
+   return n;
+ }
+diff --git a/src/streams.c b/src/streams.c
+index 1138575e6043eeb2f61d62c41ce089ebf23847bd..b49d0fdfe37d7d3b5b48d75fc182513df7b5b799 100644
+--- a/src/streams.c
++++ b/src/streams.c
+@@ -1223,7 +1223,7 @@ int stream_resolver_escolhida(int i, unsigned geracao, char *url, unsigned nu,
+ static void faixaPontos(const Stream *s, char *dst, size_t tam) {
+   static const char *const hdrNome[] = { "SDR", "HDR", "HDR10", "HDR10+", "DV" };
+   snprintf(dst, tam, "%dp %s%s%s%s%s", s->altura, hdrNome[nivelHdr(s)], s->mp4 ? " mp4" : "",
+-           s->foraCache ? " uncached" : " cached", ehPlugin(s) ? " plugin" : " addon",
++           s->cacheEstado == STREAM_CACHE_CACHED ? " cached" : s->cacheEstado == STREAM_CACHE_UNCACHED ? " uncached" : " unknown", ehPlugin(s) ? " plugin" : " addon",
+            !cabeNaAltura(s) ? " over-cap" : foraDaFaixaTamanho(s) == 1 ? " over-size"
+            : foraDaFaixaTamanho(s) == 2 ? " under-size" : "");
+ }
+@@ -1830,7 +1830,7 @@ static int temAudioPt(const Stream *s);
+ // aba; o addon so para a lista.
+ static int passaChips(int i) {
+   if (soMp4 && !lista[i].mp4) return 0;
+-  if (soCache && lista[i].foraCache) return 0;
++  if (soCache && lista[i].cacheEstado != STREAM_CACHE_CACHED) return 0;
+   if (soDub && !temAudioPt(&lista[i])) return 0;
+   return 1;
+ }
+@@ -2457,7 +2457,7 @@ static void desenharAudioBars(float x, float y, float alt, float alfa, Uint32 ag
+ void stream_folha_abrir(void) {
+   int excl, aut, alvo;
+   fitAbrir();
+-  aberta=1; escolha=-1; grupo=1; filtro=0; soMp4=0; soCache=0; soDub=0; recarregar=0;
++  aberta=1; escolha=-1; grupo=1; filtro=0; soMp4=0; soCache=ajustes_cached_only(); soDub=0; recarregar=0;
+   folhaGeometria();
+   atualizarProvedores();
+   ondever_apps_atualizar();
+@@ -3314,8 +3314,9 @@ static void corpoFolha(float x, float w, float anim, Uint32 agora, int ilha) {
+       if(s->naoVideo){ int c=sel?185:140;
+         TxtLinha ln=txt_linha(TXT_HERO_META,"Não é vídeo",c,c-6,c-14,255);
+         if(lw+18+ln.w<=txtW0) { txt_desenhar_alpha(ln,tx0+(lw>0?lw+18:0),cy+(FOLHA_SELO_H-ln.h)*.5f,anim); lw+=(lw>0?18:0)+ln.w; } }
+-      if(s->foraCache){ int c=sel?185:140;
+-        TxtLinha lf=txt_linha(TXT_HERO_META,"Fora do cache",c,c-6,c-14,255);
++      if(1){ int c=sel?185:140;
++        const char *estado = s->cacheEstado == STREAM_CACHE_CACHED ? "Em cache" : s->cacheEstado == STREAM_CACHE_UNCACHED ? "Fora do cache" : "Cache desconhecido";
++        TxtLinha lf=txt_linha(TXT_HERO_META,estado,c,c-6,c-14,255);
+         if(lw+18+lf.w<=txtW0) { txt_desenhar_alpha(lf,tx0+(lw>0?lw+18:0),cy+(FOLHA_SELO_H-lf.h)*.5f,anim); lw+=(lw>0?18:0)+lf.w; } } }
+     cy+=FOLHA_SELO_H+12;
+     // O ARQUIVO, so na linha em foco: e o que distingue duas fontes iguais
+@@ -3366,6 +3367,7 @@ static void corpoFolha(float x, float w, float anim, Uint32 agora, int ilha) {
+     // "os addons nao tem" seria falso), depois o resumo da consulta.
+     char causa[160], frase[320];
+     const char *s=addons_estado()==ADD_BUSCANDO?"Buscando fontes nos addons…":"Nenhuma fonte direta disponível. Use Recarregar para tentar novamente.";
++    if (soCache && n > 0) s="Nenhuma fonte com cache confirmado. Desligue Em cache no topo para ver todas.";
+     if (addons_estado()!=ADD_BUSCANDO && n==0) {
+       int tem = 0;
+       if (descartadosSemDebrid > 0) {
+diff --git a/src/streams.h b/src/streams.h
+index 72301d93487cc1eb9220a074361e066f25d5056e..769b38ce2c2a2c8c998f610a75a7e40a6b44cfa8 100644
+--- a/src/streams.h
++++ b/src/streams.h
+@@ -85,6 +85,8 @@ typedef struct {
+   // em streams.c), e a escolha manual avisa na tela que o servico esta
+   // baixando. Nao exclui nada: escolhida a dedo, toca como na 1.3.5.
+   int  foraCache;
++  /* Zero is unknown, never an affirmative cache hit. */
++  int  cacheEstado;
+   // A SONDA VIU A URL RESPONDER PAGINA (HTML/JSON/texto) e nao video (2.0.2,
+   // naovideo.h): linha de aviso do addon. A folha a mostra apagada ("Nao e
+   // video") e o automatico a pula. Marcada na verificacao, nunca no parser.
+@@ -100,6 +102,8 @@ typedef struct {
+ 
+ // Parser sem rede: o chamador libera *saida. Retorna -1 se a alocacao falhar.
+ int stream_extrair(const char *json, const char *provedor, Stream **saida);
++enum { STREAM_CACHE_UNKNOWN, STREAM_CACHE_CACHED, STREAM_CACHE_UNCACHED };
++int stream_cache_metadata(const char *obj, const char *fim);
+ void stream_definir_atual(int indice);
+ int stream_atual(void);
+ void stream_folha_contexto(const char *texto);
+diff --git a/tests/source_cache.c b/tests/source_cache.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..15a87b27d2946796270d80611bd67d7013a313c3
+--- /dev/null
++++ b/tests/source_cache.c
+@@ -0,0 +1,20 @@
++#include "streams.h"
++#include <assert.h>
++#include <string.h>
++#include <stdlib.h>
++#include <stdio.h>
++static int status(const char *s) { return stream_cache_metadata(s,s+strlen(s)); }
++int main(void) {
++  assert(status("{\"streamData\":{\"service\":{\"cached\":true}}}")==STREAM_CACHE_CACHED);
++  assert(status("{\"streamData\":{\"service\":{\"cached\":false}}}")==STREAM_CACHE_UNCACHED);
++  assert(status("{\"name\":\"cached instant lightning\",\"filename\":\"cached.mkv\"}")==STREAM_CACHE_UNKNOWN);
++  assert(status("{\"streamData\":{\"service\":{\"cached\":\"true\"}}}")==STREAM_CACHE_UNKNOWN);
++  assert(status("{\"streamData\":{\"service\":{\"cached\":null}}}")==STREAM_CACHE_UNKNOWN);
++  assert(status("{\"behaviorHints\":{\"streamData\":{\"service\":{\"cached\":true}}}}")==STREAM_CACHE_UNKNOWN);
++  assert(status("{\"streamData\":{\"service\":{\"other\":{\"cached\":true}}}}")==STREAM_CACHE_UNKNOWN);
++  Stream *v=NULL;
++  int n=stream_extrair("{\"streams\":[{\"url\":\"https://example.test/a\",\"name\":\"uncached\",\"streamData\":{\"service\":{\"cached\":true}}},{\"url\":\"https://example.test/b\"},{\"url\":\"https://example.test/c\",\"streamData\":{\"service\":{\"cached\":false}}}]}","test",&v);
++  assert(n==3); assert(v[0].cacheEstado==STREAM_CACHE_CACHED && !v[0].foraCache);
++  assert(v[1].cacheEstado==STREAM_CACHE_UNKNOWN); assert(v[2].foraCache);
++  free(v); puts("source cache: explicit booleans, scope, missing fields and precedence passed");
++}

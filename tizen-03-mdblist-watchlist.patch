@@ -1,0 +1,1403 @@
+diff --git a/src/ajustes.c b/src/ajustes.c
+index 648593aac15b906e11ae76657f72ac18181b4d86..d4eaf3093d7b53ea5eca731b728c788ef865b13b 100644
+--- a/src/ajustes.c
++++ b/src/ajustes.c
+@@ -729,7 +729,7 @@ static const char *V_HERO_FONTE[] = {
+ // sendo o Trakt. Com ele o "+" publica no Plan to Watch, e o Plan to Watch
+ // passa a entrar nos Salvos (descoberta.c). Nomes em ajustes.h (AJ_SALVOS_*).
+ static const char *V_SALVOS[]    = { "Lista do Nuvio", "Watchlist do Trakt",
+-                                     "Plan to Watch do Simkl" };
++                                     "Plan to Watch do Simkl", "MDBList Watchlist" };
+ // PAIS DA GRADE DO GUIA (#158). O indice e o gravado ("epgPaisLocal N"):
+ // novos entram NO FIM. O nome de cada pais vai na propria lingua dele, que e
+ // como quem mora la o procura numa lista, e dispensa traducao. O codigo na
+@@ -1078,7 +1078,7 @@ static const Opcao OPCOES[AJ_N] = {
+   ACAO("Remover o Xtream"),
+   LER("Conta Xtream"),
+   ESC("Grade de programação",      V_EPG_PAIS, AJ_N_EPG_PAIS),
+-  ESC("Onde o + salva",             V_SALVOS, 3),
++  ESC("Onde o + salva",             V_SALVOS, 4),
+   ACAO("Trakt"),
+   ACAO("Simkl"),
+   ACAO("Sair da conta"),
+@@ -2130,6 +2130,7 @@ void ajustes_definir_ocultar_nao_lancados(int ligado) {
+ // dois casos; ver a nota de V_SALVOS e a de abertura de salvos.h.
+ int ajustes_salvos_no_trakt(void)     { return valor[AJ_SALVOS_DEST] == AJ_SALVOS_TRAKT; }
+ int ajustes_salvos_no_simkl(void)     { return valor[AJ_SALVOS_DEST] == AJ_SALVOS_SIMKL; }
++int ajustes_salvos_no_mdblist(void)   { return valor[AJ_SALVOS_DEST] == AJ_SALVOS_MDBLIST; }
+ // Setter para o explicador de primeira vez (salvosintro.c), que faz esta
+ // pergunta antes de a pessoa chegar em Ajustes. Grava na hora: quem respondeu e
+ // desligou a TV nao deve ser perguntado de novo.
+@@ -2138,7 +2139,7 @@ void ajustes_definir_salvos_no_trakt(int noTrakt) {
+   gravar();
+ }
+ void ajustes_definir_salvos_destino(int destino) {
+-  if (destino < AJ_SALVOS_LOCAL || destino > AJ_SALVOS_SIMKL) return;
++  if (destino < AJ_SALVOS_LOCAL || destino > AJ_SALVOS_MDBLIST) return;
+   valor[AJ_SALVOS_DEST] = destino;
+   gravar();
+   desc_repetir();   // o mesmo que a linha de Ajustes faz ao mudar
+diff --git a/src/ajustes.h b/src/ajustes.h
+index 4737ddb3cc2cb7cf4faf7829c4d0b893084acd72..b12b7a3d776175419806693979915966dc5607bc 100644
+--- a/src/ajustes.h
++++ b/src/ajustes.h
+@@ -344,11 +344,12 @@ void  ajustes_definir_salvos_no_trakt(int noTrakt);
+ void  ajustes_definir_salvos_destino(int destino);
+ // 1 = o "+" tambem publica no Plan to Watch do Simkl (#110).
+ int   ajustes_salvos_no_simkl(void);
++int   ajustes_salvos_no_mdblist(void);
+ // Os INDICES GRAVADOS de "Onde o + salva" (salvosDestino) e da fonte do
+ // "Continuar assistindo" (cwFonteLocal). Sao contrato com o ajustes.txt de quem
+ // ja usa o app: valor novo entra no fim, nunca no meio. tests/simkl_cw.sh
+ // confere cada um contra o rotulo em ajustes.c.
+-enum { AJ_SALVOS_LOCAL = 0, AJ_SALVOS_TRAKT = 1, AJ_SALVOS_SIMKL = 2 };
++enum { AJ_SALVOS_LOCAL = 0, AJ_SALVOS_TRAKT = 1, AJ_SALVOS_SIMKL = 2, AJ_SALVOS_MDBLIST = 3 };
+ enum { AJ_CWF_AMBAS = 0, AJ_CWF_CONTA = 1, AJ_CWF_TRAKT = 2, AJ_CWF_SIMKL = 3 };
+ // Envio automatico do registro (Sobre). 1 = ligado.
+ int   ajustes_envio_auto(void);
+diff --git a/src/app.c b/src/app.c
+index eb4ebb25a9c35993b681923dd3d59ae22d97f05a..c3589fe68733000bfe7c60700a5bb1bcad307a4f 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -34,6 +34,7 @@
+ #include "sync.h"
+ #include "traktauth.h"
+ #include "mdblist.h"
++#include "mdblistlibrary.h"
+ #include "discord.h"
+ #include "simklauth.h"
+ #include "simkl.h"
+@@ -2783,6 +2784,11 @@ void app_atualizar(float dt, Uint32 agora) {
+   // mesmo com a pessoa ja tendo autorizado no celular.
+   traktauth_passo((unsigned)agora);
+   mdblist_atualizar(ajustes_mdblist_rastrear(), perfis_ativo());
++  mdb_library_tick();
++  { int refresh=0; const char *notice=mdb_library_notice(&refresh);
++    if(notice) ilha_avisar("mdblist:library", ILHA_INFO, "aj_bookmark", i18n(notice), 6500u, 0);
++    if(refresh) desc_repetir();
++  }
+   discord_passo((unsigned)agora);
+   // PERSONAL SERVERS (servidores.h: Jellyfin, Emby, Plex): the modules fetches on its own workers; the
+   // Home is rebuilt when its row snapshot changes or the option flips. One
+@@ -3715,6 +3721,8 @@ void app_atualizar(float dt, Uint32 agora) {
+         if (!simkl_ativo()) printf("[simkl] + sem vinculo: so na lista desta TV\n");
+         else simkl_lista_tipo(c->imdb, c->tipo, entrar);
+       }
++      if (c && c->imdb[0] && ajustes_salvos_no_mdblist())
++        mdb_library_save(c->imdb, c->tipo, entrar);
+       if (c) cat_definir_na_lista(i, entrar);
+       if (c) ilhasalvar_aviso(c, entrar);   // o voo da capa e o "Salvo em ..." na ilha
+     }
+diff --git a/src/ctxmenu.c b/src/ctxmenu.c
+index 082ac370cf0e8922918fbe3b024da7e9807ee7d6..b559a7b1c18163197c85379ea37a1b53fe9cf8b2 100644
+--- a/src/ctxmenu.c
++++ b/src/ctxmenu.c
+@@ -6,6 +6,7 @@
+ #include "visto.h"
+ #include "trakt.h"
+ #include "simkl.h"
++#include "mdblistlibrary.h"
+ #include "extras.h"
+ #include "gfx.h"
+ #include "text.h"
+@@ -103,7 +104,8 @@ static int   espelhoAplicado;
+ // A ESCRITA EM ANDAMENTO E DO SIMKL, e nao do Trakt (issue #110): diz a
+ // ctx_atualizar qual estado consultar. Os numeros dos dois estados sao os
+ // mesmos (SMK_OP_* = CTX_*), entao o resto do jogo de estados nao muda.
+-static int   opSimkl;
++static int opSimkl;
++static unsigned opMdb;
+ // Frase no lugar de "Biblioteca atualizada" quando o destino e o Simkl e nao
+ // ha vinculo: a lista desta TV foi escrita, o Simkl nao — e a tela diz.
+ static const char *avisoOp;
+@@ -780,7 +782,7 @@ static void iniciarAssistido(int atual, const CatItem *ci, int soMarcar) {
+       opItem = *ci; opTinhaRetomada = ci->progresso > 0 || ci->restanteMin > 0;
+       snprintf(operacaoImdb, sizeof operacaoImdb, "%s", ci->imdb);
+       operacao = CTX_OP_HISTORICO;
+-      opSimkl = 0;
++      opSimkl = 0; opMdb = 0;
+       avisoOp = NULL;
+       espelhoAplicado = 0;
+       estadoOperacao = CTX_PENDENTE;
+@@ -880,7 +882,7 @@ static void aplicar(void) {
+       snprintf(operacaoImdb, sizeof operacaoImdb, "%s", ci->imdb);
+       operacao = CTX_OP_LISTA;
+       fecharAoConfirmar = doPainel && !intencao;
+-      opSimkl = 0;
++      opSimkl = 0; opMdb = 0;
+       avisoOp = NULL;
+       espelhoAplicado = 0;
+       estadoOperacao = CTX_PENDENTE;
+@@ -909,6 +911,14 @@ static void aplicar(void) {
+         opSimkl = 1;
+         if (!simkl_lista_tipo(ci->imdb, ci->tipo, intencao))
+           estadoOperacao = CTX_FALHA;
++      } else if (ajustes_salvos_no_mdblist()) {
++        opMdb = mdb_library_save(ci->imdb, ci->tipo, intencao);
++        if (!opMdb) estadoOperacao = CTX_FALHA;
++        /* Local state is committed even if the remote write fails. */
++        espelhoAplicado = 1;
++        cat_definir_na_lista(atual, intencao);
++        cat_definir_na_lista_imdb(operacaoImdb, intencao);
++        desc_remontar_fileiras();
+       } else {
+         // Simkl escolhido e sem vinculo: a lista local ja foi escrita, e o
+         // modal diz por que o Simkl nao recebeu.
+@@ -1123,7 +1133,7 @@ void ctx_atualizar(float dt, Uint32 agora) {
+   if (aberto && !soFileira && !doLista && !itemAtual()) { aberto = 0; return; }
+ 
+   if (operacao != CTX_OP_NENHUMA && estadoOperacao == CTX_PENDENTE) {
+-    int novo = opSimkl ? simkl_lista_estado() : trakt_operacao_estado(operacao);
++    int novo = opMdb ? mdb_library_result(opMdb) : opSimkl ? simkl_lista_estado() : trakt_operacao_estado(operacao);
+     if (novo == CTX_CONFIRMADA || novo == CTX_FALHA) {
+       estadoOperacao = novo;
+       if (pendExtra >= 0) {
+diff --git a/src/descoberta.c b/src/descoberta.c
+index 334820edb5ce5517444d6e708b5e7e20f32d8e02..131593cea2e8c930ed98ffcaae857284a914f643 100644
+--- a/src/descoberta.c
++++ b/src/descoberta.c
+@@ -19,6 +19,7 @@
+ #include "recomenda.h"
+ #include "trakt.h"
+ #include "simkl.h"
++#include "mdblistlibrary.h"
+ #include "progresso.h"
+ #include "contalib.h"
+ #include "proximo.h"
+@@ -4393,6 +4394,19 @@ static void *montar(void *u) {
+     n = w;
+     if (np) printf("[desc] plantowatch do Simkl: %d, %d novo(s) no catalogo\n", np, novos);
+   }
++  if (ajustes_salvos_no_mdblist()) {
++    int count=mdb_library_watchlist(NULL,0);
++    GARANTE(count);
++    int got=mdb_library_watchlist(lote+n,cap-n),w=n;
++    for(int k=n;k<n+got;k++) {
++      int duplicate=0;
++      for(int j=0;j<w;j++) if(!strcmp(lote[j].imdb,lote[k].imdb)&&!strcmp(lote[j].tipo,lote[k].tipo)) {
++        lote[j].naLista=1;duplicate=1;break;
++      }
++      if(!duplicate){if(w!=k)lote[w]=lote[k];w++;}
++    }
++    n=w;
++  }
+   preservarFileirasAusentes(&lote, &n, &cap, filsLote, &nFilsLote);
+   // Reanexar linhas sem resposta acontece depois das chamadas de rede; aplicar
+   // a ordem salva ao conjunto inteiro impede que uma resposta parcial desloque
+diff --git a/src/idioma_bg.h b/src/idioma_bg.h
+index 69b0aadb911d62de068b141bad0796deac1edb5f..f1875dea3c162d4a202c3bf13cd056e8fb7676a6 100644
+--- a/src/idioma_bg.h
++++ b/src/idioma_bg.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Ливан"),
+   T("MAC do portal", "MAC на портала"),
+   T("MARCAR COMO ASSISTIDO", "ОТБЕЛЕЖИ КАТО ГЛЕДАНО"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ИЗМЕРЕНО НА LG C9 ОТ 2019 Г."),
+   T("MP4 na frente, na LG", "Първо MP4, на LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung без запъване"),
+   T("Samsung sem travar", "Samsung без засичане"),
+   T("Samsung: imagens leves", "Samsung: по-леки изображения"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Скрейпър"),
+   T("Scrapers", "Скрейпъри"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Скрейпъри от хранилищата на Nuvio като още един източник, до добавките"),
+diff --git a/src/idioma_bs.h b/src/idioma_bs.h
+index ae1e443ba86eb9ba3490c5023acfd322c70f5821..05490057bdd3ce879de22a58e1a27d5ab5d61ae1 100644
+--- a/src/idioma_bs.h
++++ b/src/idioma_bs.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Liban"),
+   T("MAC do portal", "MAC portala"),
+   T("MARCAR COMO ASSISTIDO", "OZNAČI KAO POGLEDANO"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "IZMJERENO NA LG C9 IZ 2019."),
+   T("MP4 na frente, na LG", "Prvo MP4, na LG-u"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung bez zastajkivanja"),
+   T("Samsung sem travar", "Samsung bez zamrzavanja"),
+   T("Samsung: imagens leves", "Samsung: lakše slike"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Skrejper"),
+   T("Scrapers", "Skrejperi"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Skrejperi iz Nuvio repozitorija kao još jedan izvor, pored dodataka"),
+diff --git a/src/idioma_cs.h b/src/idioma_cs.h
+index b826c090aa0f8dba6c6cdf03a7cc20cbec538477..7563dc4e4cc28763eae20d783a76b0ad173523cd 100644
+--- a/src/idioma_cs.h
++++ b/src/idioma_cs.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "MAC portálu"),
+   T("MARCAR COMO ASSISTIDO", "OZNAČIT JAKO ZHLÉDNUTÉ"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ZMĚŘENO NA LG C9 Z ROKU 2019"),
+   T("MP4 na frente, na LG", "Nejdřív MP4, na LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung bez záseků"),
+   T("Samsung sem travar", "Samsung bez zamrzání"),
+   T("Samsung: imagens leves", "Samsung: lehčí obrázky"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapery"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapery z repozitářů Nuvio jako další zdroj vedle doplňků"),
+diff --git a/src/idioma_da.h b/src/idioma_da.h
+index 3229ca9ec95f30c97123e919f24676de98b33098..4efd7f19fbbf230880cfc1964360cfb8b674576c 100644
+--- a/src/idioma_da.h
++++ b/src/idioma_da.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "Portalens MAC"),
+   T("MARCAR COMO ASSISTIDO", "MARKER SOM SET"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MÅLT PÅ EN LG C9 FRA 2019"),
+   T("MP4 na frente, na LG", "MP4 først, på LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung uden hakken"),
+   T("Samsung sem travar", "Samsung uden frysninger"),
+   T("Samsung: imagens leves", "Samsung: lettere billeder"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapere"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapere fra Nuvio-repositorier som endnu en kilde, ved siden af add-ons"),
+diff --git a/src/idioma_de.h b/src/idioma_de.h
+index 30d99eb0a4d3140a798cd2c04814bff6827a8881..fef60455698b97bc4ba1825d466e1192e33cf007 100644
+--- a/src/idioma_de.h
++++ b/src/idioma_de.h
+@@ -2259,6 +2259,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "Portal-MAC"),
+   T("MARCAR COMO ASSISTIDO", "ALS GESEHEN MARKIEREN"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "GEMESSEN AN EINEM LG C9 VON 2019"),
+   T("MP4 na frente, na LG", "MP4 zuerst, auf LG"),
+   T("MX · México", "MX · México"),
+@@ -3806,6 +3810,7 @@
+   T("Samsung sem engasgo", "Samsung ohne Ruckeln"),
+   T("Samsung sem travar", "Samsung ohne Hänger"),
+   T("Samsung: imagens leves", "Samsung: leichtere Bilder"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scraper"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scraper aus Nuvio-Repositorys als weitere Quelle, neben den Addons"),
+diff --git a/src/idioma_el.h b/src/idioma_el.h
+index a88f22b66fafc845a680b0581c3aced7d953e5bd..972a676773d8b7af54461ea404bf234f5a4f01f9 100644
+--- a/src/idioma_el.h
++++ b/src/idioma_el.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Λίβανος"),
+   T("MAC do portal", "MAC της πύλης"),
+   T("MARCAR COMO ASSISTIDO", "ΣΗΜΕΙΩΣΗ ΩΣ ΠΡΟΒΛΗΜΕΝΟ"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ΜΕΤΡΗΘΗΚΕ ΣΕ LG C9 ΤΟΥ 2019"),
+   T("MP4 na frente, na LG", "Πρώτα MP4, στην LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung χωρίς κόλλημα"),
+   T("Samsung sem travar", "Samsung χωρίς παγώματα"),
+   T("Samsung: imagens leves", "Samsung: ελαφρύτερες εικόνες"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Εργαλείο συλλογής"),
+   T("Scrapers", "Εργαλεία συλλογής"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapers από τα αποθετήρια του Nuvio ως ακόμη μία πηγή, δίπλα στα πρόσθετα"),
+diff --git a/src/idioma_es.h b/src/idioma_es.h
+index d5adf31b8e5f22471df155cda43f3ba3abc00522..817ae3e8ed5a669588406a5873f2e1fae8c4cc5c 100644
+--- a/src/idioma_es.h
++++ b/src/idioma_es.h
+@@ -2259,6 +2259,10 @@
+   T("Líbano", "Líbano"),
+   T("MAC do portal", "MAC del portal"),
+   T("MARCAR COMO ASSISTIDO", "MARCAR COMO VISTO"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MEDIDO EN UNA LG C9 DE 2019"),
+   T("MP4 na frente, na LG", "MP4 primero, en LG"),
+   T("MX · México", "MX · México"),
+@@ -3806,6 +3810,7 @@
+   T("Samsung sem engasgo", "Samsung sin tirones"),
+   T("Samsung sem travar", "Samsung sin bloqueos"),
+   T("Samsung: imagens leves", "Samsung: imágenes ligeras"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapers"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapers de los repositorios de Nuvio como otra fuente, junto a los add-ons"),
+diff --git a/src/idioma_fr.h b/src/idioma_fr.h
+index 26ae658ffd5c145c9217eff877c8743ac0487701..74d53d2e895cc37e49ae089d355f3dd1631b0d29 100644
+--- a/src/idioma_fr.h
++++ b/src/idioma_fr.h
+@@ -2259,6 +2259,10 @@
+   T("Líbano", "Liban"),
+   T("MAC do portal", "MAC du portail"),
+   T("MARCAR COMO ASSISTIDO", "MARQUER COMME VU"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MESURÉ SUR UNE LG C9 DE 2019"),
+   T("MP4 na frente, na LG", "MP4 en premier, sur LG"),
+   T("MX · México", "MX · México"),
+@@ -3806,6 +3810,7 @@
+   T("Samsung sem engasgo", "Samsung sans à-coups"),
+   T("Samsung sem travar", "Samsung sans blocages"),
+   T("Samsung: imagens leves", "Samsung: images légères"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapers"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Les scrapers des dépôts Nuvio comme source supplémentaire, à côté des add-ons"),
+diff --git a/src/idioma_hu.h b/src/idioma_hu.h
+index 3b0d1231cec8700a59206a1b3ebff7a8c13a3f2a..abe7ebd4a5e3b00b2a1cc5a3f8c45cdbaa54b237 100644
+--- a/src/idioma_hu.h
++++ b/src/idioma_hu.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "Portál MAC-je"),
+   T("MARCAR COMO ASSISTIDO", "JELÖLÉS MEGNÉZETTKÉNT"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "2019-ES LG C9-EN MÉRVE"),
+   T("MP4 na frente, na LG", "Először MP4, LG-n"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung akadás nélkül"),
+   T("Samsung sem travar", "Samsung fagyás nélkül"),
+   T("Samsung: imagens leves", "Samsung: könnyebb képek"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scraperek"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scraperek a Nuvio-tárolókból még egy forrásként, a bővítmények mellett"),
+diff --git a/src/idioma_id.h b/src/idioma_id.h
+index e155af365fcf1f47f3e49e64687df30ab042aa18..595c07b0dd457b236846ac0a037ec3a4af88eada 100644
+--- a/src/idioma_id.h
++++ b/src/idioma_id.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Lebanon"),
+   T("MAC do portal", "MAC portal"),
+   T("MARCAR COMO ASSISTIDO", "TANDAI SUDAH DITONTON"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "DIUKUR PADA LG C9 TAHUN 2019"),
+   T("MP4 na frente, na LG", "MP4 lebih dulu, di LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung tanpa tersendat"),
+   T("Samsung sem travar", "Samsung tanpa membeku"),
+   T("Samsung: imagens leves", "Samsung: gambar lebih ringan"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scraper"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scraper dari repositori Nuvio sebagai satu sumber lagi, di samping addon"),
+diff --git a/src/idioma_it.h b/src/idioma_it.h
+index 72a04396763c3e25e84fda118a98317530cbcb2b..e11847cd6445282283195ccbb4770b0758243e27 100644
+--- a/src/idioma_it.h
++++ b/src/idioma_it.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libano"),
+   T("MAC do portal", "MAC del portale"),
+   T("MARCAR COMO ASSISTIDO", "SEGNA COME VISTO"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MISURATO SU UN LG C9 DEL 2019"),
+   T("MP4 na frente, na LG", "MP4 per primo, su LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung senza scatti"),
+   T("Samsung sem travar", "Samsung senza blocchi"),
+   T("Samsung: imagens leves", "Samsung: immagini più leggere"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scraper"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scraper dai repository Nuvio come fonte in più, accanto agli add-on"),
+diff --git a/src/idioma_ja.h b/src/idioma_ja.h
+index 2bd715e9a52bffed5ad98b309082d2dff41b70ea..c59a0f1ccbc31d338251f0b0ee2fa7b9899e1f64 100644
+--- a/src/idioma_ja.h
++++ b/src/idioma_ja.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "レバノン"),
+   T("MAC do portal", "ポータルの MAC"),
+   T("MARCAR COMO ASSISTIDO", "視聴済みにする"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "2019 年製 LG C9 で計測"),
+   T("MP4 na frente, na LG", "LG では MP4 を優先"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung でカクつかない"),
+   T("Samsung sem travar", "Samsung で固まらない"),
+   T("Samsung: imagens leves", "Samsung: 軽量な画像"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "スクレイパー"),
+   T("Scrapers", "スクレイパー"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Nuvio リポジトリのスクレイパーを、アドオンと並ぶソースとして使用"),
+diff --git a/src/idioma_lt.h b/src/idioma_lt.h
+index 49523c460481d557217d8427a176ad6d7f5895f5..020754e64defc970f6be0a58c76b2e8e3488bfde 100644
+--- a/src/idioma_lt.h
++++ b/src/idioma_lt.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanas"),
+   T("MAC do portal", "Portalo MAC"),
+   T("MARCAR COMO ASSISTIDO", "PAŽYMĖTI KAIP PERŽIŪRĖTĄ"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "IŠMATUOTA 2019 M. LG C9"),
+   T("MP4 na frente, na LG", "Pirmiausia MP4, LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung be trūkčiojimo"),
+   T("Samsung sem travar", "Samsung be strigimų"),
+   T("Samsung: imagens leves", "Samsung: lengvesni vaizdai"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Rinktuvas"),
+   T("Scrapers", "Rinktuvai"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Rinktuvai iš Nuvio saugyklų kaip dar vienas šaltinis šalia papildinių"),
+diff --git a/src/idioma_nl.h b/src/idioma_nl.h
+index 388a94363efd5784513a3d916c891b07e23b8d70..2f7acbb30e8d198a220f00251d75d0d242916dd4 100644
+--- a/src/idioma_nl.h
++++ b/src/idioma_nl.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "MAC van de portal"),
+   T("MARCAR COMO ASSISTIDO", "MARKEER ALS GEZIEN"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "GEMETEN OP EEN LG C9 UIT 2019"),
+   T("MP4 na frente, na LG", "MP4 eerst, op LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung zonder haperingen"),
+   T("Samsung sem travar", "Samsung zonder vastlopers"),
+   T("Samsung: imagens leves", "Samsung: lichtere afbeeldingen"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapers"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapers uit Nuvio-repository's als extra bron, naast de add-ons"),
+diff --git a/src/idioma_no.h b/src/idioma_no.h
+index 0a10593670868f6c41e3698b8c74cbbbd404191d..a1efa0b8ee2e00d435fe4bc05d8d4a6916f38d4d 100644
+--- a/src/idioma_no.h
++++ b/src/idioma_no.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "Portalens MAC"),
+   T("MARCAR COMO ASSISTIDO", "MARKER SOM SETT"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MÅLT PÅ EN LG C9 FRA 2019"),
+   T("MP4 na frente, na LG", "MP4 først, på LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung uten hakk"),
+   T("Samsung sem travar", "Samsung uten frysing"),
+   T("Samsung: imagens leves", "Samsung: lettere bilder"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapere"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapere fra Nuvio-repositorier som enda en kilde, ved siden av add-ons"),
+diff --git a/src/idioma_pl.h b/src/idioma_pl.h
+index 30d1275d9d44e3829d3dd2b830a4b00b3f20bac0..07764bbf4f53bf2d6f3337ec5d13e9e4165de9f5 100644
+--- a/src/idioma_pl.h
++++ b/src/idioma_pl.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Liban"),
+   T("MAC do portal", "Adres MAC portalu"),
+   T("MARCAR COMO ASSISTIDO", "OZNACZ JAKO OBEJRZANE"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ZMIERZONO NA LG C9 Z 2019 ROKU"),
+   T("MP4 na frente, na LG", "Najpierw MP4, na LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung bez zacinania"),
+   T("Samsung sem travar", "Samsung bez zawieszeń"),
+   T("Samsung: imagens leves", "Samsung: lżejsze obrazy"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapery"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapery z repozytoriów Nuvio jako kolejne źródło, obok dodatków"),
+diff --git a/src/idioma_ptpt.h b/src/idioma_ptpt.h
+index dab73061b67e1ffb41283a5567da1a5a18836c83..8c5ec5eb032327cc3e964841c37268fef588ae88 100644
+--- a/src/idioma_ptpt.h
++++ b/src/idioma_ptpt.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Líbano"),
+   T("MAC do portal", "MAC do portal"),
+   T("MARCAR COMO ASSISTIDO", "MARCAR COMO VISTO"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MEDIDO NUMA LG C9 DE 2019"),
+   T("MP4 na frente, na LG", "MP4 primeiro, na LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung sem engasgos"),
+   T("Samsung sem travar", "Samsung sem bloqueios"),
+   T("Samsung: imagens leves", "Samsung: imagens leves"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapers"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons"),
+diff --git a/src/idioma_ro.h b/src/idioma_ro.h
+index 3dbc2561a61d66c2ad9c75ce006eb2ae66e6c349..8fb7c35eee020d3c26dc4d0efbd2ff43bc6aabfa 100644
+--- a/src/idioma_ro.h
++++ b/src/idioma_ro.h
+@@ -2259,6 +2259,10 @@
+   T("Líbano", "Liban"),
+   T("MAC do portal", "MAC-ul portalului"),
+   T("MARCAR COMO ASSISTIDO", "MARCHEAZĂ CA VIZIONAT"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MĂSURAT PE UN LG C9 DIN 2019"),
+   T("MP4 na frente, na LG", "MP4 primul, pe LG"),
+   T("MX · México", "MX · México"),
+@@ -3806,6 +3810,7 @@
+   T("Samsung sem engasgo", "Samsung fără poticniri"),
+   T("Samsung sem travar", "Samsung fără blocaje"),
+   T("Samsung: imagens leves", "Samsung: imagini mai ușoare"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapere"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapere din depozitele Nuvio ca încă o sursă, lângă addon-uri"),
+diff --git a/src/idioma_ru.h b/src/idioma_ru.h
+index dfb23d437d60e904a392778f02ad6f88909e49b4..7fab4c59852a7c077c6568c8f1a923f71320ea49 100644
+--- a/src/idioma_ru.h
++++ b/src/idioma_ru.h
+@@ -2259,6 +2259,10 @@
+   T("Líbano", "Ливан"),
+   T("MAC do portal", "MAC портала"),
+   T("MARCAR COMO ASSISTIDO", "ОТМЕТИТЬ КАК ПРОСМОТРЕННОЕ"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ИЗМЕРЕНО НА LG C9 2019 ГОДА"),
+   T("MP4 na frente, na LG", "MP4 первым, на LG"),
+   T("MX · México", "MX · México"),
+@@ -3806,6 +3810,7 @@
+   T("Samsung sem engasgo", "Samsung без тормозов"),
+   T("Samsung sem travar", "Samsung без зависаний"),
+   T("Samsung: imagens leves", "Samsung: более лёгкие изображения"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Скрейпер"),
+   T("Scrapers", "Скрейперы"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Скрейперы из репозиториев Nuvio как ещё один источник рядом с аддонами"),
+diff --git a/src/idioma_sk.h b/src/idioma_sk.h
+index 0c4afac0eee35ab1f85c587502e8b7ffb86dbd52..3b7dde745ace0d7ef4e99086aa5bc24540af4e9e 100644
+--- a/src/idioma_sk.h
++++ b/src/idioma_sk.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "MAC portálu"),
+   T("MARCAR COMO ASSISTIDO", "OZNAČIŤ AKO POZRETÉ"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ZMERANÉ NA LG C9 Z ROKU 2019"),
+   T("MP4 na frente, na LG", "Najprv MP4, na LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung bez zásekov"),
+   T("Samsung sem travar", "Samsung bez zamŕzania"),
+   T("Samsung: imagens leves", "Samsung: ľahšie obrázky"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapery"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapery z repozitárov Nuvio ako ďalší zdroj vedľa doplnkov"),
+diff --git a/src/idioma_sl.h b/src/idioma_sl.h
+index ef62dd5bb90bcabdba3f4d3f1e3da7bd27b00fc8..f3b129b2392fbab766dc980ee560c670c9f01a3f 100644
+--- a/src/idioma_sl.h
++++ b/src/idioma_sl.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "MAC portala"),
+   T("MARCAR COMO ASSISTIDO", "OZNAČI KOT OGLEDANO"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "IZMERJENO NA LG C9 IZ LETA 2019"),
+   T("MP4 na frente, na LG", "Najprej MP4, na LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung brez zatikanja"),
+   T("Samsung sem travar", "Samsung brez zamrzovanja"),
+   T("Samsung: imagens leves", "Samsung: lažje slike"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Strgalnik"),
+   T("Scrapers", "Strgalniki"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Strgalniki iz repozitorijev Nuvio kot še en vir, poleg dodatkov"),
+diff --git a/src/idioma_sr.h b/src/idioma_sr.h
+index 3eaa591885224164f14db90b3f40d804072f4a74..60433e493e6a21dc340243d848e531c3ee325ebf 100644
+--- a/src/idioma_sr.h
++++ b/src/idioma_sr.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Liban"),
+   T("MAC do portal", "MAC portala"),
+   T("MARCAR COMO ASSISTIDO", "OZNAČI KAO GLEDANO"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "IZMERENO NA LG C9 IZ 2019."),
+   T("MP4 na frente, na LG", "Prvo MP4, na LG-u"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung bez zastajkivanja"),
+   T("Samsung sem travar", "Samsung bez zamrzavanja"),
+   T("Samsung: imagens leves", "Samsung: lakše slike"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Skrejper"),
+   T("Scrapers", "Skrejperi"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Skrejperi iz Nuvio repozitorijuma kao još jedan izvor, pored dodataka"),
+diff --git a/src/idioma_sv.h b/src/idioma_sv.h
+index cdcb426cdb13bc61842736acbcade98f168d2fee..2f0aeed66f4c3623c5012ee1dba610c63c10f5d5 100644
+--- a/src/idioma_sv.h
++++ b/src/idioma_sv.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Libanon"),
+   T("MAC do portal", "Portalens MAC"),
+   T("MARCAR COMO ASSISTIDO", "MARKERA SOM SETT"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "MÄTT PÅ EN LG C9 FRÅN 2019"),
+   T("MP4 na frente, na LG", "MP4 först, på LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung utan hack"),
+   T("Samsung sem travar", "Samsung utan frysningar"),
+   T("Samsung: imagens leves", "Samsung: lättare bilder"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Scraper"),
+   T("Scrapers", "Scrapers"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapers från Nuvio-förråd som ytterligare en källa, bredvid add-ons"),
+diff --git a/src/idioma_tab.h b/src/idioma_tab.h
+index 0a7c87517487e06715b3ccf40443e2bfe2c3cf59..2f29c0c97bb461f4684e6e97fc9ecef0a21e4a81 100644
+--- a/src/idioma_tab.h
++++ b/src/idioma_tab.h
+@@ -2259,6 +2259,10 @@
+   { "Líbano", "Lebanon" },
+   { "MAC do portal", "Portal MAC" },
+   { "MARCAR COMO ASSISTIDO", "MARK AS WATCHED" },
++  { "MDBList Watchlist", "MDBList Watchlist" },
++  { "MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data." },
++  { "MDBList sync complete", "MDBList sync complete" },
++  { "MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected." },
+   { "MEDIDO NUMA LG C9 DE 2019", "MEASURED ON A 2019 LG C9" },
+   { "MP4 na frente, na LG", "MP4 first, on LG" },
+   { "MX · México", "MX · México" },
+@@ -3806,6 +3810,7 @@
+   { "Samsung sem engasgo", "Samsung without stutter" },
+   { "Samsung sem travar", "Samsung without freezes" },
+   { "Samsung: imagens leves", "Samsung: lighter images" },
++  { "Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList" },
+   { "Scraper", "Scraper" },
+   { "Scrapers", "Scrapers" },
+   { "Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Scrapers from Nuvio repositories as another source, next to add-ons" },
+diff --git a/src/idioma_tr.h b/src/idioma_tr.h
+index 435650cb4f671f70ae2c4edb00d9becc061df083..95a18bbdcf0eeab88bbca439f8216da4c2c4409b 100644
+--- a/src/idioma_tr.h
++++ b/src/idioma_tr.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Lübnan"),
+   T("MAC do portal", "Portal MAC adresi"),
+   T("MARCAR COMO ASSISTIDO", "İZLENDİ OLARAK İŞARETLE"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "2019 MODEL LG C9'DA ÖLÇÜLDÜ"),
+   T("MP4 na frente, na LG", "Önce MP4, LG'de"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Takılmasız Samsung"),
+   T("Samsung sem travar", "Donmasız Samsung"),
+   T("Samsung: imagens leves", "Samsung: daha hafif görseller"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Kazıyıcı"),
+   T("Scrapers", "Kazıyıcılar"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Nuvio depolarındaki kazıyıcılar, eklentilerin yanında bir kaynak daha"),
+diff --git a/src/idioma_uk.h b/src/idioma_uk.h
+index b9538b6dc13d7673a06add8014b1b4ea79a613df..af79235bdbde8b34bb81de41b29879db14db77eb 100644
+--- a/src/idioma_uk.h
++++ b/src/idioma_uk.h
+@@ -2259,6 +2259,10 @@
+   T("Líbano", "Ліван"),
+   T("MAC do portal", "MAC порталу"),
+   T("MARCAR COMO ASSISTIDO", "ПОЗНАЧИТИ ЯК ПЕРЕГЛЯНУТЕ"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ВИМІРЯНО НА LG C9 2019 РОКУ"),
+   T("MP4 na frente, na LG", "MP4 першим, на LG"),
+   T("MX · México", "MX · México"),
+@@ -3806,6 +3810,7 @@
+   T("Samsung sem engasgo", "Samsung без гальмувань"),
+   T("Samsung sem travar", "Samsung без зависань"),
+   T("Samsung: imagens leves", "Samsung: легші зображення"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Скрейпер"),
+   T("Scrapers", "Скрейпери"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Скрейпери з репозиторіїв Nuvio як ще одне джерело поруч з аддонами"),
+diff --git a/src/idioma_vi.h b/src/idioma_vi.h
+index cd07d9feee35caedaf6de111c079207053e0f1d0..6ee967eb5c9c2392709d1a79d3e376e95a6dbbbc 100644
+--- a/src/idioma_vi.h
++++ b/src/idioma_vi.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "Liban"),
+   T("MAC do portal", "MAC của cổng"),
+   T("MARCAR COMO ASSISTIDO", "ĐÁNH DẤU ĐÃ XEM"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "ĐO TRÊN LG C9 ĐỜI 2019"),
+   T("MP4 na frente, na LG", "Ưu tiên MP4, trên LG"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "Samsung không giật"),
+   T("Samsung sem travar", "Samsung không đứng hình"),
+   T("Samsung: imagens leves", "Samsung: hình ảnh nhẹ hơn"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "Trình thu thập"),
+   T("Scrapers", "Trình thu thập"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "Trình thu thập từ các kho Nuvio làm thêm một nguồn, bên cạnh tiện ích"),
+diff --git a/src/idioma_zhcn.h b/src/idioma_zhcn.h
+index d4fb28e19c461ed0485060759d5902778bc9c3e4..f21c1a475466f8611701fc57a820ce4ec6213adc 100644
+--- a/src/idioma_zhcn.h
++++ b/src/idioma_zhcn.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "黎巴嫩"),
+   T("MAC do portal", "门户 MAC"),
+   T("MARCAR COMO ASSISTIDO", "标记为已看"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "在 2019 年的 LG C9 上测得"),
+   T("MP4 na frente, na LG", "在 LG 上 MP4 优先"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "三星上不再卡顿"),
+   T("Samsung sem travar", "三星上不再卡死"),
+   T("Samsung: imagens leves", "三星：更轻量的图片"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "抓取器"),
+   T("Scrapers", "抓取器"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "将 Nuvio 仓库中的抓取器作为附加组件之外的又一片源"),
+diff --git a/src/idioma_zhtw.h b/src/idioma_zhtw.h
+index a361ead8f22a4c8852c62c3cd89f752f5c6e1085..5753acad12002053c03d229bafddb2604dcf1405 100644
+--- a/src/idioma_zhtw.h
++++ b/src/idioma_zhtw.h
+@@ -2260,6 +2260,10 @@
+   T("Líbano", "黎巴嫩"),
+   T("MAC do portal", "入口 MAC"),
+   T("MARCAR COMO ASSISTIDO", "標記為已看"),
++  T("MDBList Watchlist", "MDBList Watchlist"),
++  T("MDBList could not refresh. Showing saved local or previous data.", "MDBList could not refresh. Showing saved local or previous data."),
++  T("MDBList sync complete", "MDBList sync complete"),
++  T("MDBList sync failed. Your local changes are safe. Try again when connected.", "MDBList sync failed. Your local changes are safe. Try again when connected."),
+   T("MEDIDO NUMA LG C9 DE 2019", "在 2019 年的 LG C9 上測得"),
+   T("MP4 na frente, na LG", "在 LG 上 MP4 優先"),
+   T("MX · México", "MX · México"),
+@@ -3807,6 +3811,7 @@
+   T("Samsung sem engasgo", "三星上不再卡頓"),
+   T("Samsung sem travar", "三星上不再當機"),
+   T("Samsung: imagens leves", "三星：更輕量的圖片"),
++  T("Saved locally; syncing with MDBList", "Saved locally; syncing with MDBList"),
+   T("Scraper", "擷取器"),
+   T("Scrapers", "擷取器"),
+   T("Scrapers dos repositórios Nuvio como mais uma fonte, ao lado dos add-ons", "將 Nuvio 儲存庫中的擷取器作為附加元件之外的另一個片源"),
+diff --git a/src/ilha.h b/src/ilha.h
+index c09713c9b710c95f5d6c8f66167f64260fd7df90..0d270f024408a49c652ff8cd6d193a39152c7744 100644
+--- a/src/ilha.h
++++ b/src/ilha.h
+@@ -66,7 +66,7 @@ enum { ILHA_P1 = 1, ILHA_P2, ILHA_P3 };
+ // com 1 a 3 botoes e, no lugar da arte 16:9, o ROSTO de alguem (pedido de
+ // amizade) ou um ICONE num ladrilho (versao nova, Trakt, aviso do dono). Todos
+ // os campos sao opcionais menos `titulo` e um botao; vazio = a linha some.
+-#define ILHA_MODAL_BOTOES 3
++#define ILHA_MODAL_BOTOES 4
+ typedef struct {
+   char kicker[80];          // linha pequena em maiusculas acima do titulo
+   char titulo[160];         // grande (a "logo" do modal)
+diff --git a/src/ilhasalvar.c b/src/ilhasalvar.c
+index 4572fbf6140259d88663e2bc05dfbd4612a71907..bdce5bc7a0fa403db91b1e7d34591c8f7a6c8828 100644
+--- a/src/ilhasalvar.c
++++ b/src/ilhasalvar.c
+@@ -10,6 +10,7 @@
+ #include "idioma.h"
+ #include "salvos.h"
+ #include "simkl.h"
++#include "mdblistlibrary.h"
+ #include "trakt.h"
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -23,7 +24,7 @@ extern int trakt_watchlist_tipo(const char *imdb, const char *tipo, int adiciona
+ 
+ static int perguntaAberta;
+ static Uint32 perguntaDesde;
+-static int opcao[3];            // AJ_SALVOS_* de cada botao, na ordem em que saem
++static int opcao[4];            // AJ_SALVOS_* de cada botao, na ordem em que saem
+ static int nOpcao;
+ static CatItem pendente;
+ static int pendenteEntrar;
+@@ -41,6 +42,7 @@ static int jaFoiPerguntado(void) {
+ const char *ilhasalvar_destino(void) {
+   if (ajustes_salvos_no_trakt() && trakt_ativo()) return i18n("Watchlist do Trakt");
+   if (ajustes_salvos_no_simkl() && simkl_ativo()) return i18n("Plan to Watch do Simkl");
++  if (ajustes_salvos_no_mdblist()) return i18n("MDBList Watchlist");
+   return i18n("Lista do Nuvio");
+ }
+ 
+@@ -51,6 +53,7 @@ static void gravarLista(const CatItem *ci, int entrar) {
+   atividade_salvo(ci, entrar);
+   if (ajustes_salvos_no_trakt() && trakt_ativo()) trakt_watchlist_tipo(ci->imdb, ci->tipo, entrar);
+   else if (ajustes_salvos_no_simkl() && simkl_ativo()) simkl_lista_tipo(ci->imdb, ci->tipo, entrar);
++  else if (ajustes_salvos_no_mdblist()) mdb_library_save(ci->imdb, ci->tipo, entrar);
+   cat_definir_na_lista_imdb(ci->imdb, entrar);
+   desc_remontar_fileiras();
+ }
+@@ -68,6 +71,7 @@ void ilhasalvar_aviso(const CatItem *ci, int entrou) {
+   if (!ci) return;
+   if (entrou) snprintf(txt, sizeof txt, i18n("Salvo em %s"), ilhasalvar_destino());
+   else snprintf(txt, sizeof txt, "%s", i18n("Removido da lista"));
++  if (ajustes_salvos_no_mdblist()) snprintf(txt, sizeof txt, "%s", i18n("Saved locally; syncing with MDBList"));
+   c.ci = *ci; c.entrou = entrou;
+   memset(&a, 0, sizeof a);
+   a.icone = "aj_bookmark"; a.frase = txt; a.titulo = ci->titulo;
+@@ -85,7 +89,7 @@ void ilhasalvar_executar(const CatItem *ci, int entrar) {
+ 
+ static void concluir(int escolha /* AJ_SALVOS_* ou -1 = manter o padrao */) {
+   perguntaAberta = 0;
+-  if (escolha == AJ_SALVOS_LOCAL || escolha == AJ_SALVOS_TRAKT || escolha == AJ_SALVOS_SIMKL)
++  if (escolha == AJ_SALVOS_LOCAL || escolha == AJ_SALVOS_TRAKT || escolha == AJ_SALVOS_SIMKL || escolha == AJ_SALVOS_MDBLIST)
+     ajustes_definir_salvos_destino(escolha);
+   dados_gravar(ARQ_PERGUNTADO, "1\n");
+   printf("[ilhasalvar] pergunta respondida: destino %d\n", escolha);
+@@ -104,6 +108,7 @@ int ilhasalvar_perguntar(const CatItem *ci, int entrar) {
+   opcao[nOpcao++] = AJ_SALVOS_LOCAL;
+   if (trakt_ativo()) opcao[nOpcao++] = AJ_SALVOS_TRAKT;
+   if (simkl_ativo()) opcao[nOpcao++] = AJ_SALVOS_SIMKL;
++  if (mdb_library_connected()) opcao[nOpcao++] = AJ_SALVOS_MDBLIST;
+   memset(&m, 0, sizeof m);
+   snprintf(m.kicker, sizeof m.kicker, "%s", i18n("Primeira vez na lista"));
+   snprintf(m.titulo, sizeof m.titulo, "%s", i18n("Onde o + salva?"));
+@@ -121,7 +126,7 @@ int ilhasalvar_perguntar(const CatItem *ci, int entrar) {
+   m.nBotoes = nOpcao > 1 ? nOpcao : 1;
+   for (i = 0; i < nOpcao; i++) {
+     const char *r = opcao[i] == AJ_SALVOS_LOCAL ? (nOpcao > 1 ? i18n("Lista do Nuvio") : i18n("Salvar na Lista do Nuvio"))
+-                  : opcao[i] == AJ_SALVOS_TRAKT ? i18n("Trakt") : i18n("Simkl");
++                  : opcao[i] == AJ_SALVOS_TRAKT ? i18n("Trakt") : opcao[i] == AJ_SALVOS_SIMKL ? i18n("Simkl") : i18n("MDBList");
+     snprintf(m.botao[i], sizeof m.botao[i], "%s", r);
+   }
+   snprintf(m.rodape, sizeof m.rodape, "%s", i18n("Voltar mantém o padrão."));
+diff --git a/src/mdbformat.c b/src/mdbformat.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..054ea7e13be890ae5d53c91c2f04f5522a68323b
+--- /dev/null
++++ b/src/mdbformat.c
+@@ -0,0 +1,131 @@
++#include "mdbformat.h"
++#include "js.h"
++#include <ctype.h>
++#include <stdlib.h>
++#include <stdio.h>
++#include <string.h>
++#include <math.h>
++#include <limits.h>
++const char *mdb_prop(const char *p,const char *end,const char *key) {
++ if(!p||!end||p>=end||*p!='{')return NULL;
++ int depth=0;size_t n=strlen(key);
++ while(p<end) {
++  if(*p=='"') {const char *start=++p;while(p<end&&*p!='"'){if(*p=='\\'&&p+1<end)p++;p++;}
++   if(p>=end)return NULL;const char *value=p+1;while(value<end&&isspace((unsigned char)*value))value++;
++   if(depth==1&&(size_t)(p-start)==n&&!memcmp(start,key,n)&&value<end&&*value==':') {value++;while(value<end&&isspace((unsigned char)*value))value++;return value<end?value:NULL;}
++  }else if(*p=='{'||*p=='[')depth++;else if(*p=='}'||*p==']'){if(--depth==0)break;}p++;
++ }return NULL;
++}
++const char *mdb_object(const char *obj,const char *end,const char *key) {
++ const char *p=mdb_prop(obj,end,key),*f;
++ return p&&*p=='{'&&(f=js_fim(p))&&f<=end?p:NULL;
++}
++double mdb_number(const char *obj,const char *end,const char *key,double fallback) {
++ const char *p=mdb_prop(obj,end,key);char *tail;double value;
++ if(!p||(!isdigit((unsigned char)*p)&&*p!='-'))return fallback;
++ value=strtod(p,&tail);while(tail<end&&isspace((unsigned char)*tail))tail++;
++ return isfinite(value)&&tail<end&&(*tail==','||*tail=='}'||*tail==']')?value:fallback;
++}
++int mdb_text(const char *obj,const char *end,const char *key,char *out,size_t n) {
++ const char *p=mdb_prop(obj,end,key);if(n)out[0]=0;
++ return p&&*p=='"'&&js_cadeia(p,out,n);
++}
++static int digits(const char *p) {int n=0;while(isdigit((unsigned char)*p)){p++;n++;}return n&&!*p;}
++static int identity(const char *p,const char *end,int show,char *out,size_t n) {
++ const char *ids=mdb_object(p,end,"ids");char imdb[64]="";double tmdb=0;
++ if(ids) {const char *f=js_fim(ids);mdb_text(ids,f,"imdb",imdb,sizeof imdb);tmdb=mdb_number(ids,f,"tmdb",0);}
++ if(!imdb[0])mdb_text(p,end,"imdb_id",imdb,sizeof imdb);
++ if(!strncmp(imdb,"tt",2)&&digits(imdb+2)) {snprintf(out,n,"%s",imdb);return 1;}
++ /* A bare id may belong to MDBList, an episode or a playback session.
++    Only a named external identifier is safe to turn into a TMDB key. */
++ if(tmdb>=1&&tmdb<=INT_MAX&&floor(tmdb)==tmdb){snprintf(out,n,"tmdb:%c%d",show?'t':'m',(int)tmdb);return 1;}
++ return 0;
++}
++static long long stamp(const char *p,const char *end,const char *key) {char s[64];return mdb_text(p,end,key,s,sizeof s)?js_ms_iso(s):0;}
++static void metadata(const char *p,const char *end,MdbItem *out,int show) {
++ memset(out,0,sizeof *out);snprintf(out->type,sizeof out->type,"%s",show?"series":"movie");
++ identity(p,end,show,out->id,sizeof out->id);mdb_text(p,end,"title",out->title,sizeof out->title);
++ mdb_text(p,end,"poster",out->poster,sizeof out->poster);
++ double runtime=mdb_number(p,end,"runtime",0);if(runtime>0&&runtime<=10080)out->runtime=(int)runtime;
++}
++int mdb_watchlist_body(char *out,size_t n,const char *id,const char *type) {
++ int show=type&&!strcmp(type,"series"),written;if(!out||!n)return 0;out[0]=0;
++ if(!id||!type||(!show&&strcmp(type,"movie")))return 0;
++ if(!strncmp(id,"tt",2)&&digits(id+2))written=snprintf(out,n,"{\"%s\":[{\"imdb\":\"%s\"}]}",show?"shows":"movies",id);
++ else if(!strncmp(id,show?"tmdb:t":"tmdb:m",6)&&digits(id+6)&&id[6]!='0'&&strlen(id+6)<=10&&strtoull(id+6,NULL,10)<=INT_MAX)written=snprintf(out,n,"{\"%s\":[{\"tmdb\":%s}]}",show?"shows":"movies",id+6);
++ else return 0;
++ return written>0&&(size_t)written<n;
++}
++static int cursorOf(const char *json,const char *end,char *cursor,size_t n) {
++ const char *pagination=mdb_object(json,end,"pagination");
++ cursor[0]=0;
++ if(mdb_prop(json,end,"next_cursor"))return mdb_text(json,end,"next_cursor",cursor,n)||!strncmp(mdb_prop(json,end,"next_cursor"),"null",4);
++ if(pagination&&mdb_prop(pagination,js_fim(pagination),"next_cursor"))return mdb_text(pagination,js_fim(pagination),"next_cursor",cursor,n)||!strncmp(mdb_prop(pagination,js_fim(pagination),"next_cursor"),"null",4);
++ return 1;
++}
++int mdb_parse_watchlist(const char *json,MdbItem *out,int max,char *cursor,size_t size) {
++ const char *end=json?js_fim(json):NULL;if(!end||*json!='{')return -1;
++ if(!mdb_prop(json,end,"movies")&&!mdb_prop(json,end,"shows"))return -1;
++ int count=0;
++ for(int show=0;show<2;show++) {
++  const char *a=mdb_prop(json,end,show?"shows":"movies");if(!a||*a!='[')continue;
++  const char *p=a+1;while(p<end&&isspace((unsigned char)*p))p++;
++  while(p&&*p=='{'&&count<max){const char *f=js_fim(p);if(!f||f>end)return -1;MdbItem item;metadata(p,f,&item,show);if(item.id[0])out[count++]=item;p=js_prox(f);}
++ }
++ return cursorOf(json,end,cursor,size)?count:-1;
++}
++/* Nested show/episode objects are required; episode-level IDs can never
++   masquerade as a show's identity. Unknown numbering is omitted. */
++static int episodeIdentity(const char *p,const char *end,MdbItem *item,const char *episodeKey) {
++ const char *show=mdb_object(p,end,"show"),*ep=mdb_object(p,end,episodeKey);
++ if(!show||!ep)return 0;metadata(show,js_fim(show),item,1);if(!item->id[0])return 0;
++ double season=mdb_number(ep,js_fim(ep),"season",-1),number=mdb_number(ep,js_fim(ep),"number",-1);
++ if(season<0||season>999||number<1||number>9999||floor(season)!=season||floor(number)!=number)return 0;
++ item->season=(int)season;item->episode=(int)number;
++ double runtime=mdb_number(ep,js_fim(ep),"runtime",0);if(runtime>0&&runtime<=10080)item->runtime=(int)runtime;
++ item->air=stamp(ep,js_fim(ep),"air_date");
++ return 1;
++}
++int mdb_parse_playback(const char *json,MdbItem *out,int max) {
++ while(json&&isspace((unsigned char)*json))json++;
++ const char *p=json?js_raiz_array(json):NULL;if(!json||*json!='[')return -1;
++ int count=0;
++ while(p&&*p=='{'&&count<max) {
++  const char *end=js_fim(p);if(!end)return -1;MdbItem item;char type[16];
++  double progress=mdb_number(p,end,"progress",-1);
++  if(!mdb_text(p,end,"type",type,sizeof type)||progress<=0||progress>=80){p=js_prox(end);continue;}
++  if(!strcmp(type,"episode")){if(!episodeIdentity(p,end,&item,"episode")){p=js_prox(end);continue;}}
++  else if(!strcmp(type,"movie")){const char *movie=mdb_object(p,end,"movie");if(!movie){p=js_prox(end);continue;}metadata(movie,js_fim(movie),&item,0);}
++  else {p=js_prox(end);continue;}
++  if(item.id[0]) {
++   item.progress=progress;item.updated=stamp(p,end,"paused_at");if(!item.updated)item.updated=stamp(p,end,"updated_at");item.expires=stamp(p,end,"expires_at");
++   double runtime=mdb_number(p,end,"runtime",0);if(runtime>0&&runtime<=10080)item.runtime=(int)runtime;
++   out[count++]=item;
++  }p=js_prox(end);
++ }return count;
++}
++int mdb_parse_next(const char *json,MdbItem *out,int max,int *more) {
++ const char *end=json?js_fim(json):NULL,*a=end?mdb_prop(json,end,"items"):NULL;
++ if(!a||*a!='[')return -1;const char *v=mdb_prop(json,end,"has_more");*more=v&&!strncmp(v,"true",4);
++ const char *p=a+1;while(p<end&&isspace((unsigned char)*p))p++;int count=0;
++ while(p&&*p=='{'&&count<max) {const char *f=js_fim(p);if(!f||f>end)return -1;MdbItem item;
++  if(episodeIdentity(p,f,&item,"next_episode")) {item.next=1;item.updated=stamp(p,f,"last_watched_at");out[count++]=item;}
++  p=js_prox(f);
++ }return count;
++}
++int mdb_filter_watched(const char *json,MdbItem *items,int n,char *cursor,size_t size) {
++ const char *end=json?js_fim(json):NULL;if(!end||*json!='{')return -1;
++ if(!mdb_prop(json,end,"movies")&&!mdb_prop(json,end,"episodes")&&!mdb_prop(json,end,"shows")&&!mdb_prop(json,end,"seasons"))return -1;
++ for(int show=0;show<2;show++) {
++  const char *a=mdb_prop(json,end,show?"episodes":"movies");if(!a||*a!='[')continue;
++  const char *p=a+1;while(p<end&&isspace((unsigned char)*p))p++;
++  while(p&&*p=='{') {const char *f=js_fim(p);if(!f||f>end)return -1;MdbItem watched={0};
++   if(show)episodeIdentity(p,f,&watched,"episode");else {const char *movie=mdb_object(p,f,"movie");if(movie)metadata(movie,js_fim(movie),&watched,0);}
++   long long at=stamp(p,f,"watched_at");
++   if(watched.id[0]&&at>0)for(int i=0;i<n;i++)if(!strcmp(watched.id,items[i].id)&&watched.season==items[i].season&&watched.episode==items[i].episode&&at>=items[i].updated)items[i].id[0]=0;
++   p=js_prox(f);
++  }
++ }
++ if(!cursorOf(json,end,cursor,size))return -1;
++ int count=0;for(int i=0;i<n;i++)if(items[i].id[0])items[count++]=items[i];return count;
++}
+diff --git a/src/mdbformat.h b/src/mdbformat.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..1d63566050eacaf363cd5a2d2cfeddded5596c75
+--- /dev/null
++++ b/src/mdbformat.h
+@@ -0,0 +1,19 @@
++#ifndef NV_MDBFORMAT_H
++#define NV_MDBFORMAT_H
++#include <stddef.h>
++typedef struct {
++ char id[64],type[8],title[160],poster[512];
++ int season,episode,runtime,next;
++ double progress;
++ long long updated,air,expires;
++} MdbItem;
++const char *mdb_prop(const char *obj,const char *end,const char *key);
++const char *mdb_object(const char *obj,const char *end,const char *key);
++double mdb_number(const char *obj,const char *end,const char *key,double fallback);
++int mdb_text(const char *obj,const char *end,const char *key,char *out,size_t n);
++int mdb_watchlist_body(char *out,size_t n,const char *id,const char *type);
++int mdb_parse_watchlist(const char *json,MdbItem *out,int max,char *cursor,size_t size);
++int mdb_parse_playback(const char *json,MdbItem *out,int max);
++int mdb_parse_next(const char *json,MdbItem *out,int max,int *more);
++int mdb_filter_watched(const char *json,MdbItem *items,int n,char *cursor,size_t size);
++#endif
+diff --git a/src/mdblist.c b/src/mdblist.c
+index 21c222579d5249b75c7f464b93c813e9901a73f6..a8d9ae01050e58db8942ad8f21f1deab8c2198e4 100644
+--- a/src/mdblist.c
++++ b/src/mdblist.c
+@@ -17,6 +17,7 @@ static pthread_mutex_t trava = PTHREAD_MUTEX_INITIALIZER;
+ static MdbPedido fila[MDB_QUEUE];
+ static int inicio, quantidade, fioVivo, ligado, perfil, bloqueado, ultimoHttp;
+ static unsigned geracao;
++static unsigned contaGeracao;
+ static time_t retentar, ultimoStart;
+ static char chave[80];
+ static MdbScrobbleEstado estado;
+@@ -40,7 +41,7 @@ void mdblist_definir_chave(const char *nova) {
+     if (i == len) memcpy(valor, nova, len + 1);
+   }
+   pthread_mutex_lock(&trava);
+-  if (strcmp(chave, valor)) { snprintf(chave, sizeof chave, "%s", valor); invalidar(); }
++  if (strcmp(chave, valor)) { snprintf(chave, sizeof chave, "%s", valor); invalidar(); contaGeracao++; }
+   pthread_mutex_unlock(&trava);
+ }
+ 
+@@ -103,12 +104,23 @@ void mdblist_atualizar(int novoLigado, int novoPerfil) {
+   pthread_mutex_lock(&trava);
+   novoLigado = !!novoLigado;
+   if (ligado != novoLigado || perfil != novoPerfil) {
++    if (perfil != novoPerfil) contaGeracao++;
+     invalidar(); ligado = novoLigado; perfil = novoPerfil;
+   }
+   iniciarFio();
+   pthread_mutex_unlock(&trava);
+ }
+ 
++int mdblist_credencial(char *dst, size_t n, unsigned *generation) {
++  int ok;
++  pthread_mutex_lock(&trava);
++  ok=chave[0] && n>strlen(chave);
++  if (n) snprintf(dst,n,"%s",ok?chave:"");
++  if (generation) *generation=contaGeracao;
++  pthread_mutex_unlock(&trava);
++  return ok;
++}
++
+ int mdblist_scrobble(int evento, const char *id, double posSeg, double durSeg) {
+   char corpo[320];
+   MdbScrobbleEstado novo;
+diff --git a/src/mdblist.h b/src/mdblist.h
+index dc85923632ab11e997cbe27d934205d294d8003b..ccc8d3935da659538490639a7cbc98e967ab8e7d 100644
+--- a/src/mdblist.h
++++ b/src/mdblist.h
+@@ -1,5 +1,9 @@
+ #ifndef NV_MDBLIST_H
+ #define NV_MDBLIST_H
++#include <stddef.h>
++/* Snapshot for the independent library provider. Never returns a live key
++   pointer; generation changes on account/profile changes, not consent. */
++int mdblist_credencial(char *dst, size_t n, unsigned *generation);
+ /* Playback writes only. Ratings and their master switch remain in extras.c. */
+ void mdblist_definir_chave(const char *chave);
+ /* Main loop: apply profile/consent changes and service deferred retries. */
+diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..621fd1bec6ee539ab94bff64ad2ce676462324c9
+--- /dev/null
++++ b/src/mdblistlibrary.c
+@@ -0,0 +1,182 @@
++#include "mdblistlibrary.h"
++#include "mdbformat.h"
++#include "mdblist.h"
++#include "mdblistscrobble.h"
++#include "rede.h"
++#include "js.h"
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++
++#define WATCH_MAX 2000
++#define CW_MAX 128
++#define JOB_MAX 32
++typedef struct { unsigned serial,generation; int add,clear,state; char id[64],type[8]; } Job;
++static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER,network=PTHREAD_MUTEX_INITIALIZER;
++static MdbItem *watch;
++static int watchN,blocked,worker,noticeCode;
++static time_t watchAt,backoff;
++static unsigned generation,serial;
++static Job jobs[JOB_MAX];
++/* Code 1 means a confirmed write; 2 a failure with local state retained;
++   3 a failed read using any previous snapshot. No response text is surfaced. */
++static int credentials(char *key,unsigned *gen) {
++ int ok=mdblist_credencial(key,80,gen);
++ pthread_mutex_lock(&lock);
++ if(generation!=*gen) {
++  generation=*gen;watchN=0;watchAt=backoff=0;blocked=0;
++  free(watch);watch=NULL;
++  for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)jobs[i].state=3;
++ }
++ pthread_mutex_unlock(&lock);return ok;
++}
++int mdb_library_connected(void) {char key[80];unsigned gen;int ok=credentials(key,&gen);memset(key,0,sizeof key);return ok;}
++static void problem(unsigned gen,int http,int retry,int writing) {
++ pthread_mutex_lock(&lock);
++ if(gen==generation) {
++  if(http==401||http==403)blocked=1;
++  time_t until=time(NULL)+(http==429?(retry>0?retry:3600):60);
++  if(until>backoff)backoff=until;
++  noticeCode=writing?2:3;
++ }
++ pthread_mutex_unlock(&lock);
++}
++static char *get(const char *path,const char *key,unsigned gen) {
++ char url[4096],auth[112];int http=0,retry=0;
++ snprintf(url,sizeof url,"https://api.mdblist.com%s",path);
++ snprintf(auth,sizeof auth,"Authorization: Bearer %s",key);
++ const char *headers[]={auth,"Accept: application/json",NULL};
++ char *body=rede_baixar_st_retry(url,15,headers,&http,&retry);
++ memset(auth,0,sizeof auth);
++ if(http<200||http>=300||!body){free(body);problem(gen,http,retry,0);return NULL;}
++ return body;
++}
++static int allowed(unsigned gen) {
++ pthread_mutex_lock(&lock);int ok=gen==generation&&!blocked&&time(NULL)>=backoff;pthread_mutex_unlock(&lock);return ok;
++}
++static int encode(char *dst,size_t n,const char *p) {
++ const char hex[]="0123456789ABCDEF";size_t used=0;
++ for(;*p;p++){unsigned char c=(unsigned char)*p;int plain=(c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='-'||c=='_'||c=='.'||c=='~';
++  if(used+(plain?1:3)>=n)return 0;if(plain)dst[used++]=(char)c;else{dst[used++]='%';dst[used++]=hex[c>>4];dst[used++]=hex[c&15];}}
++ dst[used]=0;return 1;
++}
++static int same(const MdbItem *a,const MdbItem *b) {return !strcmp(a->id,b->id)&&!strcmp(a->type,b->type)&&a->season==b->season&&a->episode==b->episode;}
++static void toCat(const MdbItem *item,CatItem *out) {
++ memset(out,0,sizeof *out);
++ if(item->episode)snprintf(out->imdb,sizeof out->imdb,"%s:%d:%d",item->id,item->season,item->episode);
++ else snprintf(out->imdb,sizeof out->imdb,"%s",item->id);
++ snprintf(out->tipo,sizeof out->tipo,"%s",item->type);
++ snprintf(out->titulo,sizeof out->titulo,"%s",item->title[0]?item->title:item->id);
++ snprintf(out->poster,sizeof out->poster,"%s",item->poster);
++ /* Existing metadata discovery supplies full cards when opened. IMDb's
++    public poster fallback follows the other providers' convention. */
++ if(!out->poster[0]&&!strncmp(item->id,"tt",2))snprintf(out->poster,sizeof out->poster,"https://images.metahub.space/poster/medium/%s/img",item->id);
++ out->temporada=item->season;out->episodio=item->episode;
++ out->progresso=(int)item->progress;out->retomadoMs=item->updated;
++ if(item->runtime>0)out->restanteMin=(int)(item->runtime*(100-item->progress)/100.0+0.5);
++}
++int mdb_library_watchlist(CatItem *out,int max) {
++ char key[80];unsigned gen;
++ if(!credentials(key,&gen)) {pthread_mutex_lock(&lock);noticeCode=3;pthread_mutex_unlock(&lock);return 0;}
++ if(!out) {
++  pthread_mutex_lock(&network);
++  pthread_mutex_lock(&lock);int fresh=watchAt&&time(NULL)-watchAt<300;pthread_mutex_unlock(&lock);
++  if(!fresh&&allowed(gen)) {
++   MdbItem *next=calloc(WATCH_MAX,sizeof *next),*page=calloc(200,sizeof *page);
++   char cursor[1024]="",previous[1024]="",escaped[3072],path[3400];int n=0,ok=next&&page;
++   for(int p=0;ok&&p<100;p++) {
++    if(!encode(escaped,sizeof escaped,cursor)){ok=0;break;}
++    snprintf(path,sizeof path,"/watchlist/items?limit=100&append_to_response=poster&cursor=%s",escaped);
++    char *body=get(path,key,gen);if(!body){ok=0;break;}
++    snprintf(previous,sizeof previous,"%s",cursor);
++    int count=mdb_parse_watchlist(body,page,200,cursor,sizeof cursor);free(body);
++    if(count<0){ok=0;break;}
++    for(int i=0;i<count;i++) {int duplicate=0;for(int j=0;j<n;j++)if(same(page+i,next+j)){duplicate=1;break;}
++     if(!duplicate){if(n==WATCH_MAX){ok=0;break;}next[n++]=page[i];}}
++    if(!ok||!cursor[0])break;
++    if(!strcmp(previous,cursor)||p==99){ok=0;break;}
++   }
++   pthread_mutex_lock(&lock);
++   if(ok&&gen==generation){free(watch);watch=next;next=NULL;watchN=n;watchAt=time(NULL);}
++   pthread_mutex_unlock(&lock);
++   if(!ok)problem(gen,0,0,0);
++   free(next);free(page);
++  }
++  pthread_mutex_unlock(&network);
++ }
++ memset(key,0,sizeof key);
++ pthread_mutex_lock(&lock);int n=gen==generation?watchN:0;
++ if(out){if(n>max)n=max;for(int i=0;i<n;i++){toCat(watch+i,out+i);out[i].naLista=1;}}
++ pthread_mutex_unlock(&lock);return n;
++}
++static int writeOK(const char *body,int clear,int add) {
++ const char *end=body?js_fim(body):NULL;if(!end||*body!='{')return 0;
++ if(clear) {const char *v=mdb_prop(body,end,"deleted");return v&&(!strncmp(v,"true",4)||!strncmp(v,"false",5));}
++ double missing=mdb_number(body,end,"not_found",-1);
++ if(missing!=0)return 0;
++ if(add)return mdb_number(body,end,"added",0)+mdb_number(body,end,"existing",0)>=1;
++ /* The remove route uses the documented result envelope as well. A
++    missing target is already removed; not_found is not silently accepted. */
++ return mdb_prop(body,end,"added")||mdb_prop(body,end,"existing")||mdb_prop(body,end,"removed");
++}
++static void *run(void *unused) {
++ (void)unused;
++ for(;;) {
++  Job job={0};int slot=-1;char key[80];unsigned gen;
++  int valid=credentials(key,&gen);
++  pthread_mutex_lock(&lock);
++  for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1&&(slot<0||jobs[i].serial<job.serial)){slot=i;job=jobs[i];}
++  if(slot<0){worker=0;pthread_mutex_unlock(&lock);memset(key,0,sizeof key);return NULL;}
++  pthread_mutex_unlock(&lock);
++  int ok=0,http=0;
++  pthread_mutex_lock(&network);
++  if(valid&&job.generation==gen&&allowed(gen)) {
++   char body[320],url[256],auth[112];
++   int formatted=job.clear?mdblist_corpo(body,sizeof body,job.id,0):mdb_watchlist_body(body,sizeof body,job.id,job.type);
++   if(formatted) {
++    snprintf(url,sizeof url,"https://api.mdblist.com%s",job.clear?"/scrobble/clear":job.add?"/watchlist/items/add":"/watchlist/items/remove");
++    snprintf(auth,sizeof auth,"Authorization: Bearer %s",key);
++    const char *headers[]={auth,"Content-Type: application/json",NULL};
++    char *reply=rede_postar_st(url,15,headers,body,&http);
++    ok=http>=200&&http<300&&writeOK(reply,job.clear,job.add);free(reply);memset(auth,0,sizeof auth);
++   }
++  }
++  memset(key,0,sizeof key);
++  if(!ok)problem(gen,http,0,1);
++  pthread_mutex_lock(&lock);
++  if(jobs[slot].serial==job.serial)jobs[slot].state=ok&&gen==generation?2:3;
++  if(gen==generation){watchAt=0;if(noticeCode!=2)noticeCode=ok?1:2;
++   if(ok&&!job.clear&&!job.add) {int w=0;for(int i=0;i<watchN;i++)if(strcmp(watch[i].id,job.id)||strcmp(watch[i].type,job.type))watch[w++]=watch[i];watchN=w;}
++  }
++  pthread_mutex_unlock(&lock);pthread_mutex_unlock(&network);
++ }
++}
++void mdb_library_tick(void) {
++ char key[80];unsigned gen;credentials(key,&gen);memset(key,0,sizeof key);
++ pthread_mutex_lock(&lock);int pending=0;for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)pending=1;
++ if(pending&&!worker){pthread_t thread;worker=1;if(pthread_create(&thread,NULL,run,NULL)==0)pthread_detach(thread);else{worker=0;noticeCode=2;for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)jobs[i].state=3;}}
++ pthread_mutex_unlock(&lock);
++}
++static unsigned queue(const char *id,const char *type,int add,int clear) {
++ char key[80],body[320];unsigned gen;int valid=credentials(key,&gen);memset(key,0,sizeof key);
++ int formatted=clear?mdblist_corpo(body,sizeof body,id,0):mdb_watchlist_body(body,sizeof body,id,type);
++ pthread_mutex_lock(&lock);int slot=-1;
++ for(int i=0;i<JOB_MAX;i++)if(jobs[i].state!=1&&(slot<0||jobs[i].serial<jobs[slot].serial))slot=i;
++ if(slot<0){noticeCode=2;pthread_mutex_unlock(&lock);return 0;}
++ Job *j=jobs+slot;memset(j,0,sizeof *j);j->serial=++serial;if(!serial)j->serial=++serial;
++ j->generation=gen;j->add=add;j->clear=clear;j->state=valid&&formatted?1:3;
++ snprintf(j->id,sizeof j->id,"%s",id?id:"");snprintf(j->type,sizeof j->type,"%s",type?type:"");
++ if(j->state==3)noticeCode=2;unsigned result=j->serial;pthread_mutex_unlock(&lock);mdb_library_tick();return result;
++}
++unsigned mdb_library_save(const char *id,const char *type,int add){return queue(id,type,add,0);}
++unsigned mdb_library_clear(const char *id){return queue(id,"",0,1);}
++int mdb_library_result(unsigned id) {
++ int state=3;pthread_mutex_lock(&lock);for(int i=0;i<JOB_MAX;i++)if(jobs[i].serial==id)state=jobs[i].state;pthread_mutex_unlock(&lock);return state;
++}
++const char *mdb_library_notice(int *refresh) {
++ pthread_mutex_lock(&lock);int code=noticeCode;noticeCode=0;pthread_mutex_unlock(&lock);
++ *refresh=code==1;
++ return code==1?"MDBList sync complete":code==2?"MDBList sync failed. Your local changes are safe. Try again when connected.":code==3?"MDBList could not refresh. Showing saved local or previous data.":NULL;
++}
+diff --git a/src/mdblistlibrary.h b/src/mdblistlibrary.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..91f8988e8b0e50b1b8e8d1ffa2ceb8531e8b7fe8
+--- /dev/null
++++ b/src/mdblistlibrary.h
+@@ -0,0 +1,16 @@
++#ifndef NV_MDB_LIBRARY_H
++#define NV_MDB_LIBRARY_H
++#include "catalogo.h"
++/* Reads run on discovery's worker. NULL returns the refreshed count; a
++   subsequent bounded copy uses that snapshot. No network on the UI thread. */
++int mdb_library_watchlist(CatItem *out,int max);
++unsigned mdb_library_save(const char *id,const char *type,int add);
++unsigned mdb_library_clear(const char *id);
++int mdb_library_result(unsigned serial); /* 1 pending, 2 confirmed, 3 failed */
++int mdb_library_connected(void);
++void mdb_library_tick(void);
++/* Consume on the main thread; success/failure text never contains secrets. */
++const char *mdb_library_notice(int *refresh);
++int mdb_library_continue(CatItem *out,int max);
++int mdb_library_next(const char *id);
++#endif
+diff --git a/tests/mdbformat.c b/tests/mdbformat.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..9cddf13a7f82b6d91494185d1f10f949e76c2eae
+--- /dev/null
++++ b/tests/mdbformat.c
+@@ -0,0 +1,29 @@
++#include "mdbformat.h"
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++int main(void) {
++ MdbItem items[8];char cursor[64],body[180];int more;
++ assert(mdb_watchlist_body(body,sizeof body,"tt123","series"));assert(!strcmp(body,"{\"shows\":[{\"imdb\":\"tt123\"}]}"));
++ assert(mdb_watchlist_body(body,sizeof body,"tmdb:m123","movie"));
++ assert(!mdb_watchlist_body(body,sizeof body,"tmdb:t123","movie"));
++ assert(!mdb_watchlist_body(body,sizeof body,"tt123:1:2","series"));
++ assert(!mdb_watchlist_body(body,sizeof body,"tt123\"","movie"));
++ assert(!mdb_watchlist_body(body,4,"tt123","movie"));
++ assert(!mdb_watchlist_body(NULL,0,"tt123","movie"));
++ int n=mdb_parse_watchlist("{\"movies\":[{\"id\":9,\"title\":\"Unknown external id\"},{\"ids\":{\"imdb\":\"tt123\"},\"title\":\"Film\"}],\"shows\":[{\"ids\":{\"tmdb\":55},\"title\":\"Show\"}],\"pagination\":{\"next_cursor\":\"page2\"}}",items,8,cursor,sizeof cursor);
++ assert(n==2&&!strcmp(items[0].id,"tt123")&&!strcmp(items[1].id,"tmdb:t55")&&!strcmp(cursor,"page2"));
++ assert(mdb_parse_watchlist("{\"error\":\"unauthorized\"}",items,8,cursor,sizeof cursor)<0);
++ assert(mdb_parse_watchlist("{\"movies\":[],\"shows\":[],\"pagination\":{\"next_cursor\":null}}",items,8,cursor,sizeof cursor)==0&&!cursor[0]);
++ n=mdb_parse_playback(" [{\"type\":\"movie\",\"progress\":35.5,\"runtime\":100,\"movie\":{\"ids\":{\"imdb\":\"tt123\"}},\"paused_at\":\"2026-10-08T01:00:00Z\"},{\"type\":\"episode\",\"progress\":25,\"show\":{\"ids\":{\"tmdb\":55}},\"episode\":{\"season\":0,\"number\":2}}, {\"type\":\"movie\",\"progress\":80,\"movie\":{\"ids\":{\"imdb\":\"tt999\"}}}, {\"type\":\"movie\",\"progress\":\"20\",\"movie\":{\"ids\":{\"imdb\":\"tt777\"}}} ]",items,8);
++ assert(n==2&&items[0].progress==35.5&&items[0].runtime==100&&items[0].updated>0&&items[1].season==0&&items[1].episode==2&&items[1].runtime==0);
++ assert(mdb_parse_playback("[{\"type\":\"episode\",\"progress\":30,\"episode\":{\"ids\":{\"imdb\":\"tt777\"},\"season\":1,\"number\":2}}]",items,8)==0);
++ assert(mdb_parse_playback("{\"error\":\"failed\"}",items,8)<0);
++ n=mdb_parse_next("{\"items\":[{\"show\":{\"ids\":{\"imdb\":\"tt123\"}},\"next_episode\":{\"season\":1,\"number\":3,\"air_date\":\"2026-10-01T20:00:00Z\"}}],\"has_more\":true}",items,8,&more);
++ assert(n==1&&more&&items[0].next&&items[0].progress==0&&items[0].episode==3&&items[0].air>0);
++ items[0].updated=1;
++ assert(mdb_filter_watched("{\"episodes\":[{\"show\":{\"ids\":{\"imdb\":\"tt123\"}},\"episode\":{\"season\":1,\"number\":2},\"watched_at\":\"2026-10-08T01:00:00Z\"}]}",items,n,cursor,sizeof cursor)==1);
++ assert(mdb_filter_watched("{\"episodes\":[{\"show\":{\"ids\":{\"imdb\":\"tt123\"}},\"episode\":{\"season\":1,\"number\":3},\"watched_at\":\"2026-10-08T01:00:00Z\"}]}",items,n,cursor,sizeof cursor)==0);
++ puts("MDBList format: typed identities, cursor pages, paused percentages, numbering and exact watched exclusion passed");
++ return 0;
++}
