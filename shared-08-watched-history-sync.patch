@@ -1,0 +1,859 @@
+diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
+index bcf3c73fd8166988efe3e3cafcbdea10768434e9..bd6d10e46fb921a8faa470776acbf588870ab39c 100644
+--- a/DEVELOPMENT_LESSONS.md
++++ b/DEVELOPMENT_LESSONS.md
+@@ -106,3 +106,53 @@ GLES rendering with published first build 2.0.2.3 and 2.0.2.11. Host timings and
+ synthetic draws cannot establish restored 60 FPS on the user's Samsung TV.
+ The performance meter's tracking timings contain only durations and sample
+ counts, never credentials or content identifiers.
++
++## Watched-history import follow-up
++
++The user confirmed the shared-07 Samsung performance is now perfect on their
++TV. Preserve its renderer, caches, episode hash and credential persistence.
++This is user hardware feedback, separate from controlled host measurements.
++
++MDBList watched history was fetched only as a Continue Watching veto. It never
++fed the movie badge map or episode watched index, and an empty Continue Watching
++list skipped it entirely. Nuvio account history was also suppressed merely
++because Trakt was enabled. Watched evidence must be merged independently of
++the chosen Continue Watching source and playback-reporting consent.
++
++Primary docs checked on 2026-10-09: https://api.mdblist.com/schema/ and
++https://mdblist.docs.apiary.io/reference/sync/watched-history/retrieve-watched-history
++The documented episode identifies its parent under episode.show, with
++last_watched_at. Accept that and the current sibling-show/watched_at envelope.
++Desktop 0.1.29-alpha, commit 80d8ce33d802ca24e162464350b146fcbbdd12a9,
++MdbListWatchedDecoder.kt also supports explicit nested show.seasons episodes
++(the seasons array is on the history row). A show/season activity timestamp
++alone never establishes whole-series/season completion. Null timestamps do not
++count. IMDb-backed titles are imported; TMDB-only records are skipped because
++the existing native history maps would collapse their IDs to 'tmdb'.
++
++Fetch a complete bounded snapshot on the existing background worker at startup
++and every ten minutes. Prefer next_cursor; retain legacy offset/has_more support.
++No since filter on the full import: years-old watched movies still matter.
++Deduplicate exact movie/episode identities with a bounded hash; newer timestamps
++win. Reject failed later pages, repeated cursors, malformed responses and bounds
++overflow before publishing. Existing rate-limit/auth/network backoff applies.
++The import performs GET only and never reports playback or writes account history.
++
++Main-thread merges touch at most 64 indexed entries per frame; stable frames do
++only revision/scope checks. Reconcile when another provider updates the history
++maps, without catalogue traversal or changing progress rendering. Clear episode
++and imported snapshots on account/profile boundaries, reject old credential replies.
++Preserve explicit TV unwatch intent using the existing account/profile journal.
++Confirmed unwatch tombstones survive prune/restart; a newer remote watch or a
++later local gesture supersedes them. With Nuvio history upload disabled, record
++local intent without queuing any account write. The journal remains bounded at
++4000 entries; existing eviction rules apply. Preserve original Trakt dispatch.
++
++Tests cover documented/modern/nested envelopes, movie and episode indices,
++pagination/dedup, old history, failure retention/retry, stale profiles, quotas,
++local unwatch/restart, no upload when disabled, and 10000 idle ticks with no
++history traversal/network requests. Existing account and provider tests run too.
++Native map limits remain 8000 episode states / 8192 title states. MDBList snapshot
++is bounded at 16000 records / 32 pages; Nuvio retains its existing 2700-row bound.
++These are positive-history imports, not a full remote-deletion journal mirror.
++Real account acceptance of this follow-up still needs physical-TV verification.
+diff --git a/src/app.c b/src/app.c
+index dae1576b4f7f5d3954afaae0a848f8833295e324..9b8c0ae094f7b674ce17c74d942f41a54d1da1e3 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -2790,6 +2790,8 @@ void app_atualizar(float dt, Uint32 agora) {
+   mdblist_limiar(ajustes_mdblist_limiar());
+   mdblist_atualizar(ajustes_mdblist_rastrear(), perfis_ativo());
+   mdb_library_tick();
++  mdb_library_history_tick();
++  contalib_vistos_tick();
+   { int refresh=0; const char *notice=mdb_library_notice(&refresh);
+     if(notice) ilha_avisar("mdblist:library", ILHA_INFO, "aj_bookmark", i18n(notice), 6500u, 0);
+     if(refresh) desc_repetir();
+diff --git a/src/catalogo.c b/src/catalogo.c
+index f2e6c767a3536873878a6706a3d8dc78a10c904a..4f623a71344dc3539fa9438a79ae1551a041636a 100644
+--- a/src/catalogo.c
++++ b/src/catalogo.c
+@@ -232,6 +232,7 @@ static int histBalde[HIST_BALDES];
+ // troca de identidade nao podem publicar a chave enquanto outro fio a limpa.
+ static pthread_mutex_t histTrava = PTHREAD_MUTEX_INITIALIZER;
+ static unsigned long long histGeracao = 1;
++static unsigned histRevisao;
+ static char histUsuario[128];
+ static int histPerfil;
+ 
+@@ -242,6 +243,7 @@ void cat_historico_contexto(const char *usuario, int perfil) {
+     snprintf(histUsuario, sizeof histUsuario, "%s", u);
+     histPerfil = perfil;
+     if (!++histGeracao) ++histGeracao;
++    histRevisao++;
+     nHistorico = 0;
+     memset(histBalde, 0, sizeof histBalde);
+     mudou();
+@@ -257,6 +259,11 @@ unsigned long long cat_historico_geracao(void) {
+   return g;
+ }
+ 
++unsigned cat_historico_revisao(void) {
++  pthread_mutex_lock(&histTrava);unsigned r=histRevisao;
++  pthread_mutex_unlock(&histTrava);return r;
++}
++
+ static void id_base(const char *origem, char *destino, size_t tam) {
+   size_t n = 0;
+   if (!destino || tam == 0) return;
+@@ -344,6 +351,7 @@ static void historico_definir(const char *imdb, const char *tipo, int visto) {
+   if (historico[p].conhecido && historico[p].visto == (visto ? 1 : 0)) return;
+   historico[p].visto = visto ? 1 : 0;
+   historico[p].conhecido = 1;
++  histRevisao++;
+   mudou();
+ }
+ 
+diff --git a/src/catalogo.h b/src/catalogo.h
+index c1b1735f4e2de8733badd23b2537501c25dbaf8a..d03f0948a15256ffa4a13a44f0ba3801f6cb4f40 100644
+--- a/src/catalogo.h
++++ b/src/catalogo.h
+@@ -332,6 +332,7 @@ int cat_visto(const CatItem *c);
+ // vez; repetir a mesma identidade conserva provas locais e de outras fontes.
+ void cat_historico_contexto(const char *usuario, int perfil);
+ unsigned long long cat_historico_geracao(void);
++unsigned cat_historico_revisao(void); /* actual watched changes only */
+ int cat_historico_estado_id(const char *imdb, const char *tipo);
+ int cat_historico_estado_item(int indice);
+ void cat_historico_definir_id(const char *imdb, const char *tipo, int visto);
+diff --git a/src/contalib.c b/src/contalib.c
+index 6a77fd4e46376f4c8c5210709975176b4e1e6048..6ffc88393154ae2100918ba31917169ffc53eb65 100644
+--- a/src/contalib.c
++++ b/src/contalib.c
+@@ -25,6 +25,48 @@ static ContaLibItem *itens;
+ static int nItens;
+ static ContaVisto *vistos;
+ static int nVistos;
++static ContaVisto *mdbVistos;
++static int nMdbVistos, historyCursor=-1;
++static unsigned historyEpRev, historyTitleRev;
++static unsigned long long historyScope;
++static unsigned long long accountHistoryScope;
++static unsigned long long mdbHistoryScope;
++static unsigned long long watchedMapScope;
++void contalib_mdb_vistos(ContaVisto *owned, int count) {
++  free(mdbVistos);mdbVistos=owned;nMdbVistos=count;historyCursor=-1;
++  historyScope=cat_historico_geracao();historyEpRev=~vistoep_revisao();historyTitleRev=~cat_historico_revisao();
++  mdbHistoryScope=historyScope;
++}
++/* Main thread only, at most 64 indexed merges per frame. No stable-frame
++   history traversal, network, catalogue lookup or progress recalculation. */
++void contalib_vistos_tick(void) {
++  unsigned long long scope=cat_historico_geracao();
++  if(watchedMapScope!=scope) {
++    if(watchedMapScope)vistoep_esquecer();
++    watchedMapScope=scope;historyCursor=-1;
++  }
++  if(mdbHistoryScope!=scope) {
++    free(mdbVistos);mdbVistos=NULL;nMdbVistos=0;historyCursor=-1;
++    mdbHistoryScope=scope;
++  }
++  if(historyScope!=scope){historyCursor=-1;historyScope=scope;}
++  unsigned er=vistoep_revisao(),tr=cat_historico_revisao();
++  if(historyCursor<0) {
++    if(historyEpRev==er&&historyTitleRev==tr)return;
++    historyCursor=0;
++  }
++  int accountN=accountHistoryScope==scope?nVistos:0;
++  int total=accountN+nMdbVistos;
++  for(int budget=0;historyCursor<total&&budget<64;budget++,historyCursor++) {
++    const ContaVisto *v=historyCursor<accountN?vistos+historyCursor:mdbVistos+historyCursor-accountN;
++    if(!v->id[0]||(vistoOculto&&vistoOculto(v->id,v->temporada,v->episodio,v->vistoMs)))continue;
++    if(v->episodio>0)vistoep_definir(v->id,v->temporada,v->episodio,1);
++    else cat_historico_definir_id(v->id,v->tipo,1);
++  }
++  if(historyCursor>=total) {
++    historyCursor=-1;historyEpRev=vistoep_revisao();historyTitleRev=cat_historico_revisao();
++  }
++}
+ // So a TROCA do vetor de vistos e a copia das sementes (fio da descoberta)
+ // passam por aqui. O resto deste modulo e do fio principal.
+ static pthread_mutex_t vistosTrava = PTHREAD_MUTEX_INITIALIZER;
+@@ -274,6 +316,7 @@ int contalib_ler_vistos(const char *json) {
+   free(vistos);
+   vistos = novo;
+   nVistos = k;
++  historyCursor=0;historyScope=accountHistoryScope=cat_historico_geracao();
+   pthread_mutex_unlock(&vistosTrava);
+   printf("[contalib] vistos da conta: %d linhas\n", k);
+   return k;
+@@ -421,6 +464,8 @@ int contalib_aplicar_vistos(void) {
+ }
+ 
+ void contalib_esquecer(void) {
++  free(mdbVistos);mdbVistos=NULL;nMdbVistos=0;historyCursor=-1;
++  historyScope=cat_historico_geracao();historyEpRev=~vistoep_revisao();historyTitleRev=~cat_historico_revisao();
+   free(itens);
+   itens = NULL;
+   nItens = 0;
+diff --git a/src/contalib.h b/src/contalib.h
+index 67b11dc781f09c4f35e4a5e620934861a52506bf..078d9849be4b170d72902f1892e8c29cd1ec306a 100644
+--- a/src/contalib.h
++++ b/src/contalib.h
+@@ -137,11 +137,13 @@ void contalib_reconciliar(void);
+ // Alimenta o historico do catalogo (cat_historico_definir_id) com os vistos da
+ // conta. Devolve quantos titulos foram marcados. FIO PRINCIPAL apenas.
+ //
+-// SO LINHAS DE TITULO INTEIRO, sem season/episode. E a mesma regra que
+-// trakt.c ja aplica ao ler /sync/history (ele pula a linha que tem "episode"):
+-// o historico daqui responde "esta obra esta marcada como vista?", e um
+-// episodio nao responde isso por uma serie de oito temporadas.
++// Episodios alimentam vistoep; somente linhas de titulo alimentam o
++// historico do cartaz. Um episodio nao marca a serie inteira.
+ int contalib_aplicar_vistos(void);
++/* Main thread: take ownership of a complete compact MDBList snapshot, then
++   reconcile positive account/MDBList evidence in bounded batches. */
++void contalib_mdb_vistos(ContaVisto *owned, int count);
++void contalib_vistos_tick(void);
+ // Filtros do jornal da conta (contapend.h), ligados por app.c: 1 = a linha
+ // remota fica de fora porque a pessoa tirou/desmarcou o item nesta TV depois
+ // dela. NULL desliga (os testes deste modulo nao ligam).
+diff --git a/src/contapend.c b/src/contapend.c
+index 2ad6f9d94d013e8d7de3b72e741e4c97570b9b67..c4de6d2c96d07da2f3d399d9082e2777851bc116 100644
+--- a/src/contapend.c
++++ b/src/contapend.c
+@@ -318,6 +318,23 @@ int contapend_lista(const char *imdb, const char *tipo, const char *nome,
+   return k;
+ }
+ 
++int contapend_visto_local(const char *imdb,const char *tipo,
++                          const VistoPar *pares,int n,int visto) {
++ char id[24];int count=0,perfil=perfis_ativo();long long ms=contapend_agora_ms();
++ idVisto(imdb,id,sizeof id);
++ if(!id[0]||perfil<1||n<0||(n&&!pares))return 0;
++ pthread_mutex_lock(&trava);
++ if(garantir())for(int i=0;i<(n?n:1);i++) {
++  int t=n?pares[i].temporada:0,e=n?pares[i].episodio:0;
++  if(n&&(t<0||e<1))continue;
++  registrar('V',perfil,id,tipo,t,e,visto?'+':'-',"","",ms);
++  int at=achar('V',perfil,id,t,e);
++  if(at>=0){ents[at].conf=1;ents[at].confMs=ms;count++;}
++ }
++ if(count)gravar();
++ pthread_mutex_unlock(&trava);return count;
++}
++
+ // ---------------------------------------------------------------- confirmacao
+ 
+ // A copia enviada so quita a entrada se ela nao mudou durante a viagem (mesma
+@@ -788,7 +805,7 @@ static int oculto(char sup, const char *id, int t, int e, long long remotoMs) {
+       if (remotoMs > ents[k].ms) {
+         // A conta tem uma marca MAIS NOVA que o "tirar" daqui: ela ganha. A
+         // pendente sai (nao vai apagar o que outro aparelho fez depois).
+-        if (!ents[k].conf) { tirar(k); gravar(); }
++        { tirar(k); gravar(); }
+       } else res = 1;
+     }
+   }
+@@ -841,7 +858,10 @@ void contapend_podar(long long desdeMs) {
+   pthread_mutex_lock(&trava);
+   if (garantir()) {
+     for (i = nEnt - 1; i >= 0; i--)
+-      if (ents[i].conf && ents[i].confMs < desdeMs) { tirar(i); mudou = 1; }
++      if (ents[i].conf && ents[i].confMs < desdeMs &&
++          !(ents[i].sup == 'V' && ents[i].op == '-')) { tirar(i); mudou = 1; }
++      // Keep watched removals as bounded, durable tombstones: an older
++      // MDBList/account snapshot must not undo a confirmed local removal.
+     if (mudou) gravar();
+   }
+   pthread_mutex_unlock(&trava);
+diff --git a/src/contapend.h b/src/contapend.h
+index 8130b0d701ca344746ce32f9de5d2cf307014e59..45987767dd0bbf42db3a0c60c640a7f14f0ee60d 100644
+--- a/src/contapend.h
++++ b/src/contapend.h
+@@ -48,6 +48,10 @@
+ int  contapend_episodios(const char *imdb, const char *tipo,
+                          const VistoPar *pares, int n, int visto);
+ int  contapend_titulo(const char *imdb, const char *tipo, int visto);
++/* Preserve local intent without queuing an account write when history upload
++   is disabled. n==0 means the whole title. Uses the existing account scope. */
++int contapend_visto_local(const char *imdb,const char *tipo,
++                         const VistoPar *pares,int n,int visto);
+ // "+" / tirar da lista. `nome`/`poster` so servem ao item novo na conta.
+ int  contapend_lista(const char *imdb, const char *tipo, const char *nome,
+                      const char *poster, int salvo);
+@@ -72,7 +76,8 @@ int  contapend_lista_oculta(const char *imdb, long long remotoMs);
+ // jornal para o perfil ativo. Barato; chamado a cada ciclo aplicado.
+ int  contapend_aplicar_local(void);
+ // Tira do jornal as entradas JA CONFIRMADAS antes de `desdeMs` — o pull que
+-// comecou depois disso ja reflete o servidor.
++// comecou depois disso ja reflete o servidor. Watched removals stay until a
++// newer remote watch or local gesture supersedes them (within CONTAPEND_MAX).
+ void contapend_podar(long long desdeMs);
+ 
+ // ---- estado -------------------------------------------------------------------
+diff --git a/src/mdbformat.c b/src/mdbformat.c
+index 8ec6d3934cae573c3af87b5fecde8763a276f877..dc652e7045f93bc9ba22fb0f208659c0e2e465d6 100644
+--- a/src/mdbformat.c
++++ b/src/mdbformat.c
+@@ -78,6 +78,7 @@ int mdb_parse_watchlist(const char *json,MdbItem *out,int max,char *cursor,size_
+    masquerade as a show's identity. Unknown numbering is omitted. */
+ static int episodeIdentity(const char *p,const char *end,MdbItem *item,const char *episodeKey) {
+  const char *show=mdb_object(p,end,"show"),*ep=mdb_object(p,end,episodeKey);
++ if(!show&&ep)show=mdb_object(ep,js_fim(ep),"show");
+  if(!show||!ep)return 0;metadata(show,js_fim(show),item,1);if(!item->id[0])return 0;
+  double season=mdb_number(ep,js_fim(ep),"season",-1),number=mdb_number(ep,js_fim(ep),"number",-1);
+  if(season<0||season>999||number<1||number>9999||floor(season)!=season||floor(number)!=number)return 0;
+@@ -122,7 +123,7 @@ int mdb_filter_watched(const char *json,MdbItem *items,int n,char *cursor,size_t
+   const char *p=a+1;while(p<end&&isspace((unsigned char)*p))p++;
+   while(p&&*p=='{') {const char *f=js_fim(p);if(!f||f>end)return -1;MdbItem watched={0};
+    if(show)episodeIdentity(p,f,&watched,"episode");else {const char *movie=mdb_object(p,f,"movie");if(movie)metadata(movie,js_fim(movie),&watched,0);}
+-   long long at=stamp(p,f,"watched_at");
++   long long at=stamp(p,f,"last_watched_at");if(!at)at=stamp(p,f,"watched_at");
+    if(watched.id[0]&&at>0)for(int i=0;i<n;i++)if(!strcmp(watched.id,items[i].id)&&watched.season==items[i].season&&watched.episode==items[i].episode&&at>=items[i].updated)items[i].id[0]=0;
+    p=js_prox(f);
+   }
+diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
+index ee1482cf8ddeb61f3a69a1f3ad48b6315979475c..b91d2aa8627e5a40a98a04db8c45e1c5305b67ef 100644
+--- a/src/mdblistlibrary.c
++++ b/src/mdblistlibrary.c
+@@ -8,6 +8,7 @@
+ #include "ajustes.h"
+ #include "cwordem.h"
+ #include "mdbresume.h"
++#include "mdbwatched.h"
+ #include <pthread.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -26,6 +27,11 @@ static time_t cwAt;
+ static int watchN,blocked,worker,noticeCode,verifyPending,connection;
+ static time_t watchAt,backoff;
+ static unsigned generation,serial;
++#define HISTORY_MAX 16000
++static ContaVisto *historyReady;
++static int historyReadyN, historyPending;
++static unsigned historyReadyGen;
++static time_t historyAt;
+ static Job jobs[JOB_MAX];
+ static pthread_mutex_t nextLock=PTHREAD_MUTEX_INITIALIZER;
+ static char nextIds[CW_MAX][96];
+@@ -39,6 +45,7 @@ static int credentials(char *key,unsigned *gen) {
+  if(generation!=*gen) {
+   generation=*gen;watchN=cwN=0;watchAt=cwAt=backoff=0;blocked=0;noticeCode=0;
+   verifyPending=ok;connection=ok?1:0;
++  free(historyReady);historyReady=NULL;historyReadyN=historyPending=0;historyAt=0;
+   free(watch);watch=NULL;
+   for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)jobs[i].state=3;
+  }
+@@ -140,6 +147,56 @@ static int writeOK(const char *body,int clear,int add) {
+     missing target is already removed; not_found is not silently accepted. */
+  return mdb_prop(body,end,"added")||mdb_prop(body,end,"existing")||mdb_prop(body,end,"removed");
+ }
++/* Independent of Continue Watching choice and playback reporting consent.
++   A failed/looped/oversized page never publishes partial watched history. */
++static void readHistory(const char *key,unsigned gen) {
++ ContaVisto *next=calloc(HISTORY_MAX,sizeof *next),*pageRows=calloc(HISTORY_MAX,sizeof *pageRows);
++ unsigned short *seen=calloc(32768,sizeof *seen);
++ int count=0,ok=next&&pageRows&&seen;
++ char cursor[1024]="",previous[1024],escaped[3072],path[3500];int offset=0;
++ for(int page=0;ok&&page<32;page++) {
++  if(!allowed(gen)||!encode(escaped,sizeof escaped,cursor)){ok=0;break;}
++  if(cursor[0])snprintf(path,sizeof path,"/sync/watched?limit=1000&cursor=%s",escaped);
++  else snprintf(path,sizeof path,"/sync/watched?limit=1000&offset=%d",offset);
++  char *body=get(path,key,gen);if(!body){ok=0;break;}
++  strcpy(previous,cursor);int more=0;
++  int got=mdb_watched_page(body,pageRows,HISTORY_MAX,cursor,sizeof cursor,&more);free(body);
++  if(got<0){ok=0;break;}
++  for(int i=0;i<got;i++) {
++   ContaVisto *v=pageRows+i;unsigned hash=2166136261u;
++   for(const unsigned char *p=(unsigned char *)v->id;*p;p++)hash=(hash^*p)*16777619u;
++   hash=(hash^(unsigned)v->temporada)*16777619u;hash=(hash^(unsigned)v->episodio)*16777619u;
++   hash=(hash^(unsigned char)v->tipo[0])*16777619u;unsigned slot=hash&32767u;
++   while(seen[slot]) {
++    ContaVisto *old=next+seen[slot]-1;
++    if(old->temporada==v->temporada&&old->episodio==v->episodio&&!strcmp(old->id,v->id)&&!strcmp(old->tipo,v->tipo))break;
++    slot=(slot+1)&32767u;
++   }
++   if(seen[slot]){ContaVisto *old=next+seen[slot]-1;if(v->vistoMs>old->vistoMs)*old=*v;}
++   else {if(count==HISTORY_MAX){ok=0;break;}seen[slot]=(unsigned short)(count+1);next[count++]=*v;}
++  }
++  if(!ok)break;
++  if(!more)break;
++  if((cursor[0]&&!strcmp(cursor,previous))||page==31){ok=0;break;}
++  offset+=1000;
++ }
++ pthread_mutex_lock(&lock);
++ if(ok&&gen==generation) {
++  free(historyReady);historyReady=next;next=NULL;historyReadyN=count;
++  historyReadyGen=gen;historyPending=1;historyAt=time(NULL);
++ }
++ pthread_mutex_unlock(&lock);free(next);free(pageRows);free(seen);
++ if(!ok)problem(gen,422,0,0);
++}
++void mdb_library_history_tick(void) {
++ ContaVisto *copy=NULL;int n=0,ready=0;
++ pthread_mutex_lock(&lock);
++ if(historyPending&&historyReadyGen==generation&&generation==mdblist_geracao_conta()) {
++  copy=historyReady;historyReady=NULL;n=historyReadyN;ready=1;historyPending=0;
++ }
++ pthread_mutex_unlock(&lock);
++ if(ready)contalib_mdb_vistos(copy,n);
++}
+ static void *run(void *unused) {
+  (void)unused;
+  char validationKey[80];unsigned validationGen;
+@@ -158,6 +215,10 @@ static void *run(void *unused) {
+   }
+   pthread_mutex_unlock(&network);
+  }
++ pthread_mutex_lock(&lock);int needHistory=!historyAt||time(NULL)-historyAt>=600;pthread_mutex_unlock(&lock);
++ if(hasKey&&needHistory&&allowed(validationGen)) {
++  pthread_mutex_lock(&network);readHistory(validationKey,validationGen);pthread_mutex_unlock(&network);
++ }
+  memset(validationKey,0,sizeof validationKey);
+  for(;;) {
+   Job job={0};int slot=-1;char key[80];unsigned gen;
+@@ -190,9 +251,9 @@ static void *run(void *unused) {
+  }
+ }
+ void mdb_library_tick(void) {
+- char key[80];unsigned gen;credentials(key,&gen);memset(key,0,sizeof key);
++ char key[80];unsigned gen;int connected=credentials(key,&gen);memset(key,0,sizeof key);
+  pthread_mutex_lock(&lock);int pending=0;for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)pending=1;
+- if((pending||(verifyPending&&!blocked&&time(NULL)>=backoff))&&!worker){pthread_t thread;worker=1;if(pthread_create(&thread,NULL,run,NULL)==0)pthread_detach(thread);else{worker=0;noticeCode=2;for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)jobs[i].state=3;}}
++ if((pending||(connected&&!blocked&&time(NULL)>=backoff&&(verifyPending||!historyAt||time(NULL)-historyAt>=600)))&&!worker){pthread_t thread;worker=1;if(pthread_create(&thread,NULL,run,NULL)==0)pthread_detach(thread);else{worker=0;noticeCode=2;for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)jobs[i].state=3;}}
+  pthread_mutex_unlock(&lock);
+ }
+ static unsigned queue(const char *id,const char *type,int add,int clear) {
+diff --git a/src/mdblistlibrary.h b/src/mdblistlibrary.h
+index ff17b7555908130eb2009acb87072b869acef4bc..7684acf36f2fc4f6041605bc23bfee7f097b6573 100644
+--- a/src/mdblistlibrary.h
++++ b/src/mdblistlibrary.h
+@@ -9,6 +9,7 @@ unsigned mdb_library_clear(const char *id);
+ int mdb_library_result(unsigned serial); /* 1 pending, 2 confirmed, 3 failed */
+ int mdb_library_connected(void);
+ void mdb_library_tick(void);
++void mdb_library_history_tick(void); /* main-thread snapshot handoff only */
+ const char *mdb_library_status(void);
+ /* Consume on the main thread; success/failure text never contains secrets. */
+ const char *mdb_library_notice(int *refresh);
+diff --git a/src/mdbwatched.c b/src/mdbwatched.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..500724896cb62cb235ba6213e46d1f502bef22d1
+--- /dev/null
++++ b/src/mdbwatched.c
+@@ -0,0 +1,103 @@
++#include "mdbwatched.h"
++#include "mdbformat.h"
++#include "js.h"
++#include <ctype.h>
++#include <math.h>
++#include <stdio.h>
++#include <string.h>
++
++static const char *arrayFirst(const char *a) {
++ a++;while(isspace((unsigned char)*a))a++;return *a==']'?NULL:a;
++}
++static const char *arrayNext(const char *f) {
++ if(!f)return NULL;while(isspace((unsigned char)*f))f++;
++ if(*f==']')return NULL;
++ if(*f==','){f++;while(isspace((unsigned char)*f))f++;}
++ return f;
++}
++
++static int imdb(const char *obj, char *out, unsigned size) {
++ const char *end=obj?js_fim(obj):NULL;
++ const char *ids=end?mdb_object(obj,end,"ids"):NULL;
++ if(!ids||!mdb_text(ids,js_fim(ids),"imdb",out,size)||strncmp(out,"tt",2))return 0;
++ const char *p=out+2;if(!*p)return 0;
++ for(;*p;p++)if(!isdigit((unsigned char)*p))return 0;
++ return 1;
++}
++static long long watchedAt(const char *p,const char *f) {
++ char date[64];
++ return (mdb_text(p,f,"last_watched_at",date,sizeof date)||mdb_text(p,f,"watched_at",date,sizeof date))?js_ms_iso(date):0;
++}
++int mdb_watched_page(const char *json,ContaVisto *out,int max,
++                     char *cursor,unsigned size,int *more) {
++ while(json&&isspace((unsigned char)*json))json++;
++ const char *end=json?js_fim(json):NULL;
++ if(!end||*json!='{'||end==json||end[-1]!='}'||!size)return -1;
++ cursor[0]=0;*more=0;int n=0,recognized=0;
++ const char *keys[]={"movies","episodes","shows","seasons"};
++ for(int kind=0;kind<4;kind++) {
++  const char *a=mdb_prop(json,end,keys[kind]);if(!a)continue;
++  recognized=1;const char *ae=js_fim(a);
++  if(*a!='['||!ae||ae>end||ae[-1]!=']')return -1;
++  for(const char *p=arrayFirst(a);p;p=arrayNext(js_fim(p))) {
++   const char *f=js_fim(p);if(*p!='{'||!f||f>ae)return -1;
++   if(kind==2) {
++    /* Desktop 0.1.29 also accepts Trakt-style nested watched episodes.
++       Each episode needs its own positive timestamp; no season expansion. */
++    ContaVisto v={0};strcpy(v.tipo,"series");
++    const char *show=mdb_object(p,f,"show"),*seasons=mdb_prop(p,f,"seasons");
++    if(!seasons||!imdb(show,v.id,sizeof v.id))continue;
++    const char *sf=js_fim(seasons);if(*seasons!='['||!sf||sf>f||sf[-1]!=']')return -1;
++    for(const char *s=arrayFirst(seasons);s;s=arrayNext(js_fim(s))) {
++     const char *se=js_fim(s);if(*s!='{'||!se||se>sf)return -1;
++     double t=mdb_number(s,se,"number",-1);if(t<0)t=mdb_number(s,se,"season",-1);
++     const char *eps=mdb_prop(s,se,"episodes");if(!eps)continue;
++     const char *ef=js_fim(eps);if(t<0||t>999||floor(t)!=t||*eps!='['||!ef||ef>se||ef[-1]!=']')return -1;
++     for(const char *ep=arrayFirst(eps);ep;ep=arrayNext(js_fim(ep))) {
++      const char *ee=js_fim(ep);if(*ep!='{'||!ee||ee>ef)return -1;
++      v.vistoMs=watchedAt(ep,ee);if(v.vistoMs<=0)continue;
++      double e=mdb_number(ep,ee,"number",-1);if(e<0)e=mdb_number(ep,ee,"episode",-1);
++      if(e<1||e>9999||floor(e)!=e||n>=max)return -1;
++      v.temporada=(int)t;v.episodio=(int)e;out[n++]=v;
++     }
++    }
++    continue;
++   }
++   if(kind==3)continue; /* aggregate activity is not completion */
++   long long ms=watchedAt(p,f);
++   if(ms<=0)continue; /* removed/null entries do not count as watched */
++   ContaVisto v={0};v.vistoMs=ms;
++   const char *media=mdb_object(p,f,kind?"episode":"movie");if(!media)return -1;
++   if(kind) {
++    const char *me=js_fim(media),*show=mdb_object(media,me,"show");
++    if(!show)show=mdb_object(p,f,"show"); /* modern sibling envelope */
++    if(!imdb(show,v.id,sizeof v.id))continue;
++    double t=mdb_number(media,me,"season",-1),e=mdb_number(media,me,"number",-1);
++    if(e<0)e=mdb_number(media,me,"episode",-1);
++    if(t<0||t>999||e<1||e>9999||floor(t)!=t||floor(e)!=e)return -1;
++    v.temporada=(int)t;v.episodio=(int)e;strcpy(v.tipo,"series");
++   }else {if(!imdb(media,v.id,sizeof v.id))continue;strcpy(v.tipo,"movie");}
++   if(n>=max)return -1;out[n++]=v;
++  }
++ }
++ if(!recognized)return -1;
++ const char *pg=mdb_object(json,end,"pagination"),*pe=pg?js_fim(pg):NULL;
++ const char *next=mdb_prop(json,end,"next_cursor");
++ if(!next&&pg)next=mdb_prop(pg,pe,"next_cursor");
++ if(next&&strncmp(next,"null",4)) {
++  /* Reject truncated cursors rather than repeat/drop a page. */
++  const char *ne=next+1;
++  for(;ne<end&&*ne!='"';ne++)if(*ne=='\\'&&ne+1<end)ne++;
++  if(*next!='"'||ne>=end||(unsigned)(ne-next)>=size||!js_cadeia(next,cursor,size))return -1;
++ }
++ if(pg) {
++  const char *hm=mdb_prop(pg,pe,"has_more");
++  if(hm){if(!strncmp(hm,"true",4))*more=1;else if(strncmp(hm,"false",5))return -1;}
++  else if(!next) {
++   double total=mdb_number(pg,pe,"total",-1),offset=mdb_number(pg,pe,"offset",0),limit=mdb_number(pg,pe,"limit",1000);
++   if(total>=0&&offset+limit<total)*more=1;
++  }
++ }
++ if(cursor[0])*more=1;
++ return n;
++}
+diff --git a/src/mdbwatched.h b/src/mdbwatched.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..89a38258a923383ee5a12b3ebdffcb7303cabb87
+--- /dev/null
++++ b/src/mdbwatched.h
+@@ -0,0 +1,8 @@
++#ifndef NV_MDBWATCHED_H
++#define NV_MDBWATCHED_H
++#include "contalib.h"
++/* Compact, positive watched evidence. Shows/seasons are aggregates, never
++   evidence that every episode (or the whole series) has been completed. */
++int mdb_watched_page(const char *json, ContaVisto *out, int max,
++                     char *cursor, unsigned size, int *more);
++#endif
+diff --git a/src/sync.c b/src/sync.c
+index 3c98193f26a4787ef2e6ba8fd003989ac26a87bc..8d8f712cf3217187d033d232246ceeff3a0a07f4 100644
+--- a/src/sync.c
++++ b/src/sync.c
+@@ -1621,21 +1621,11 @@ void sync_passo(unsigned agoraMs) {
+     free(bibBlob); bibBlob = NULL; temBibBlob = 0;
+   }
+   spMarcar(SP_BIBLIOTECA);
+-  // OS VISTOS DA CONTA, e so quando o Trakt NAO esta no ar.
+-  //
+-  // E o que o web faz: `shouldUseSupabaseWatchProgressSync` em
+-  // js/core/profile/watchedItemsSyncService.js pula esta sincronizacao inteira
+-  // quando ha provedor (Trakt ou Simkl) escolhido. O motivo aqui e concreto: o
+-  // historico do Trakt e escrito pelo proprio app quando a pessoa marca algo na
+-  // TV (trakt.c, cat_historico_definir_id depois do 2xx), e uma linha antiga da
+-  // conta aplicada por cima desfaria essa marca no ciclo seguinte — a pessoa
+-  // desmarcaria um titulo e ele voltaria marcado sozinho.
+-  //
+-  // Sem Trakt, esta e a UNICA fonte de "assistido" que o app tem, e ate agora
+-  // ela nao existia: era a mesma queixa do issue por outro angulo.
++  // Merge account evidence even with another provider connected. The
++  // account journal filters older remote marks after a local unwatch.
+   if (temVistosBlob && vistosBlob) {
+     unsigned rev = contalib_vistos_revisao();
+-    if (contalib_ler_vistos(vistosBlob) > 0 && !trakt_ativo())
++    if (contalib_ler_vistos(vistosBlob) > 0)
+       contalib_aplicar_vistos();
+     free(vistosBlob); vistosBlob = NULL; temVistosBlob = 0;
+     // O "a seguir" da conta (issue #199) sai destes vistos. Vistos novos e
+diff --git a/src/visto.c b/src/visto.c
+index e115f50acfdf102cc2bfdf1a6d68813ea5f8ebd1..0ad616f6e272fe6af4e72382621a29125dfc53a6 100644
+--- a/src/visto.c
++++ b/src/visto.c
+@@ -81,8 +81,9 @@ int visto_episodios(const char *imdb, const char *tipo, const VistoPar *pares,
+                     int n, int visto, int destinos) {
+   Envio *e;
+   if (!imdb || !imdb[0] || !pares || n < 1) return 0;
+-  if (!destinos) return 1;   // so local: nao ha o que mandar
+   if (n > VT_LOTE) n = VT_LOTE;
++  if(!(destinos & VISTO_CONTA))contapend_visto_local(imdb,tipo,pares,n,visto);
++  if (!destinos) return 1;   // so local: nao ha o que mandar
+   // NO FIO DE QUEM CHAMOU, antes de qualquer rede: o gesto ja esta em disco
+   // quando o fio sai, e um fio que morre no meio nao leva a marca junto.
+   if (destinos & VISTO_CONTA) {
+@@ -103,6 +104,7 @@ int visto_titulo(const char *imdb, const char *tipo, const int *temporadas,
+   Envio *e;
+   destinos &= ~VISTO_TRAKT;
+   if (!imdb || !imdb[0]) return 0;
++  if(!(destinos & VISTO_CONTA))contapend_visto_local(imdb,tipo,NULL,0,visto);
+   if (!destinos) return 1;
+   if (destinos & VISTO_CONTA) {
+     contapend_titulo(imdb, tipo && tipo[0] ? tipo : "movie", visto);
+diff --git a/tests/contalib.c b/tests/contalib.c
+index dddccbd3424809d27c20b3f6b494a06e11e3ad1c..52f878f166a795243c414fae6522507969e5959f 100644
+--- a/tests/contalib.c
++++ b/tests/contalib.c
+@@ -98,6 +98,8 @@ int cat_acrescentar_lote(const CatItem *v, int qtd, int *saidaIdx) {
+ static char histId[16][24];
+ static char histTipo[16][8];
+ static int  nHist;
++unsigned long long cat_historico_geracao(void){return 1;}
++unsigned cat_historico_revisao(void){return (unsigned)nHist;}
+ 
+ void cat_historico_definir_id(const char *imdb, const char *tipo, int visto) {
+   if (!visto || nHist >= 16) return;
+diff --git a/tests/contalib.sh b/tests/contalib.sh
+index 55687f16cf24150c1e9e1b236d45f4c0e0e7a298..571fa3f089d0992b4c2725d4d6bd4f26daad7ef0 100644
+--- a/tests/contalib.sh
++++ b/tests/contalib.sh
+@@ -15,6 +15,6 @@ if [ "${SANITIZE:-0}" = 1 ]; then flags+=(-fsanitize=address,undefined -fno-omit
+ # src/vistoep.c ENTRA porque contalib passou a mandar a linha de episodio para
+ # o mapa de episodios vistos, em vez de descarta-la.
+ cc ${flags[@]+"${flags[@]}"} src/contalib.c src/js.c src/vistoep.c tests/contalib.c \
+-  -Isrc -o /tmp/nuvio-contalib-tests -O1 -g \
++  -UNDEBUG -pthread -lm -Isrc -o /tmp/nuvio-contalib-tests -O1 -g \
+   -Wall -Wno-deprecated-declarations -Wno-macro-redefined
+ /tmp/nuvio-contalib-tests
+diff --git a/tests/contapend.c b/tests/contapend.c
+index b85de2b46e2a0cc567def816fe6128651ae19478..4190f2b985236201ae7f01f38e227226eddbcd78 100644
+--- a/tests/contapend.c
++++ b/tests/contapend.c
+@@ -332,8 +332,24 @@ int main(void) {
+   assert(!disco || !strstr(disco, "ttH"));
+   OK("poda: so confirmadas anteriores ao ciclo saem do jornal");
+ 
++  zerar();
++  contapend_titulo("tt0372784", "movie", 0);
++  assert(contapend_enviar()==1);
++  contapend_podar(agora+1);
++  assert(contapend_pendentes()==0&&contapend_visto_oculto("tt0372784",0,0,agora-1));
++  contapend_esquecer();
++  assert(contapend_visto_oculto("tt0372784",0,0,agora-1));
++  assert(!contapend_visto_oculto("tt0372784",0,0,agora+1000));
++  histVisto=-1;contapend_aplicar_local();assert(histVisto==-1);
++  OK("confirmed unwatch survives prune/restart; newer remote watch clears tombstone");
+   // 9. Sem conta, nada entra.
+   zerar();
++  assert(contapend_visto_local("tt0372784","movie",NULL,0,0)==1);
++  assert(contapend_pendentes()==0&&contapend_enviar()==0&&nDelVis==0&&nPushVis==0);
++  contapend_podar(agora+1);
++  assert(contapend_visto_oculto("tt0372784",0,0,agora-1));
++  OK("history upload disabled: durable local intent queues no account write");
++  zerar();
+   logada = 0;
+   assert(contapend_titulo("tt1", "movie", 1) == 0 && contapend_enviar() == 0);
+   OK("deslogado: jornal nao registra nem envia");
+diff --git a/tests/contapend.sh b/tests/contapend.sh
+index 39cd5df36276a361786cbcb5f4d12c6bd703736b..dd155768342364c96e6ebbff80bf696383557592 100644
+--- a/tests/contapend.sh
++++ b/tests/contapend.sh
+@@ -6,7 +6,7 @@ set -eu
+ cd "$(dirname "$0")/.."
+ tmp="$(mktemp -d "${TMPDIR:-/tmp}/nuvio-contapend-XXXXXX")"
+ trap 'rm -rf "$tmp"' EXIT
+-cc -O1 -g -Wall -Wextra -Isrc -Wno-deprecated-declarations -Wno-macro-redefined \
++cc -UNDEBUG -O1 -g -Wall -Wextra -Isrc -Wno-deprecated-declarations -Wno-macro-redefined \
+   src/contapend.c src/vistoep.c src/js.c src/jsw.c tests/contapend.c \
+   -o "$tmp/contapend" -lpthread
+ "$tmp/contapend"
+diff --git a/tests/history_sync.c b/tests/history_sync.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..e52846ea58fe1919c33cd45cf79cfed123496234
+--- /dev/null
++++ b/tests/history_sync.c
+@@ -0,0 +1,41 @@
++#include "contalib.h"
++#include "catalogo.h"
++#include "vistoep.h"
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++static unsigned long long scope=1;
++static unsigned titleRev;
++static int movie=-1,hidden;
++static unsigned writes,filters;
++unsigned long long cat_historico_geracao(void){return scope;}
++unsigned cat_historico_revisao(void){return titleRev;}
++void cat_historico_definir_id(const char *id,const char *type,int state){assert(!strcmp(id,"tt0372784")&&!strcmp(type,"movie"));writes++;if(movie!=state){movie=state;titleRev++;}}
++int cat_n(void){return 0;}
++const CatItem *cat_item(int i){(void)i;return NULL;}
++int cat_indice_por_imdb(const char *id){(void)id;return -1;}
++void cat_definir_na_lista(int i,int v){(void)i;(void)v;}
++int cat_acrescentar_lote(const CatItem *items,int n,int *indices){(void)items;(void)n;(void)indices;return 0;}
++const char *i18n(const char *s){return s;}
++const char *idioma_mes_data(int month,const char *s){(void)month;return s;}
++static int veto(const char *id,int t,int e,long long at){(void)t;(void)at;filters++;return hidden&&!strcmp(id,"tt5875444")&&e==1;}
++int main(void){
++ contalib_filtros(NULL,veto);
++ assert(contalib_ler_vistos("[{\"content_id\":\"tt0372784\",\"content_type\":\"movie\",\"watched_at\":\"2026-10-08T12:00:00Z\"},{\"content_id\":\"tt5875444\",\"content_type\":\"series\",\"season\":1,\"episode\":1,\"watched_at\":\"2026-10-08T12:00:00Z\"}]")==2);
++ /* Real Trakt parser has established 'false' for these episodes. Account
++    and MDBList positive evidence still reaches badges and progress counts. */
++ assert(vistoep_ler_progresso("tt5875444","{\"seasons\":[{\"number\":1,\"episodes\":[{\"number\":1,\"completed\":false},{\"number\":2,\"completed\":false}]}]}")==2);
++ contalib_vistos_tick();assert(movie==1&&vistoep_estado("tt5875444",1,1)==1);
++ ContaVisto *mdb=calloc(100,sizeof *mdb);assert(mdb);
++ for(int i=0;i<100;i++){strcpy(mdb[i].id,"tt5875444");strcpy(mdb[i].tipo,"series");mdb[i].temporada=2;mdb[i].episodio=i+1;mdb[i].vistoMs=1791460800000LL;}
++ contalib_mdb_vistos(mdb,100);unsigned before=filters;contalib_vistos_tick();assert(filters-before==64);
++ assert(vistoep_estado("tt5875444",2,100)==-1);contalib_vistos_tick();assert(vistoep_estado("tt5875444",2,100)==1);
++ unsigned er=vistoep_revisao();before=filters;unsigned oldWrites=writes;
++ for(int i=0;i<10000;i++)contalib_vistos_tick();assert(filters==before&&writes==oldWrites&&vistoep_revisao()==er);
++ /* Opening a title can load another provider's incomplete snapshot later. */
++ vistoep_definir("tt5875444",2,100,0);contalib_vistos_tick();contalib_vistos_tick();assert(vistoep_estado("tt5875444",2,100)==1);
++ hidden=1;vistoep_definir("tt5875444",1,1,0);contalib_vistos_tick();contalib_vistos_tick();assert(vistoep_estado("tt5875444",1,1)==0);
++ scope++;movie=-1;titleRev++;contalib_vistos_tick();assert(movie==-1&&vistoep_contar("tt5875444")==0);
++ contalib_esquecer();puts("History integration: Nuvio + MDBList with Trakt, actual episode index, movie badge state, bounded batches, stable idle, unwatch veto and profile isolation passed");
++}
+diff --git a/tests/mdblistlibrary.c b/tests/mdblistlibrary.c
+index 55280e5805de2c0f95fbacdc2627b1c7699f7ab8..67bcd39538fba5888fbadd7329a035e696775a01 100644
+--- a/tests/mdblistlibrary.c
++++ b/tests/mdblistlibrary.c
+@@ -5,6 +5,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <time.h>
++#include "contalib.h"
+ /* glibc exposes real pthread typedefs through stdlib in GNU mode. Keep the
+    deterministic scheduler's types distinct from those platform typedefs. */
+ #define pthread_mutex_t MdbTestMutex
+@@ -16,6 +17,11 @@ static unsigned account=1;
+ static const char *keyValue="test_key";
+ static const char *response="{\"movies\":[],\"shows\":[]}";
+ static const char *second;
++static const char *historyResponse="{\"movies\":[],\"episodes\":[]}";
++static const char *historySecond;
++static int historyHttp=200,historyCalls,imported=-1;
++static ContaVisto *importRows;
++void contalib_mdb_vistos(ContaVisto *owned,int n){free(importRows);importRows=owned;imported=n;}
+ static const char *postResponse="{\"added\":1,\"existing\":0,\"not_found\":0}";
+ static time_t now=1791500000;
+ static double localPos,localDuration;
+@@ -42,7 +48,13 @@ char *rede_baixar_st_retry(const char *url,int timeout,const char *const *header
+  if(strstr(url,"/user?"))value="{\"username\":\"fixture_user\"}";
+  if(strstr(url,"/sync/playback"))value="[{\"type\":\"movie\",\"progress\":70,\"runtime\":90,\"movie\":{\"ids\":{\"imdb\":\"tt123\"}},\"paused_at\":\"2026-10-08T01:00:00Z\"}]";
+  if(strstr(url,"/upnext"))value="{\"items\":[],\"has_more\":false}";
+- if(strstr(url,"/sync/watched"))value="{\"movies\":[],\"episodes\":[]}";
++ if(strstr(url,"/sync/watched")) {
++  historyCalls++;
++  int later=strstr(url,"cursor=page2")||strstr(url,"offset=1000");
++  value=later&&historySecond?historySecond:historyResponse;
++  if(later)*status=historyHttp;
++  if(strstr(url,"offset="))assert(!strstr(url,"since=")); /* full import includes old watched items */
++ }
+  return value?strdup(value):NULL;
+ }
+ char *rede_postar_st(const char *url,int timeout,const char *const *headers,const char *body,int *status){
+@@ -54,7 +66,7 @@ void prog_chave(char *out,unsigned n,const char *id,int season,int ep){if(ep)snp
+ int prog_por_chave(const char *key,ProgRegistro *out){(void)key;memset(out,0,sizeof *out);out->posSeg=localPos;out->durSeg=localDuration;out->lastWatchedMs=1;return localDuration>0;}
+ int ajustes_cw_concluido(void){return 90;}
+ void cwo_marcar_estreia(const char *id,long long at){(void)id;(void)at;}
+-static void reset(void){drain();account++;keyValue="test_key";char key[80];unsigned gen;credentials(key,&gen);http=200;retry=calls=postCalls=changeKey=0;second=NULL;noticeCode=0;localPos=localDuration=0;}
++static void reset(void){drain();account++;keyValue="test_key";char key[80];unsigned gen;credentials(key,&gen);http=200;retry=calls=postCalls=changeKey=0;second=NULL;historySecond=NULL;historyHttp=200;historyResponse="{\"movies\":[],\"episodes\":[]}";historyCalls=0;imported=-1;noticeCode=0;localPos=localDuration=0;}
+ int main(void){
+  CatItem *items=calloc(4,sizeof *items);assert(items);
+  reset();response="{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}],\"pagination\":{\"next_cursor\":\"page2\"}}";
+@@ -83,5 +95,18 @@ int main(void){
+  seen=calls;lock=1;
+  for(int i=0;i<10000;i++){assert(mdb_library_next("tt123:2:3"));assert(!mdb_library_next("tt123:2:4"));}
+  lock=0;assert(calls==seen);account++;assert(!mdb_library_next("tt123:2:3"));
+- free(items);free(watch);puts("MDBList library: pagination/dedup, TTL, failure retention, 401/429, account isolation, write confirmation, render snapshot and precise local resume passed");return 0;
++ reset();historyResponse="{\"movies\":[{\"last_watched_at\":\"2024-01-01T00:00:00Z\",\"movie\":{\"ids\":{\"imdb\":\"tt0372784\"}}}],\"pagination\":{\"next_cursor\":\"page2\"}}";
++ historySecond="{\"episodes\":[{\"last_watched_at\":\"2026-10-08T12:00:00Z\",\"episode\":{\"season\":1,\"number\":1,\"show\":{\"ids\":{\"imdb\":\"tt5875444\"}}}}]}";
++ mdb_library_tick();assert(scheduled);drain();assert(historyCalls==2&&postCalls==0&&imported==-1);
++ mdb_library_history_tick();assert(imported==2&&!strcmp(importRows[1].id,"tt5875444")&&importRows[1].episodio==1);
++ seen=calls;for(int i=0;i<10000;i++){mdb_library_tick();mdb_library_history_tick();}assert(!scheduled&&calls==seen); /* stable idle */
++ now+=601;historyHttp=500;mdb_library_tick();drain();mdb_library_history_tick();assert(imported==2); /* page 2 failure retains previous */
++ now+=61;historyHttp=200;mdb_library_tick();drain();mdb_library_history_tick();assert(imported==2); /* automatic retry */
++ reset();historyResponse="{\"movies\":[],\"pagination\":{\"has_more\":true}}";historySecond="{\"movies\":[],\"pagination\":{\"has_more\":false}}";
++ mdb_library_tick();drain();mdb_library_history_tick();assert(imported==0&&historyCalls==2); /* old offset pagination */
++ reset();mdb_library_tick();drain();account++;mdb_library_history_tick();assert(imported==-1); /* stale ready snapshot */
++ reset();http=429;retry=120;mdb_library_tick();drain();seen=calls;now+=61;mdb_library_tick();assert(!scheduled&&calls==seen);
++ reset();historyResponse="{\"movies\":[],\"pagination\":{\"next_cursor\":\"page2\"}}";historySecond=historyResponse;
++ mdb_library_tick();drain();mdb_library_history_tick();assert(imported==-1&&historyCalls==2); /* cursor loop fails closed */
++ free(items);free(watch);free(historyReady);free(importRows);puts("MDBList library: pagination/dedup, TTL, failure retention, 401/429, account isolation, write confirmation, render snapshot and precise local resume passed");return 0;
+ }
+diff --git a/tests/mdbwatched.c b/tests/mdbwatched.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..8d4dd6b9c946863c306df6d1ae0af8024064c9f3
+--- /dev/null
++++ b/tests/mdbwatched.c
+@@ -0,0 +1,22 @@
++#include "mdbwatched.h"
++#include <assert.h>
++#include <stdio.h>
++#include <string.h>
++int main(void) {
++ ContaVisto rows[8];char cursor[1024];int more;
++ const char *documented="{\"movies\":[{\"last_watched_at\":\"2026-10-08T12:00:00Z\",\"movie\":{\"ids\":{\"imdb\":\"tt0372784\"}}}],\"shows\":[{\"last_watched_at\":\"2026-10-08T12:00:00Z\",\"show\":{\"ids\":{\"imdb\":\"tt5875444\"}}}],\"episodes\":[{\"last_watched_at\":\"2026-10-08T12:00:00Z\",\"episode\":{\"season\":1,\"number\":1,\"ids\":{\"imdb\":\"tt99999\"},\"show\":{\"title\":\"Slow Horses\",\"ids\":{\"imdb\":\"tt5875444\"}}}}],\"pagination\":{\"has_more\":true}}";
++ assert(mdb_watched_page(documented,rows,8,cursor,sizeof cursor,&more)==2&&more&&!cursor[0]);
++ assert(!strcmp(rows[0].id,"tt0372784")&&!strcmp(rows[0].tipo,"movie")&&!rows[0].episodio);
++ assert(!strcmp(rows[1].id,"tt5875444")&&rows[1].temporada==1&&rows[1].episodio==1&&rows[1].vistoMs>0);
++ assert(mdb_watched_page("{\"episodes\":[{\"watched_at\":\"2026-10-08T12:00:00Z\",\"episode\":{\"season\":0,\"number\":2},\"show\":{\"ids\":{\"imdb\":\"tt5875444\"}}}],\"pagination\":{\"next_cursor\":\"page2\"}}",rows,8,cursor,sizeof cursor,&more)==1&&more&&!strcmp(cursor,"page2"));
++ assert(rows[0].temporada==0&&rows[0].episodio==2);
++ assert(mdb_watched_page("{\"shows\":[{\"show\":{\"ids\":{\"imdb\":\"tt5875444\"}},\"seasons\":[{\"number\":2,\"episodes\":[{\"number\":1,\"last_watched_at\":\"2026-10-08T12:00:00Z\"},{\"number\":2,\"last_watched_at\":null}]}]}]}",rows,8,cursor,sizeof cursor,&more)==1);
++ assert(rows[0].temporada==2&&rows[0].episodio==1);
++ assert(mdb_watched_page("{\"movies\":[{\"watched_at\":null,\"movie\":{\"ids\":{\"imdb\":\"tt1\"}}},{\"watched_at\":\"2026-10-08T12:00:00Z\",\"movie\":{\"ids\":{\"tmdb\":1}}}]}",rows,8,cursor,sizeof cursor,&more)==0); /* never alias all TMDB IDs to 'tmdb' */
++ assert(mdb_watched_page(documented,rows,1,cursor,sizeof cursor,&more)<0);
++ const char *bad[]={"{\"error\":\"unauthorized\"}","{\"movies\":{}}","{\"movies\":[123]}","{\"episodes\":[{\"watched_at\":\"2026-10-08T12:00:00Z\",\"episode\":{\"season\":1,\"number\":1.5,\"show\":{\"ids\":{\"imdb\":\"tt1\"}}}}]}","{\"movies\":[]", "{\"movies\":[],\"pagination\":{\"next_cursor\":123}}"};
++ for(unsigned i=0;i<sizeof bad/sizeof *bad;i++)assert(mdb_watched_page(bad[i],rows,8,cursor,sizeof cursor,&more)<0);
++ assert(mdb_watched_page("{\"movies\":[],\"pagination\":{\"total\":2001,\"limit\":1000,\"offset\":1000}}",rows,8,cursor,sizeof cursor,&more)==0&&more);
++ assert(mdb_watched_page("{\"movies\":[],\"pagination\":{\"next_cursor\":\"1234567\"}}",rows,8,cursor,4,&more)<0);
++ puts("Watched history: documented and modern envelopes, Slow Horses episodes, nested seasons, nulls, paging, bounds and identity passed");
++}
+diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
+index fa102de232bba3dfee37166786adfdd682f8aeac..e52d9147272cf0a6c9e84272cf8ed1d676d54385 100644
+--- a/tests/tizen_improvements.sh
++++ b/tests/tizen_improvements.sh
+@@ -6,6 +6,13 @@ trap 'rm -rf "$out"' EXIT
+ flags=(-std=gnu11 -O1 -UNDEBUG -g -Wall -Wextra -Isrc -DSDL_MAIN_HANDLED)
+ read -ra sdl <<< "$(sdl2-config --cflags)"
+ cc "${flags[@]}" tests/mdbformat.c src/mdbformat.c src/js.c -lm -o "$out/format"
++cc "${flags[@]}" tests/mdbwatched.c src/mdbwatched.c src/mdbformat.c src/js.c -lm -o "$out/history-format"
++"$out/history-format"
++cc "${flags[@]}" tests/history_sync.c src/contalib.c src/vistoep.c src/js.c -pthread -lm -o "$out/history-sync"
++"$out/history-sync"
++bash tests/contalib.sh
++bash tests/contapend.sh
++CPATH="$(sdl2-config --prefix)/include:${CPATH:-}" bash tests/visto.sh
+ "$out/format"
+ cc "${flags[@]}" tests/mdbaccount.c src/mdbaccount.c src/mdbformat.c src/js.c -lm -o "$out/account"
+ "$out/account"
+@@ -23,7 +30,7 @@ python3 tests/ajustes_secoes.py src/ajustes.c
+ python3 tools/idiomas.py
+ cc "${flags[@]}" tests/mdbresume.c src/mdbresume.c -lm -o "$out/resume"
+ "$out/resume"
+-cc "${flags[@]}" "${sdl[@]}" -Itests/stubs/mdblist tests/mdblistlibrary.c src/mdbformat.c src/mdbresume.c src/mdblistscrobble.c src/js.c -lm -o "$out/library"
++cc "${flags[@]}" "${sdl[@]}" -Itests/stubs/mdblist tests/mdblistlibrary.c src/mdbwatched.c src/mdbformat.c src/mdbresume.c src/mdblistscrobble.c src/js.c -lm -o "$out/library"
+ "$out/library"
+ cc "${flags[@]}" "${sdl[@]}" tests/chartcache.c src/chartcache.c -lm -o "$out/charts"
+ "$out/charts"
+diff --git a/tests/visto.sh b/tests/visto.sh
+index 120a94ff13d6a9ebc790089350d62767e0d24f03..bd09a066b457fe79630c7c29b4a86c321d83b454 100644
+--- a/tests/visto.sh
++++ b/tests/visto.sh
+@@ -6,7 +6,7 @@ set -eu
+ cd "$(dirname "$0")/.."
+ tmp="$(mktemp -d "${TMPDIR:-/tmp}/nuvio-visto-XXXXXX")"
+ trap 'rm -rf "$tmp"' EXIT
+-cc -O1 -g -Wall -Wextra -Isrc -I/opt/homebrew/include -I/opt/homebrew/include/SDL2 \
++cc -O1 -g -UNDEBUG -Wall -Wextra -Isrc -I/opt/homebrew/include -I/opt/homebrew/include/SDL2 \
+   -Wno-deprecated-declarations -Wno-macro-redefined \
+   src/visto.c src/contapend.c src/simkl.c src/syncprog.c src/progresso.c src/trakt.c tests/stub_fichameta.c src/traktscrobble.c src/cwordem.c \
+   src/vistoep.c src/js.c src/metaprov.c src/jsw.c tests/visto.c -o "$tmp/visto" -lpthread

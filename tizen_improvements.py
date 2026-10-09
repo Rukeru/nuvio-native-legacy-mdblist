@@ -9,7 +9,8 @@ PATCHES = ('tizen-01-source-cache.patch', 'tizen-02-season-charts.patch',
            'tizen-03-mdblist-watchlist.patch', 'tizen-04-mdblist-continue.patch',
            'tizen-05-mdblist-account-key.patch',
            'shared-06-tracking-performance-layout.patch',
-           'shared-07-progress-home-performance.patch')
+           'shared-07-progress-home-performance.patch',
+           'shared-08-watched-history-sync.patch')
 
 def apply(source, state_file):
     root = Path(__file__).resolve().parent

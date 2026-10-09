@@ -117,7 +117,7 @@ API references: [MDBList OpenAPI](https://api.mdblist.com/schema/),
 
 ## Shared tracking, performance and layout correction
 
-Both builders now apply the same seven reviewed patches after the original MDBList
+Both builders now apply the same eight reviewed patches after the original MDBList
 integration. Patch filenames 1–5 are retained to preserve provenance/history.
 Settings > Tracking > MDBList provides masked manual API-key entry, connection
 validation, account-sync status, independent playback consent, disconnect and a
@@ -167,3 +167,18 @@ The Samsung workflow compares actual GLES rendering with published 2.0.2.3 and
 prove restored TV FPS. With the existing meter enabled, tracking stage timings
 contain durations/sample counts only. Collections remains a separate preserved
 fix from shared patch 6.
+
+
+## Watched-history import
+
+The next update imports watched movies and individual episodes from MDBList
+and the Nuvio account, even while Trakt is connected or Continue Watching uses
+another source. The existing connected MDBList API key is reused. History reads
+run in the background at startup and every ten minutes, with pagination, dedup,
+failure retention and existing backoff. Movie badges and Your Progress receive
+the imported watched evidence in small batches; idle frames do no history scan.
+TV unwatch actions are protected against older remote snapshots. Authentication,
+playback consent, scrobble threshold and the successful shared-07 renderer remain
+unchanged. Shared patch 8 is applied by both automatic builders; future conflicts
+still stop publication for review. Check DEVELOPMENT_LESSONS.md for limits and
+the distinction between positive-history import and remote deletion mirroring.

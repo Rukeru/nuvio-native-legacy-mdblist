@@ -106,3 +106,53 @@ GLES rendering with published first build 2.0.2.3 and 2.0.2.11. Host timings and
 synthetic draws cannot establish restored 60 FPS on the user's Samsung TV.
 The performance meter's tracking timings contain only durations and sample
 counts, never credentials or content identifiers.
+
+## Watched-history import follow-up
+
+The user confirmed the shared-07 Samsung performance is now perfect on their
+TV. Preserve its renderer, caches, episode hash and credential persistence.
+This is user hardware feedback, separate from controlled host measurements.
+
+MDBList watched history was fetched only as a Continue Watching veto. It never
+fed the movie badge map or episode watched index, and an empty Continue Watching
+list skipped it entirely. Nuvio account history was also suppressed merely
+because Trakt was enabled. Watched evidence must be merged independently of
+the chosen Continue Watching source and playback-reporting consent.
+
+Primary docs checked on 2026-10-09: https://api.mdblist.com/schema/ and
+https://mdblist.docs.apiary.io/reference/sync/watched-history/retrieve-watched-history
+The documented episode identifies its parent under episode.show, with
+last_watched_at. Accept that and the current sibling-show/watched_at envelope.
+Desktop 0.1.29-alpha, commit 80d8ce33d802ca24e162464350b146fcbbdd12a9,
+MdbListWatchedDecoder.kt also supports explicit nested show.seasons episodes
+(the seasons array is on the history row). A show/season activity timestamp
+alone never establishes whole-series/season completion. Null timestamps do not
+count. IMDb-backed titles are imported; TMDB-only records are skipped because
+the existing native history maps would collapse their IDs to 'tmdb'.
+
+Fetch a complete bounded snapshot on the existing background worker at startup
+and every ten minutes. Prefer next_cursor; retain legacy offset/has_more support.
+No since filter on the full import: years-old watched movies still matter.
+Deduplicate exact movie/episode identities with a bounded hash; newer timestamps
+win. Reject failed later pages, repeated cursors, malformed responses and bounds
+overflow before publishing. Existing rate-limit/auth/network backoff applies.
+The import performs GET only and never reports playback or writes account history.
+
+Main-thread merges touch at most 64 indexed entries per frame; stable frames do
+only revision/scope checks. Reconcile when another provider updates the history
+maps, without catalogue traversal or changing progress rendering. Clear episode
+and imported snapshots on account/profile boundaries, reject old credential replies.
+Preserve explicit TV unwatch intent using the existing account/profile journal.
+Confirmed unwatch tombstones survive prune/restart; a newer remote watch or a
+later local gesture supersedes them. With Nuvio history upload disabled, record
+local intent without queuing any account write. The journal remains bounded at
+4000 entries; existing eviction rules apply. Preserve original Trakt dispatch.
+
+Tests cover documented/modern/nested envelopes, movie and episode indices,
+pagination/dedup, old history, failure retention/retry, stale profiles, quotas,
+local unwatch/restart, no upload when disabled, and 10000 idle ticks with no
+history traversal/network requests. Existing account and provider tests run too.
+Native map limits remain 8000 episode states / 8192 title states. MDBList snapshot
+is bounded at 16000 records / 32 pages; Nuvio retains its existing 2700-row bound.
+These are positive-history imports, not a full remote-deletion journal mirror.
+Real account acceptance of this follow-up still needs physical-TV verification.
