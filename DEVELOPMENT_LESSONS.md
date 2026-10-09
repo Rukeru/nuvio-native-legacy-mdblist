@@ -258,3 +258,22 @@ Regression coverage also exercises interrupted public uploads/draft creation,
 refusal to modify live assets, notification deduplication/recovery, keyed label
 collisions and archive checksum/path rejection. A failure to close an issue after
 successful publication is a warning, not evidence that the live release failed.
+
+The first complete 2.0.3 cloud builds exposed two infrastructure cases. Docker
+BuildKit reports a rate limit as `unexpected status from HEAD request ...: 429`;
+classify that exact form as transient, while a compiler/assertion/conflict in the
+same output still takes precedence. Use the verified ARMv5 Debian manifest from
+Google's Docker Hub cache to avoid shared runner pull limits. Generate a separate
+SDK Dockerfile after validating the upstream FROM/architecture; leave the
+upstream recipe unchanged and reject a changed base before the full build.
+
+GitHub release creation can return 403 when an in-flight build targets a commit
+whose workflow definitions differ from the current default branch. GITHUB_TOKEN
+cannot receive the workflow permission needed to tag that older workflow commit.
+Do not request a broader personal token or silently retag the tested artifacts
+at an untested commit. Record the exact builder commit in SOURCE.json and the
+release body; compare workflow tree IDs before publication. A changed workflow
+produces a named, non-quarantined publication-stale notification and preserves
+the last live release. A fresh run from the current default branch automatically
+retries on the repair push or next hourly poll. Include public GitHub error
+messages in diagnostics without printing request bodies or authorization headers.

@@ -21,7 +21,8 @@ for line in (dest / 'SHA256SUMS.txt').read_text().splitlines():
     expected[name] = 'sha256:' + sha
 expected['SHA256SUMS.txt'] = 'sha256:' + hashlib.sha256((dest / 'SHA256SUMS.txt').read_bytes()).hexdigest()
 
-from release_http import request, delete_asset
+from release_http import request, delete_asset, publication_target
+target=publication_target('webos',state)
 base = 'https://api.github.com/repos/' + repo
 body = ('MDBList-preserving LG webOS build of upstream ' + state['upstream']['tag_name'] + '.\n\n'
         'Install the IPK once through your existing LG installation method. MDBList tracking is opt-in per profile. '
@@ -32,7 +33,8 @@ body = ('MDBList-preserving LG webOS build of upstream ' + state['upstream']['ta
         'The custom webOS version is upstream major.minor.(patch * 100000 + build number), '
         'so LG package versions remain valid and increase on rebuilds.\n\n'
         'Upstream release: ' + state['upstream']['html_url'] + '\n'
-        'Upstream commit: ' + state['upstream_commit'] + '\n\n'
+        'Upstream commit: ' + state['upstream_commit'] + '\n'
+        'Builder commit: ' + target + '\n\n'
         '<!-- webos-upstream-release: ' + str(state['upstream']['id']) + ' -->\n')
 # Failed publication leaves a draft; reruns can replace that draft, never a live release.
 releases = request(base + '/releases?per_page=100')
@@ -44,7 +46,7 @@ if existing:
         delete_asset(asset['id'])
 else:
     release = request(base + '/releases', {'tag_name': state['tag'],
-        'target_commitish': os.environ['GITHUB_SHA'], 'name': 'Nuvio webOS ' + state['core_version'] + ' + MDBList',
+        'target_commitish': target, 'name': 'Nuvio webOS ' + state['core_version'] + ' + MDBList',
         'draft': True, 'prerelease': False, 'body': body})
 upload = release['upload_url'].split('{')[0]
 for name in sorted(expected):

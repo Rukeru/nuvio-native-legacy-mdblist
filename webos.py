@@ -72,7 +72,8 @@ def discover(args):
     do_build=needed(upstream,releases,args.force)
     v=package_version(upstream['tag_name'],args.run)
     state={'upstream':upstream,'upstream_version':version(upstream['tag_name']),
-           'version':v,'core_version':v,'tag':'webos-v'+v,'build':do_build,'base_commit':BASE}
+           'version':v,'core_version':v,'tag':'webos-v'+v,'build':do_build,'base_commit':BASE,
+           'builder_commit':os.environ.get('GITHUB_SHA')}
     if do_build and blocked('webos',state,args.force): do_build=state['build']=False
     Path('webos-state.json').write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     if os.environ.get('GITHUB_OUTPUT'):

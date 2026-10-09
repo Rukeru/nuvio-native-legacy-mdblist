@@ -37,7 +37,7 @@ def fingerprint():
     # Includes updater/preflight code: a repaired adapter/check immediately unblocks.
     unpack()
     h=hashlib.sha256(REGISTRY.read_bytes())
-    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','webos-build.sh','profile_ui.py','.github/workflows/update.yml','.github/workflows/webos.yml'):
+    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','.github/workflows/update.yml','.github/workflows/webos.yml'):
         p=ROOT/path
         if p.exists(): h.update(path.encode()+p.read_bytes())
     return h.hexdigest()
@@ -151,6 +151,16 @@ def contracts(root,platform,state):
     for p in root.joinpath('src').glob('*'):
         if p.suffix in ('.c','.h','.inc','.def') and re.search(rb'^<<<<<<< |^=======\s*$|^>>>>>>> ',p.read_bytes(),re.M):
             raise Incompatible('Unresolved conflict markers: '+str(p))
+    # A Settings option can exist while its category/preview index is displaced.
+    visual=(root/'src/ajustes_ux_visual.inc').read_text(encoding='utf8')
+    enum=re.search(r'enum \{\s*(AJS_REPRODUCAO.*?)AJS_N,',visual,re.S)
+    arts=re.search(r'AJ_ARTE_SEC\[AJS_N \+ 1\]\[AJ_ARTE_BLOCOS\] = \{(.*?)\n\};',visual,re.S)
+    catalog=(root/'src/ajustes_ux_tela.inc').read_text(encoding='utf8').replace('#include "mdbsettings_tracking.inc"',(root/'src/mdbsettings_tracking.inc').read_text(encoding='utf8'))
+    sections=re.findall(r'\bSEC\(\s*"([^"]+)"',catalog)
+    ids=re.findall(r'\bAJS_[A-Z_]+\b',enum.group(1)) if enum else []
+    if not enum or not arts or len(ids)!=len(sections) or ids.count('AJS_TRACKING')!=1 or sections.count('Tracking')!=1 or ids.index('AJS_TRACKING')!=sections.index('Tracking') or len(re.findall(r'^\s*\{',arts.group(1),re.M))!=len(sections)+1:
+        report(platform,state,'settings-presentation','contract-failure','Settings categories, Tracking placement and preview rows must stay aligned.',['src/ajustes_ux_visual.inc','src/ajustes_ux_tela.inc'])
+        raise Incompatible('Settings presentation index changed')
     for name, command in [('settings-coverage',[sys.executable,str(root/'tests/ajustes_secoes.py'),str(root/'src/ajustes.c')]),
                           ('translation-coverage',[sys.executable,str(root/'tools/idiomas.py')])]:
         result=subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)

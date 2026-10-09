@@ -54,7 +54,7 @@ def blocked(platform,state,force=False):
 def network_log(text):
     # Never turn source, linker, assertion or checksum failures into network retries.
     if re.search(r':\d+(?::\d+)?: (?:fatal )?error:|undefined reference|Assertion|checksum mismatch|CONFLICT|patch failed|contract-failure',text,re.I):return False
-    return bool(re.search(r'Could not resolve host|Temporary failure resolving|Connection (?:reset|timed out)|TLS connection was non-properly terminated|HTTP(?:/[0-9.]+)? (?:408|429|50[0234])|returned error: (?:408|429|50[0234])|connection reset by peer|net/http: TLS handshake timeout|unexpected EOF|failed to fetch.*(?:timeout|503)',text,re.I))
+    return bool(re.search(r'Could not resolve host|Temporary failure resolving|Connection (?:reset|timed out)|TLS connection was non-properly terminated|HTTP(?:/[0-9.]+)? (?:408|429|50[0234])|returned error: (?:408|429|50[0234])|unexpected status from (?:HEAD|GET) request to https://[^\s]+: (?:408|429|50[0234])|connection reset by peer|net/http: TLS handshake timeout|unexpected EOF|failed to fetch.*(?:timeout|503)',text,re.I))
 
 def network_command(command, attempts=3, sleep=time.sleep):
     for n in range(attempts):

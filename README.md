@@ -26,7 +26,7 @@ and the separate LG release channel. Samsung continues using Latest unchanged.
 2. Sign it for your TV and install it. The custom package installs the MDBList
    integration and its compatible update channel.
 3. Add your MDBList API key under **Settings → Tracking → MDBList**, or let account sync import the API key saved in Nuvio Desktop.
-4. Open **Settings → Account and profiles → Tracking → Track playback with
+4. Open **Settings → Tracking → Track playback with
    MDBList** and enable it for each profile you want to track.
 
 The repository, Actions schedule and `NUVIO_BUILD_PROPERTIES` secret are already

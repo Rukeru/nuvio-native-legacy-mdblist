@@ -1,7 +1,33 @@
 """Retry idempotent release operations; reconcile ambiguous POST outcomes."""
 import json, os, time, urllib.parse, urllib.request
+from urllib.error import HTTPError
 from resilience import retry, transient
 from update_guard import api, REPO
+
+def publication_target(platform, state):
+    """Tag the tested commit; never silently substitute a newer builder commit."""
+    built=os.environ['GITHUB_SHA']
+    if state.get('builder_commit', built)!=built:
+        raise RuntimeError('Artifact builder commit does not match the publication run')
+    def workflows(commit):
+        tree=api(f'repos/{REPO}/git/trees/{commit}')['tree']
+        github=next((x for x in tree if x['path']=='.github' and x['type']=='tree'),None)
+        if github is None:return None
+        tree=api(f'repos/{REPO}/git/trees/{github["sha"]}')['tree']
+        return next((x['sha'] for x in tree if x['path']=='workflows' and x['type']=='tree'),None)
+    branch=api(f'repos/{REPO}')['default_branch']
+    head=api(f'repos/{REPO}/commits/{urllib.parse.quote(branch,safe="")}')['sha']
+    if head!=built and workflows(head)!=workflows(built):
+        from integration import report
+        details=('Workflow definitions changed while this build was running. GitHub refuses release creation '
+                 'at the older workflow commit with GITHUB_TOKEN. Keep the tested commit '+built+
+                 '; do not retag it as '+head+'. A fresh run from the current default branch will retry '
+                 'automatically on the repair push or next hourly poll. Last working release retained.')
+        report(platform,state,'release-publication-workflow','publication-stale',details,['.github/workflows'])
+        from update_guard import failure
+        failure(platform, 'release/SOURCE.json' if platform=='tizen' else 'release-webos/SOURCE.json', 'publish')
+        raise RuntimeError(details)
+    return built
 
 def request(url,data=None,method=None,binary=False):
     headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'User-Agent':'Nuvio-MDBList-channel',
@@ -12,7 +38,16 @@ def request(url,data=None,method=None,binary=False):
         body=data if binary else json.dumps(data).encode()
     req=urllib.request.Request(url,data=body,headers=headers,method=method)
     def once():
-        with urllib.request.urlopen(req,timeout=120) as r:return json.load(r)
+        try:
+            with urllib.request.urlopen(req,timeout=120) as r:return json.load(r)
+        except HTTPError as error:
+            # Preserve status/type for retry classification; include the public API
+            # explanation, never request bodies, authorization headers or tokens.
+            try:
+                message=json.loads(error.read()).get('message','')
+                if message:error.reason=str(error.reason)+'; GitHub: '+str(message)[:1024]
+            except (ValueError, OSError):pass
+            raise
     if data is None or method=='PATCH':return retry(once)
     for attempt in range(3):
         try:return once()

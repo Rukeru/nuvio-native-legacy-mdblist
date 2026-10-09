@@ -37,3 +37,19 @@ On Samsung, native cores install automatically only when the existing signed
 shell, resources and engine match. A new full TPK must be TV-signed and installed
 when that identity changes. On LG, automatic package installation requires the
 working Homebrew Channel service; Developer Mode needs computer installation.
+### SDK downloads and publication races
+
+The Tizen SDK adapter validates the upstream ARMv5 Debian base before the full
+build and generates a separate Dockerfile using the same immutable manifest
+from Google's Docker Hub cache. It does not change the upstream Dockerfile or
+raise the target ABI. Docker registry HEAD/GET 429 responses receive bounded
+retries; compiler failures in the same log still stop without retrying.
+
+Each new SOURCE.json and release body records the exact builder commit.
+Publication compares its workflow tree with the current default branch. If the
+workflow changed during the build, the old build stays unpublished and a named
+issue explains that a fresh run is needed. This is not quarantined as a source
+conflict: the repair push or next hourly poll retries from the current branch.
+The tag always targets the tested builder commit; the updater never substitutes
+an untested newer commit to bypass GitHub's workflow permission rule. Public API
+error messages appear in logs without request bodies or authentication headers.

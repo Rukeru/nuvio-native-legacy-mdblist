@@ -21,7 +21,8 @@ for line in (dest / 'SHA256SUMS.txt').read_text().splitlines():
     expected[name] = 'sha256:' + sha
 expected['SHA256SUMS.txt'] = 'sha256:' + hashlib.sha256((dest / 'SHA256SUMS.txt').read_bytes()).hexdigest()
 
-from release_http import request, delete_asset
+from release_http import request, delete_asset, publication_target
+target=publication_target('tizen',state)
 base = 'https://api.github.com/repos/' + repo
 body = ('MDBList-preserving Tizen 8 build of upstream ' + state['upstream']['tag_name'] + '.\n\n'
         'Compatible native updates download on the home screen and apply on the next full app launch. '
@@ -30,6 +31,7 @@ body = ('MDBList-preserving Tizen 8 build of upstream ' + state['upstream']['tag
         'Physical-TV playback is not tested by this build.\n\n'
         'Upstream release: ' + state['upstream']['html_url'] + '\n'
         'Upstream commit: ' + state['upstream_commit'] + '\n'
+        'Builder commit: ' + target + '\n'
         'Host/resource identity: `' + state['shell_id'] + '`\n\n'
         '<!-- upstream-release: ' + str(state['upstream']['id']) + ' -->\n')
 # Failed publication leaves a draft; reruns can replace that draft, never a live release.
@@ -42,7 +44,7 @@ if existing:
         delete_asset(asset['id'])
 else:
     release = request(base + '/releases', {'tag_name': state['tag'],
-        'target_commitish': os.environ['GITHUB_SHA'], 'name': 'Nuvio ' + state['core_version'] + ' + MDBList',
+        'target_commitish': target, 'name': 'Nuvio ' + state['core_version'] + ' + MDBList',
         'draft': True, 'prerelease': False, 'body': body})
 upload = release['upload_url'].split('{')[0]
 for name in sorted(expected):

@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import patch, Mock
 from urllib.error import HTTPError
 
-import integration, release_http, update_guard
+import integration, release_http, update_guard, tizen_sdk
 from resilience import transient
 
 
@@ -44,6 +44,34 @@ class BundleSafety(unittest.TestCase):
 
 
 class PublicationRecovery(unittest.TestCase):
+    def test_workflow_drift_retains_exact_provenance_and_requests_fresh_run(self):
+        for changed in (False,True):
+            with self.subTest(changed=changed):
+                def api(path):
+                    if path.endswith('/commits/main'):return {'sha':'new'}
+                    if path.endswith('/nuvio-native-legacy-mdblist'):return {'default_branch':'main'}
+                    commit=path.rsplit('/',1)[1]
+                    if commit in ('old','new'):return {'tree':[{'path':'.github','type':'tree','sha':commit+'-github'}]}
+                    return {'tree':[{'path':'workflows','type':'tree','sha':commit if changed else 'same'}]}
+                with patch.dict('os.environ',{'GITHUB_SHA':'old'}),patch('release_http.api',side_effect=api),patch('integration.report') as report,patch('update_guard.failure') as notify:
+                    if changed:
+                        with self.assertRaisesRegex(RuntimeError,'fresh run'):release_http.publication_target('webos',{})
+                        self.assertEqual(report.call_args.args[2:4],('release-publication-workflow','publication-stale'));notify.assert_called_once()
+                    else:
+                        self.assertEqual(release_http.publication_target('webos',{}),'old');notify.assert_not_called()
+    def test_wrong_artifact_builder_is_rejected(self):
+        with patch.dict('os.environ',{'GITHUB_SHA':'old'}),patch('release_http.api') as api:
+            with self.assertRaisesRegex(RuntimeError,'builder commit'):release_http.publication_target('tizen',{'builder_commit':'different'})
+            api.assert_not_called()
+    def test_docker_head_rate_limit_retries_but_compile_error_wins(self):
+        text='unexpected status from HEAD request to https://registry-1.docker.io/v2/arm32v5/debian/manifests/buster-slim: 429 Too Many Requests'
+        self.assertTrue(update_guard.network_log(text))
+        self.assertFalse(update_guard.network_log(text+'\nsrc/app.c:45: error: incompatible declaration'))
+    def test_sdk_mirror_keeps_exact_architecture_and_rejects_recipe_changes(self):
+        body='# upstream comment\n'+tizen_sdk.BASE+'\nRUN echo unchanged\n'
+        generated=tizen_sdk.dockerfile(body)
+        self.assertIn('linux/arm/v5',generated);self.assertIn(tizen_sdk.MIRROR,generated);self.assertTrue(generated.endswith('RUN echo unchanged\n'))
+        with self.assertRaisesRegex(ValueError,'architecture changed'):tizen_sdk.dockerfile(body.replace('arm/v5','arm/v7'))
     def test_connection_loss_is_retryable_but_certificate_and_source_errors_are_not(self):
         for error in (http.client.IncompleteRead(b'partial'),ssl.SSLEOFError('connection lost'),socket.gaierror(socket.EAI_AGAIN,'temporary DNS')):
             self.assertTrue(transient(error))

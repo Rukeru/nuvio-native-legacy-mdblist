@@ -52,7 +52,8 @@ def discover(args):
     v = version(upstream['tag_name'])
     core = v + '.' + str(args.run)
     info = {'upstream': upstream, 'version': v, 'core_version': core,
-            'tag': 'v' + core, 'build': do_build, 'base_commit': BASE}
+            'tag': 'v' + core, 'build': do_build, 'base_commit': BASE,
+            'builder_commit': os.environ.get('GITHUB_SHA')}
     if do_build and blocked('tizen', info, args.force): do_build = info['build'] = False
     Path(args.state).write_text(json.dumps(info, indent=2) + '\n')
     output = os.environ.get('GITHUB_OUTPUT')
