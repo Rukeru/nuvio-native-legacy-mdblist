@@ -13,10 +13,10 @@ index 9634542..7298696 100644
  /tests/*.md
 diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
 new file mode 100644
-index 0000000..31adc72
+index 0000000..24c7d5f
 --- /dev/null
 +++ b/DEVELOPMENT_LESSONS.md
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,74 @@
 +# Development lessons
 +
 +Consult this document before changing the integration or release patch chain.
@@ -86,6 +86,11 @@ index 0000000..31adc72
 +layout geometry and catalogue costs. Live account acceptance, real TV frame
 +times, playback and installation remain pending until measured on hardware.
 +Do not infer a TV frame rate from host CPU timings or the attached 60 FPS photo.
++
++Connection diagnostics must recover on a later successful authenticated read or
++write. A transient error must not leave a permanent failed status. Local storage
++status describes saved credentials; API validation has its own connection row.
++The library fixture covers failure followed by a successful retry.
 diff --git a/src/ajustes.c b/src/ajustes.c
 index 5653538..a700551 100644
 --- a/src/ajustes.c
@@ -489,7 +494,7 @@ index 0000000..0843c50
 +void episode_index_prepare(EpisodeIndex *,int,unsigned,int,int,int (*)(void *,int),void *);
 +#endif
 diff --git a/src/idioma_bg.h b/src/idioma_bg.h
-index 78c70c3..aa3bb31 100644
+index 78c70c3..b5d419d 100644
 --- a/src/idioma_bg.h
 +++ b/src/idioma_bg.h
 @@ -1063,6 +1063,7 @@
@@ -565,7 +570,7 @@ index 78c70c3..aa3bb31 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -621,7 +626,7 @@ index 78c70c3..aa3bb31 100644
    T("Zoom cinema", "Киномащаб"),
    T("Zoom do trailer", "Мащабиране на трейлъра"),
 diff --git a/src/idioma_bs.h b/src/idioma_bs.h
-index d199daf..b4969d4 100644
+index d199daf..0be6c86 100644
 --- a/src/idioma_bs.h
 +++ b/src/idioma_bs.h
 @@ -1063,6 +1063,7 @@
@@ -697,7 +702,7 @@ index d199daf..b4969d4 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -753,7 +758,7 @@ index d199daf..b4969d4 100644
    T("Zoom cinema", "Bioskopski zum"),
    T("Zoom do trailer", "Zumiranje trejlera"),
 diff --git a/src/idioma_cs.h b/src/idioma_cs.h
-index 7bbeb61..879eb50 100644
+index 7bbeb61..f84b460 100644
 --- a/src/idioma_cs.h
 +++ b/src/idioma_cs.h
 @@ -1063,6 +1063,7 @@
@@ -829,7 +834,7 @@ index 7bbeb61..879eb50 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -885,7 +890,7 @@ index 7bbeb61..879eb50 100644
    T("Zoom cinema", "Kino zoom"),
    T("Zoom do trailer", "Zoom traileru"),
 diff --git a/src/idioma_da.h b/src/idioma_da.h
-index 8f49041..cab95d1 100644
+index 8f49041..c9d6d98 100644
 --- a/src/idioma_da.h
 +++ b/src/idioma_da.h
 @@ -1063,6 +1063,7 @@
@@ -961,7 +966,7 @@ index 8f49041..cab95d1 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1017,7 +1022,7 @@ index 8f49041..cab95d1 100644
    T("Zoom cinema", "Biograf-zoom"),
    T("Zoom do trailer", "Trailerzoom"),
 diff --git a/src/idioma_de.h b/src/idioma_de.h
-index 6161968..97faed5 100644
+index 6161968..f2d9614 100644
 --- a/src/idioma_de.h
 +++ b/src/idioma_de.h
 @@ -1062,6 +1062,7 @@
@@ -1093,7 +1098,7 @@ index 6161968..97faed5 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1149,7 +1154,7 @@ index 6161968..97faed5 100644
    T("Zoom cinema", "Kino-Zoom"),
    T("Zoom do trailer", "Trailer-Zoom"),
 diff --git a/src/idioma_el.h b/src/idioma_el.h
-index 87c1b5a..26015b5 100644
+index 87c1b5a..0e0171e 100644
 --- a/src/idioma_el.h
 +++ b/src/idioma_el.h
 @@ -1063,6 +1063,7 @@
@@ -1225,7 +1230,7 @@ index 87c1b5a..26015b5 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1281,7 +1286,7 @@ index 87c1b5a..26015b5 100644
    T("Zoom cinema", "Ζουμ Cinema"),
    T("Zoom do trailer", "Μεγέθυνση τρέιλερ"),
 diff --git a/src/idioma_es.h b/src/idioma_es.h
-index 8e3d378..438fc61 100644
+index 8e3d378..34c6750 100644
 --- a/src/idioma_es.h
 +++ b/src/idioma_es.h
 @@ -1062,6 +1062,7 @@
@@ -1357,7 +1362,7 @@ index 8e3d378..438fc61 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1413,7 +1418,7 @@ index 8e3d378..438fc61 100644
    T("Zoom cinema", "Zoom cine"),
    T("Zoom do trailer", "Zoom del tráiler"),
 diff --git a/src/idioma_fr.h b/src/idioma_fr.h
-index 6213242..4fb6288 100644
+index 6213242..170ca4a 100644
 --- a/src/idioma_fr.h
 +++ b/src/idioma_fr.h
 @@ -1062,6 +1062,7 @@
@@ -1489,7 +1494,7 @@ index 6213242..4fb6288 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1545,7 +1550,7 @@ index 6213242..4fb6288 100644
    T("Zoom cinema", "Zoom cinéma"),
    T("Zoom do trailer", "Zoom de la bande-annonce"),
 diff --git a/src/idioma_hu.h b/src/idioma_hu.h
-index 3173355..f8797ac 100644
+index 3173355..59197fc 100644
 --- a/src/idioma_hu.h
 +++ b/src/idioma_hu.h
 @@ -1063,6 +1063,7 @@
@@ -1621,7 +1626,7 @@ index 3173355..f8797ac 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1677,7 +1682,7 @@ index 3173355..f8797ac 100644
    T("Zoom cinema", "Mozi zoom"),
    T("Zoom do trailer", "Előzetes nagyítása"),
 diff --git a/src/idioma_id.h b/src/idioma_id.h
-index 67ebf71..ec467a3 100644
+index 67ebf71..9b649ac 100644
 --- a/src/idioma_id.h
 +++ b/src/idioma_id.h
 @@ -1063,6 +1063,7 @@
@@ -1753,7 +1758,7 @@ index 67ebf71..ec467a3 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1809,7 +1814,7 @@ index 67ebf71..ec467a3 100644
    T("Zoom cinema", "Zoom Cinema"),
    T("Zoom do trailer", "Zoom trailer"),
 diff --git a/src/idioma_it.h b/src/idioma_it.h
-index 7d74cb0..e25b9f6 100644
+index 7d74cb0..614e230 100644
 --- a/src/idioma_it.h
 +++ b/src/idioma_it.h
 @@ -1063,6 +1063,7 @@
@@ -1885,7 +1890,7 @@ index 7d74cb0..e25b9f6 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -1941,7 +1946,7 @@ index 7d74cb0..e25b9f6 100644
    T("Zoom cinema", "Zoom cinema"),
    T("Zoom do trailer", "Zoom del trailer"),
 diff --git a/src/idioma_ja.h b/src/idioma_ja.h
-index 94a1deb..19e163f 100644
+index 94a1deb..e7c2058 100644
 --- a/src/idioma_ja.h
 +++ b/src/idioma_ja.h
 @@ -1063,6 +1063,7 @@
@@ -2017,7 +2022,7 @@ index 94a1deb..19e163f 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2073,7 +2078,7 @@ index 94a1deb..19e163f 100644
    T("Zoom cinema", "シネマズーム"),
    T("Zoom do trailer", "予告編のズーム"),
 diff --git a/src/idioma_lt.h b/src/idioma_lt.h
-index bb99178..bd00b13 100644
+index bb99178..666de3b 100644
 --- a/src/idioma_lt.h
 +++ b/src/idioma_lt.h
 @@ -1063,6 +1063,7 @@
@@ -2149,7 +2154,7 @@ index bb99178..bd00b13 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2205,7 +2210,7 @@ index bb99178..bd00b13 100644
    T("Zoom cinema", "Kino priartinimas"),
    T("Zoom do trailer", "Anonso priartinimas"),
 diff --git a/src/idioma_nl.h b/src/idioma_nl.h
-index 1873a21..580c91d 100644
+index 1873a21..e729d89 100644
 --- a/src/idioma_nl.h
 +++ b/src/idioma_nl.h
 @@ -1063,6 +1063,7 @@
@@ -2281,7 +2286,7 @@ index 1873a21..580c91d 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2337,7 +2342,7 @@ index 1873a21..580c91d 100644
    T("Zoom cinema", "Cinemazoom"),
    T("Zoom do trailer", "Trailerzoom"),
 diff --git a/src/idioma_no.h b/src/idioma_no.h
-index 8932a24..d4fa054 100644
+index 8932a24..20fc5d3 100644
 --- a/src/idioma_no.h
 +++ b/src/idioma_no.h
 @@ -1063,6 +1063,7 @@
@@ -2413,7 +2418,7 @@ index 8932a24..d4fa054 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2469,7 +2474,7 @@ index 8932a24..d4fa054 100644
    T("Zoom cinema", "Kino-zoom"),
    T("Zoom do trailer", "Trailerzoom"),
 diff --git a/src/idioma_pl.h b/src/idioma_pl.h
-index 64f7a19..3107131 100644
+index 64f7a19..a08a807 100644
 --- a/src/idioma_pl.h
 +++ b/src/idioma_pl.h
 @@ -1063,6 +1063,7 @@
@@ -2545,7 +2550,7 @@ index 64f7a19..3107131 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2601,7 +2606,7 @@ index 64f7a19..3107131 100644
    T("Zoom cinema", "Powiększenie Kino"),
    T("Zoom do trailer", "Powiększenie zwiastuna"),
 diff --git a/src/idioma_ptpt.h b/src/idioma_ptpt.h
-index ee89f65..430f58f 100644
+index ee89f65..263c8de 100644
 --- a/src/idioma_ptpt.h
 +++ b/src/idioma_ptpt.h
 @@ -1063,6 +1063,7 @@
@@ -2677,7 +2682,7 @@ index ee89f65..430f58f 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2733,7 +2738,7 @@ index ee89f65..430f58f 100644
    T("Zoom cinema", "Zoom de cinema"),
    T("Zoom do trailer", "Zoom do trailer"),
 diff --git a/src/idioma_ro.h b/src/idioma_ro.h
-index 7d72137..2105e57 100644
+index 7d72137..16539eb 100644
 --- a/src/idioma_ro.h
 +++ b/src/idioma_ro.h
 @@ -1062,6 +1062,7 @@
@@ -2809,7 +2814,7 @@ index 7d72137..2105e57 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2865,7 +2870,7 @@ index 7d72137..2105e57 100644
    T("Zoom cinema", "Zoom cinema"),
    T("Zoom do trailer", "Zoom trailer"),
 diff --git a/src/idioma_ru.h b/src/idioma_ru.h
-index 3ec255c..6eb108c 100644
+index 3ec255c..648b60a 100644
 --- a/src/idioma_ru.h
 +++ b/src/idioma_ru.h
 @@ -1062,6 +1062,7 @@
@@ -2941,7 +2946,7 @@ index 3ec255c..6eb108c 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -2997,7 +3002,7 @@ index 3ec255c..6eb108c 100644
    T("Zoom cinema", "Кино-зум"),
    T("Zoom do trailer", "Увеличение трейлера"),
 diff --git a/src/idioma_sk.h b/src/idioma_sk.h
-index d1cc1a7..d5bb9f9 100644
+index d1cc1a7..c802d53 100644
 --- a/src/idioma_sk.h
 +++ b/src/idioma_sk.h
 @@ -1063,6 +1063,7 @@
@@ -3073,7 +3078,7 @@ index d1cc1a7..d5bb9f9 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -3129,7 +3134,7 @@ index d1cc1a7..d5bb9f9 100644
    T("Zoom cinema", "Kino zoom"),
    T("Zoom do trailer", "Zoom traileru"),
 diff --git a/src/idioma_sl.h b/src/idioma_sl.h
-index 0085ac1..bf606a7 100644
+index 0085ac1..98bee4a 100644
 --- a/src/idioma_sl.h
 +++ b/src/idioma_sl.h
 @@ -1063,6 +1063,7 @@
@@ -3205,7 +3210,7 @@ index 0085ac1..bf606a7 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -3261,7 +3266,7 @@ index 0085ac1..bf606a7 100644
    T("Zoom cinema", "Kino povečava"),
    T("Zoom do trailer", "Povečava napovednika"),
 diff --git a/src/idioma_sr.h b/src/idioma_sr.h
-index 4770b74..a479615 100644
+index 4770b74..ff21626 100644
 --- a/src/idioma_sr.h
 +++ b/src/idioma_sr.h
 @@ -1063,6 +1063,7 @@
@@ -3337,7 +3342,7 @@ index 4770b74..a479615 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -3393,7 +3398,7 @@ index 4770b74..a479615 100644
    T("Zoom cinema", "Bioskopski zum"),
    T("Zoom do trailer", "Zumiranje trejlera"),
 diff --git a/src/idioma_sv.h b/src/idioma_sv.h
-index 10247dd..9d9f208 100644
+index 10247dd..1e88eff 100644
 --- a/src/idioma_sv.h
 +++ b/src/idioma_sv.h
 @@ -1063,6 +1063,7 @@
@@ -3469,7 +3474,7 @@ index 10247dd..9d9f208 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -3525,7 +3530,7 @@ index 10247dd..9d9f208 100644
    T("Zoom cinema", "Bio-zoom"),
    T("Zoom do trailer", "Trailerzoom"),
 diff --git a/src/idioma_tab.h b/src/idioma_tab.h
-index 699ffa9..09aec2f 100644
+index 699ffa9..47a81d1 100644
 --- a/src/idioma_tab.h
 +++ b/src/idioma_tab.h
 @@ -1062,6 +1062,7 @@
@@ -3601,7 +3606,7 @@ index 699ffa9..09aec2f 100644
 +  { "MDBList key could not be saved", "MDBList key could not be saved" },
 +  { "MDBList key missing", "MDBList key missing" },
 +  { "MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList." },
-+  { "MDBList key saved; API validation pending", "MDBList key saved; API validation pending" },
++  { "MDBList key saved", "MDBList key saved" },
 +  { "MDBList network unavailable", "MDBList network unavailable" },
 +  { "MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled." },
 +  { "MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed." },
@@ -3657,7 +3662,7 @@ index 699ffa9..09aec2f 100644
    { "Zoom cinema", "Cinema zoom" },
    { "Zoom do trailer", "Trailer zoom" },
 diff --git a/src/idioma_tr.h b/src/idioma_tr.h
-index ddceb7d..03fc1fb 100644
+index ddceb7d..094f312 100644
 --- a/src/idioma_tr.h
 +++ b/src/idioma_tr.h
 @@ -1063,6 +1063,7 @@
@@ -3733,7 +3738,7 @@ index ddceb7d..03fc1fb 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -3789,7 +3794,7 @@ index ddceb7d..03fc1fb 100644
    T("Zoom cinema", "Sinema yakınlaştırması"),
    T("Zoom do trailer", "Fragman yakınlaştırma"),
 diff --git a/src/idioma_uk.h b/src/idioma_uk.h
-index 2387bd1..1d97943 100644
+index 2387bd1..284d1d3 100644
 --- a/src/idioma_uk.h
 +++ b/src/idioma_uk.h
 @@ -1062,6 +1062,7 @@
@@ -3865,7 +3870,7 @@ index 2387bd1..1d97943 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -3921,7 +3926,7 @@ index 2387bd1..1d97943 100644
    T("Zoom cinema", "Кіно-зум"),
    T("Zoom do trailer", "Збільшення трейлера"),
 diff --git a/src/idioma_vi.h b/src/idioma_vi.h
-index 66a96c9..af0b835 100644
+index 66a96c9..b3c2a1c 100644
 --- a/src/idioma_vi.h
 +++ b/src/idioma_vi.h
 @@ -1063,6 +1063,7 @@
@@ -3997,7 +4002,7 @@ index 66a96c9..af0b835 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -4053,7 +4058,7 @@ index 66a96c9..af0b835 100644
    T("Zoom cinema", "Thu phóng Cinema"),
    T("Zoom do trailer", "Thu phóng trailer"),
 diff --git a/src/idioma_zhcn.h b/src/idioma_zhcn.h
-index c6effa8..7f6a3b7 100644
+index c6effa8..a928355 100644
 --- a/src/idioma_zhcn.h
 +++ b/src/idioma_zhcn.h
 @@ -1063,6 +1063,7 @@
@@ -4129,7 +4134,7 @@ index c6effa8..7f6a3b7 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -4185,7 +4190,7 @@ index c6effa8..7f6a3b7 100644
    T("Zoom cinema", "影院缩放"),
    T("Zoom do trailer", "预告片缩放"),
 diff --git a/src/idioma_zhtw.h b/src/idioma_zhtw.h
-index b7ef91e..80696d9 100644
+index b7ef91e..9c2d0f3 100644
 --- a/src/idioma_zhtw.h
 +++ b/src/idioma_zhtw.h
 @@ -1063,6 +1063,7 @@
@@ -4261,7 +4266,7 @@ index b7ef91e..80696d9 100644
 +  T("MDBList key could not be saved", "MDBList key could not be saved"),
 +  T("MDBList key missing", "MDBList key missing"),
 +  T("MDBList key missing. Connect in Settings > Tracking > MDBList.", "MDBList key missing. Connect in Settings > Tracking > MDBList."),
-+  T("MDBList key saved; API validation pending", "MDBList key saved; API validation pending"),
++  T("MDBList key saved", "MDBList key saved"),
 +  T("MDBList network unavailable", "MDBList network unavailable"),
 +  T("MDBList network unavailable. Saved data retained; retry scheduled.", "MDBList network unavailable. Saved data retained; retry scheduled."),
 +  T("MDBList rate limit reached. Automatic retry is delayed.", "MDBList rate limit reached. Automatic retry is delayed."),
@@ -4318,7 +4323,7 @@ index b7ef91e..80696d9 100644
    T("Zoom do trailer", "預告片縮放"),
 diff --git a/src/mdbcredentials.c b/src/mdbcredentials.c
 new file mode 100644
-index 0000000..d98df5d
+index 0000000..ab06d73
 --- /dev/null
 +++ b/src/mdbcredentials.c
 @@ -0,0 +1,75 @@
@@ -4389,7 +4394,7 @@ index 0000000..d98df5d
 +}
 +const char *mdb_credentials_status(void) {
 +  const char *s;pthread_mutex_lock(&mutex);
-+  s=storageError?"MDBList key could not be saved":pushState<0?"MDBList account sync rejected; local key retained":pending?"MDBList saved locally; account sync pending":key[0]?"MDBList key saved; API validation pending":"MDBList disconnected";
++  s=storageError?"MDBList key could not be saved":pushState<0?"MDBList account sync rejected; local key retained":pending?"MDBList saved locally; account sync pending":key[0]?"MDBList key saved":"MDBList disconnected";
 +  pthread_mutex_unlock(&mutex);return s;
 +}
 +void mdb_credentials_forget(void) {
@@ -4487,7 +4492,7 @@ index ccc8d39..d696c76 100644
  const char *mdblist_estado(void); /* Portuguese i18n key, no credential material */
  #endif
 diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
-index aae4c30..cb67f56 100644
+index aae4c30..6d93ea4 100644
 --- a/src/mdblistlibrary.c
 +++ b/src/mdblistlibrary.c
 @@ -23,7 +23,7 @@ static MdbItem *watch;
@@ -4499,7 +4504,7 @@ index aae4c30..cb67f56 100644
  static time_t watchAt,backoff;
  static unsigned generation,serial;
  static Job jobs[JOB_MAX];
-@@ -33,28 +33,35 @@ static int credentials(char *key,unsigned *gen) {
+@@ -33,31 +33,39 @@ static int credentials(char *key,unsigned *gen) {
   int ok=mdblist_credencial(key,80,gen);
   pthread_mutex_lock(&lock);
   if(generation!=*gen) {
@@ -4540,7 +4545,11 @@ index aae4c30..cb67f56 100644
   char *body=rede_baixar_st_retry(url,15,headers,&http,&retry);
   memset(auth,0,sizeof auth);
   if(http<200||http>=300||!body){free(body);problem(gen,http,retry,0);return NULL;}
-@@ -108,7 +115,7 @@ int mdb_library_watchlist(CatItem *out,int max) {
++ pthread_mutex_lock(&lock);if(gen==generation)connection=2;pthread_mutex_unlock(&lock);
+  return body;
+ }
+ static int allowed(unsigned gen) {
+@@ -108,7 +116,7 @@ int mdb_library_watchlist(CatItem *out,int max) {
     pthread_mutex_lock(&lock);
     if(ok&&gen==generation){free(watch);watch=next;next=NULL;watchN=n;watchAt=time(NULL);}
     pthread_mutex_unlock(&lock);
@@ -4549,7 +4558,7 @@ index aae4c30..cb67f56 100644
     free(next);free(page);
    }
    pthread_mutex_unlock(&network);
-@@ -130,6 +137,23 @@ static int writeOK(const char *body,int clear,int add) {
+@@ -130,6 +138,23 @@ static int writeOK(const char *body,int clear,int add) {
  }
  static void *run(void *unused) {
   (void)unused;
@@ -4573,7 +4582,7 @@ index aae4c30..cb67f56 100644
   for(;;) {
    Job job={0};int slot=-1;char key[80];unsigned gen;
    int valid=credentials(key,&gen);
-@@ -143,9 +167,9 @@ static void *run(void *unused) {
+@@ -143,9 +168,9 @@ static void *run(void *unused) {
     char body[320],url[256],auth[112];
     int formatted=job.clear?mdblist_corpo(body,sizeof body,job.id,0):mdb_watchlist_body(body,sizeof body,job.id,job.type);
     if(formatted) {
@@ -4586,7 +4595,16 @@ index aae4c30..cb67f56 100644
      char *reply=rede_postar_st(url,15,headers,body,&http);
      ok=http>=200&&http<300&&writeOK(reply,job.clear,job.add);free(reply);memset(auth,0,sizeof auth);
     }
-@@ -163,7 +187,7 @@ static void *run(void *unused) {
+@@ -154,7 +179,7 @@ static void *run(void *unused) {
+   if(!ok)problem(gen,http,0,1);
+   pthread_mutex_lock(&lock);
+   if(jobs[slot].serial==job.serial)jobs[slot].state=ok&&gen==generation?2:3;
+-  if(gen==generation){watchAt=cwAt=0;if(noticeCode!=2)noticeCode=ok?1:2;
++  if(gen==generation){watchAt=cwAt=0;if(ok)connection=2;if(noticeCode!=2)noticeCode=ok?1:2;
+    if(ok&&!job.clear&&!job.add) {int w=0;for(int i=0;i<watchN;i++)if(strcmp(watch[i].id,job.id)||strcmp(watch[i].type,job.type))watch[w++]=watch[i];watchN=w;}
+   }
+   pthread_mutex_unlock(&lock);pthread_mutex_unlock(&network);
+@@ -163,7 +188,7 @@ static void *run(void *unused) {
  void mdb_library_tick(void) {
   char key[80];unsigned gen;credentials(key,&gen);memset(key,0,sizeof key);
   pthread_mutex_lock(&lock);int pending=0;for(int i=0;i<JOB_MAX;i++)if(jobs[i].state==1)pending=1;
@@ -4595,7 +4613,7 @@ index aae4c30..cb67f56 100644
   pthread_mutex_unlock(&lock);
  }
  static unsigned queue(const char *id,const char *type,int add,int clear) {
-@@ -185,7 +209,7 @@ int mdb_library_result(unsigned id) {
+@@ -185,7 +210,7 @@ int mdb_library_result(unsigned id) {
  const char *mdb_library_notice(int *refresh) {
   pthread_mutex_lock(&lock);int code=noticeCode;noticeCode=0;pthread_mutex_unlock(&lock);
   *refresh=code==1;
@@ -4604,7 +4622,7 @@ index aae4c30..cb67f56 100644
  }
  
  /* A complete read is swapped atomically. Limits bound memory and network
-@@ -249,7 +273,7 @@ int mdb_library_continue(CatItem *out,int max) {
+@@ -249,7 +274,7 @@ int mdb_library_continue(CatItem *out,int max) {
    pthread_mutex_lock(&lock);
    if(n>=0&&gen==generation){memcpy(cw,next,(size_t)n*sizeof *next);cwN=n;cwAt=time(NULL);}
    pthread_mutex_unlock(&lock);free(next);
@@ -4961,7 +4979,7 @@ index 38be5a4..40dad24 100644
    return 0;
  }
 diff --git a/tests/mdblistlibrary.c b/tests/mdblistlibrary.c
-index fda881d..27db97f 100644
+index fda881d..368283a 100644
 --- a/tests/mdblistlibrary.c
 +++ b/tests/mdblistlibrary.c
 @@ -34,17 +34,18 @@ int pthread_detach(pthread_t t){(void)t;return 0;}
@@ -4994,8 +5012,12 @@ index fda881d..27db97f 100644
  int main(void){
   CatItem *items=calloc(4,sizeof *items);assert(items);
   reset();response="{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}],\"pagination\":{\"next_cursor\":\"page2\"}}";
-@@ -63,7 +64,7 @@ int main(void){
+@@ -61,9 +62,11 @@ int main(void){
+  assert(mdb_library_watchlist(items,4)==2&&items[0].naLista&&calls==2);
+  assert(mdb_library_watchlist(NULL,0)==2&&calls==2); /* TTL */
   now+=301;http=500;assert(mdb_library_watchlist(NULL,0)==2&&calls==3); /* retain */
++ assert(!strcmp(mdb_library_status(),"MDBList network unavailable"));
++ now+=61;http=200;assert(mdb_library_watchlist(NULL,0)==2);assert(!strcmp(mdb_library_status(),"MDBList connected")); /* recover status after successful retry */
   reset();http=429;retry=120;assert(mdb_library_watchlist(NULL,0)==0);int seen=calls;
   now+=61;assert(mdb_library_watchlist(NULL,0)==0&&calls==seen);now+=60;assert(mdb_library_watchlist(NULL,0)==0&&calls>seen);
 - reset();http=401;assert(mdb_library_watchlist(NULL,0)==0);seen=calls;now+=5000;assert(mdb_library_watchlist(NULL,0)==0&&calls==seen);
@@ -5003,7 +5025,7 @@ index fda881d..27db97f 100644
   reset();response="{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}]}";changeKey=1;assert(mdb_library_watchlist(NULL,0)==0); /* discard old profile reply */
   reset();unsigned job=mdb_library_save("tt123","movie",1);assert(job&&mdb_library_result(job)==1);drain();assert(mdb_library_result(job)==2&&postCalls==1);
   reset();postResponse="{\"added\":0,\"existing\":0,\"not_found\":1}";job=mdb_library_save("tt123","movie",1);drain();assert(mdb_library_result(job)==3);
-@@ -72,5 +73,6 @@ int main(void){
+@@ -72,5 +75,6 @@ int main(void){
   reset();localDuration=3600;localPos=1200;assert(mdb_library_continue(items,4)==1&&items[0].progresso==33&&items[0].retomadoMs==1&&calls==3);
   localPos=3500;assert(mdb_library_continue(items,4)==0&&calls==3); /* completed local, unchanged cache */
   reset();keyValue="";job=mdb_library_save("tt123","movie",1);assert(mdb_library_result(job)==3&&postCalls==0);
@@ -5011,10 +5033,17 @@ index fda881d..27db97f 100644
   free(items);free(watch);puts("MDBList library: pagination/dedup, TTL, failure retention, 401/429, account isolation, write confirmation and precise local resume passed");return 0;
  }
 diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
-index 44eac6b..c4725e6 100644
+index 44eac6b..f275678 100644
 --- a/tests/tizen_improvements.sh
 +++ b/tests/tizen_improvements.sh
-@@ -9,6 +9,12 @@ cc "${flags[@]}" tests/mdbformat.c src/mdbformat.c src/js.c -lm -o "$out/format"
+@@ -3,12 +3,18 @@ set -euo pipefail
+ cd "$(dirname "$0")/.."
+ out=$(mktemp -d)
+ trap 'rm -rf "$out"' EXIT
+-flags=(-std=gnu11 -O1 -g -Wall -Wextra -Isrc -DSDL_MAIN_HANDLED)
++flags=(-std=gnu11 -O1 -UNDEBUG -g -Wall -Wextra -Isrc -DSDL_MAIN_HANDLED)
+ read -ra sdl <<< "$(sdl2-config --cflags)"
+ cc "${flags[@]}" tests/mdbformat.c src/mdbformat.c src/js.c -lm -o "$out/format"
  "$out/format"
  cc "${flags[@]}" tests/mdbaccount.c src/mdbaccount.c src/mdbformat.c src/js.c -lm -o "$out/account"
  "$out/account"

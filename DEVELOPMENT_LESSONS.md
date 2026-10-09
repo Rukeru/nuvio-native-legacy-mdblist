@@ -83,3 +83,8 @@ helper loaded provenance from disk before the caller saved upstream_commit.
 Persist the exact checkout before applying the shared patch helper. The added
 preparation regression executes the builder against a temporary mocked checkout
 and verifies source commit, engine commit, all six patch records and LG version.
+
+Connection status recovers after a later successful authenticated request. A
+local saved-key status does not claim that API validation is pending forever.
+The library regression covers failure followed by a successful retry. Native
+fixtures must run with assertions enabled; the shared test script sets -UNDEBUG.
