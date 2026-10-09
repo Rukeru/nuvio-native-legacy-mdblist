@@ -96,7 +96,7 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
-integration and nine reviewed shared patches are applied and tested on every
+integration and ten reviewed shared patches are applied and tested on every
 Samsung and LG rebuild, followed by the platform-specific updater. Read
 [DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
@@ -129,10 +129,10 @@ from **Settings > About & help > What's new** at any time.
 The notes are embedded in the native build, including bounded highlights from
 the exact official release used by that build. A local dismissal marker survives
 restarts and later updates. The card waits for login, profile selection, playback
-and other overlays to finish. It makes no network requests and performs no file
+and other overlays, including search and keyboards, to finish. It makes no network requests and performs no file
 reads after the once-per-process check; closed Home rendering remains unchanged.
 
-Both Samsung core updates and LG package updates include this ninth shared patch.
+Both Samsung core updates and LG package updates include these shared changelog patches.
 SOURCE.json records its digest and the generated notes digest. Remote controls,
 pagination, relaunches, failed persistence and scaled layout are regression-tested.
 The real GLES fixture captures the generated cards. The existing Home/progress

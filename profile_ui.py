@@ -15,14 +15,15 @@ def changelog_only(current):
         if not state_path.is_file(): return None
         state=json.loads(state_path.read_text())
         patches=state.get('tizen_improvements', [])
-        if not patches or patches[-1]['patch']!='shared-09-installed-changelog.patch': return None
+        if len(patches)<2 or [p['patch'] for p in patches[-2:]]!=[
+                'shared-09-installed-changelog.patch','shared-10-changelog-modal-guards.patch']: return None
         release=json.loads(fetch(REPO+'/releases/latest'))
         asset=next(a for a in release['assets'] if a['name']=='SOURCE.json')
         data=fetch(asset['browser_download_url'])
         if asset.get('digest')!='sha256:'+hashlib.sha256(data).hexdigest(): return None
         previous=json.loads(data)
         if previous.get('upstream_commit')!=state.get('upstream_commit'): return None
-        if previous.get('tizen_improvements') not in (patches[:-1], patches): return None
+        if previous.get('tizen_improvements') not in (patches[:-2], patches[:-1], patches): return None
         return release['html_url']
     except (ValueError, KeyError, StopIteration, OSError):
         return None

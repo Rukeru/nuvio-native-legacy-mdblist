@@ -7,7 +7,8 @@ from profile_ui import changelog_only
 class ProfileRules(unittest.TestCase):
     def test_reuse_only_identical_history_and_upstream_with_additive_changelog(self):
         before=[{'patch':'shared-08-watched-history-sync.patch','sha256':'fixture'}]
-        after=before+[{'patch':'shared-09-installed-changelog.patch','sha256':'new'}]
+        after=before+[{'patch':'shared-09-installed-changelog.patch','sha256':'new'},
+                      {'patch':'shared-10-changelog-modal-guards.patch','sha256':'guards'}]
         old={'upstream_commit':'base','tizen_improvements':before}
         new={'upstream_commit':'base','tizen_improvements':after}
         with tempfile.TemporaryDirectory() as folder:

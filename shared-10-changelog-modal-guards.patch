@@ -1,0 +1,68 @@
+diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
+index 8e4b6af79b12cba26e72e29899de2ded871d384b..61e529b8ae200e932e0f7b1ce1d017d12580c1fb 100644
+--- a/DEVELOPMENT_LESSONS.md
++++ b/DEVELOPMENT_LESSONS.md
+@@ -176,3 +176,11 @@ reopen repeatedly in the same session. About & help can reopen notes at any time
+ Tests cover version changes, relaunch, failed writes, held-key repeats, page bounds,
+ 10,000 idle checks and geometry at multiple UI sizes. The GLES fixture captures
+ all three pages from the actual generated notes; runner performance is not TV FPS.
++
++The tenth patch additionally waits for Spotlight search, its keyboard and TV-guide
++reminders. Route changelog input immediately after the emergency log handlers,
++before notice/clock/global shortcuts: otherwise a background notice can consume
++OK while hidden behind the opaque changelog. The actual app event router is tested
++with both a notice and changelog present: OK dismisses the changelog, the notice
++remains available, and Back then closes the notice. Patch 9 stays immutable after
++its first LG publication; this interaction correction is an additive patch.
+diff --git a/src/app.c b/src/app.c
+index e9e6e81e1456fb74dd9cd064fc70e131a4e44e5c..2c82f457705a65bab6e638ead710caf9acf57a95 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -2217,6 +2217,8 @@ void app_evento(const SDL_Event *e) {
+   // O painel de envio do registro (Ajustes > Enviar registro, ou o "Enviar
+   // agora" do painel): modal, come o teclado enquanto aberto.
+   if (registro_envio_evento(e)) return;
++  /* Keep shortcuts in this modal; only the emergency log panel has priority. */
++  if (mdbchangelog_aberto()) { mdbchangelog_evento(e); return; }
+   // A CENTRAL DE CONTROLE (central.h, CH+ segurado) e uma camada: aberta, come
+   // o teclado todo, por cima do player, das folhas e das ilhas.
+   if (central_aberta()) { central_evento(e); return; }
+@@ -2238,7 +2240,6 @@ void app_evento(const SDL_Event *e) {
+   // O CARTAO DA 2.0.1 (novidades201.h): come o teclado todo; "Abrir a
+   // Central" fecha o cartao e abre a Central de controle no lugar.
+   // O DA 2.0.2 (novidades202.h) e igual, sem a Central.
+-  if (mdbchangelog_aberto()) { mdbchangelog_evento(e); return; }
+   if (novidades202_aberto()) {
+     novidades202_evento(e);
+     return;
+@@ -4576,7 +4577,8 @@ void app_atualizar(float dt, Uint32 agora) {
+   novidades202_atualizar(dt, agora);
+   /* Wait for Home, login, profile selection, onboarding and all visible layers. */
+   if (!homeTrailerBloqueio() && !diagnostico_intro_aberto() && !registro_envio_aberto() &&
+-      !central_aberta() && !ilha_modal_aberto() && !celb_aberto())
++      !central_aberta() && !ilha_modal_aberto() && !celb_aberto() &&
++      !spot_aberto() && !teclado_aberto() && !glem_cartao_aberto())
+     mdbchangelog_primeira_vez();
+   telemetria_atualizar(dt, agora);
+   recintro_atualizar(dt, agora);
+diff --git a/tests/fluidez_perf.c b/tests/fluidez_perf.c
+index a08da26c5c4e82a32f0f61e8e0edd7f92e1717cd..79c4dcbf310f24892d7d21ce4b63febbcff8b29a 100644
+--- a/tests/fluidez_perf.c
++++ b/tests/fluidez_perf.c
+@@ -470,8 +470,16 @@ static void cenario(SDL_Window *w, const char *cen) {
+ 
+ #if __has_include("mdbchangelog.h")
+ #include "mdbchangelog.h"
++#include "avisos.h"
++/* app.h names its screen enum Tela; this fixture has its own Tela callbacks. */
++void app_evento(const SDL_Event *e);
+ static void changelogShots(SDL_Window *window) {
+   const char *prefix=getenv("NV_PROGRESS_SHOTS");if(!prefix)return;
++  /* A notice arriving during the card must not steal its confirmation key. */
++  mdbchangelog_abrir();avisos_abrir();
++  SDL_Event confirm={0};confirm.type=SDL_KEYDOWN;confirm.key.keysym.sym=SDLK_RETURN;
++  app_evento(&confirm);assert(!mdbchangelog_aberto() && avisos_aberto());
++  confirm.key.keysym.sym=SDLK_ESCAPE;avisos_evento(&confirm);assert(!avisos_aberto());
+   mdbchangelog_abrir();
+   for(int page=0;page<3;page++) {
+     for(int frame=0;frame<20;frame++) {

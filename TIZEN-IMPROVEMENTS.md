@@ -1,6 +1,6 @@
 # Tizen source filtering, season charts and MDBList providers
 
-Ordered patches `tizen-01` through `tizen-05`, `shared-06` through `shared-09` follow
+Ordered patches `tizen-01` through `tizen-05`, `shared-06` through `shared-10` follow
 the common `mdblist.patch` on both platforms, before the platform updater.
 Every Samsung and LG rebuild applies and tests these improvements. Conflicts stop
 the build; the previous published package remains available. `SOURCE.json`
@@ -117,7 +117,7 @@ API references: [MDBList OpenAPI](https://api.mdblist.com/schema/),
 
 ## Shared tracking, performance and layout correction
 
-Both builders now apply the same nine reviewed patches after the original MDBList
+Both builders now apply the same ten reviewed patches after the original MDBList
 integration. Patch filenames 1–5 are retained to preserve provenance/history.
 Settings > Tracking > MDBList provides masked manual API-key entry, connection
 validation, account-sync status, independent playback consent, disconnect and a
@@ -194,10 +194,10 @@ from **Settings > About & help > What's new** at any time.
 The notes are embedded in the native build, including bounded highlights from
 the exact official release used by that build. A local dismissal marker survives
 restarts and later updates. The card waits for login, profile selection, playback
-and other overlays to finish. It makes no network requests and performs no file
+and other overlays, including search and keyboards, to finish. It makes no network requests and performs no file
 reads after the once-per-process check; closed Home rendering remains unchanged.
 
-Both Samsung core updates and LG package updates include this ninth shared patch.
+Both Samsung core updates and LG package updates include these shared changelog patches.
 SOURCE.json records its digest and the generated notes digest. Remote controls,
 pagination, relaunches, failed persistence and scaled layout are regression-tested.
 The real GLES fixture captures the generated cards. The existing Home/progress

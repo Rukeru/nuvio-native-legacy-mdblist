@@ -12,7 +12,8 @@ PATCHES = ('tizen-01-source-cache.patch', 'tizen-02-season-charts.patch',
            'shared-06-tracking-performance-layout.patch',
            'shared-07-progress-home-performance.patch',
            'shared-08-watched-history-sync.patch',
-           'shared-09-installed-changelog.patch')
+           'shared-09-installed-changelog.patch',
+           'shared-10-changelog-modal-guards.patch')
 
 def changelog(source, state):
     """Embed bounded public release highlights, never fetch from the TV UI."""

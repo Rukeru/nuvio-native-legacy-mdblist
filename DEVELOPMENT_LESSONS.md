@@ -176,3 +176,11 @@ reopen repeatedly in the same session. About & help can reopen notes at any time
 Tests cover version changes, relaunch, failed writes, held-key repeats, page bounds,
 10,000 idle checks and geometry at multiple UI sizes. The GLES fixture captures
 all three pages from the actual generated notes; runner performance is not TV FPS.
+
+The tenth patch additionally waits for Spotlight search, its keyboard and TV-guide
+reminders. Route changelog input immediately after the emergency log handlers,
+before notice/clock/global shortcuts: otherwise a background notice can consume
+OK while hidden behind the opaque changelog. The actual app event router is tested
+with both a notice and changelog present: OK dismisses the changelog, the notice
+remains available, and Back then closes the notice. Patch 9 stays immutable after
+its first LG publication; this interaction correction is an additive patch.
