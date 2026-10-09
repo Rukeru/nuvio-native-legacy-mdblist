@@ -57,8 +57,8 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/Samsung/Tizen.NET/6ab8cb41e7ccab90a3ba838e7f6d6b38a9c4ec08/workload/scripts/workload-install.sh -o "$RUNNER_TEMP/tizen-workload.sh"
           bash "$RUNNER_TEMP/tizen-workload.sh" -v 10.0.120 -t 8.0.400 -d "$DOTNET_ROOT"
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev xvfb xauth ripgrep
+          timeout 180 sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update -qq
+          timeout 300 sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y -qq ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev xvfb xauth ripgrep
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
         if: steps.discover.outputs.build == 'true'
         with:
