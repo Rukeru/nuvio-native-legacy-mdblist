@@ -71,7 +71,9 @@ def run(platform,state_file,stage,command):
     try:network_command(command)
     except subprocess.CalledProcessError as error:
         kind='transient-failure' if network_log(error.output) else 'check-failure'
-        report(platform,state,stage,kind,error.output)
+        components=re.findall(r'^::integration-component::([^\r\n]+)',error.output,re.M)
+        files=sorted(set(re.findall(r'\b((?:src|tests)/[\w./-]+\.(?:c|h|inc|sh|py))(?=[:\s])',error.output)))
+        report(platform,state,components[-1] if components else stage,kind,error.output,files)
         raise
 
 def failure(platform,state_file,stage='workflow'):

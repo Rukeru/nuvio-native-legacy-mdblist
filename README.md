@@ -71,10 +71,11 @@ when they change upstream, the old TV app skips the incompatible core. Sign and
 install that release's new TPK to resume automatic core updates. This intentionally
 avoids guessing that a new core will work with an old shell.
 
-An upstream change can conflict with the MDBList patch. Repair the patch and use
-**Run workflow → force** to rebuild the current release. Failed Actions runs appear
-in the repository and GitHub's configured failure notifications; no broken release
-is promoted automatically.
+An upstream change can conflict with a named integration adapter. The preflight
+stops and opens a diagnostic issue identifying the component, affected files and
+run logs. That exact incompatibility is skipped on subsequent checks. Pushing a
+repaired adapter or contract automatically rechecks it; **Run workflow → force**
+is available after investigation. No broken release is promoted automatically.
 
 GitHub may disable scheduled workflows after 60 days without repository activity.
 Check that Actions remains enabled; the workflow also makes a small monthly
@@ -100,8 +101,9 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
-integration and eleven reviewed shared patches are applied and tested on every
-Samsung and LG rebuild, followed by the platform-specific updater. Read
+integration and eleven historical shared patches remain available for older
+release provenance. For 2.0.3+, their reviewed behavior is carried by owned modules,
+keyed translations and small named adapters, followed by platform checks. Read
 [DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
 

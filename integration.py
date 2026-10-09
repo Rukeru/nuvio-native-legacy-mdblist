@@ -21,7 +21,9 @@ def unpack():
     digest=(ROOT/'integration-bundle.sha256').read_text().strip()
     verified(archive,digest)
     with zipfile.ZipFile(archive) as z:
-        for name in z.namelist():
+        for entry in z.infolist():
+            # orig_filename retains backslashes before Windows ZipInfo normalizes them.
+            name=entry.orig_filename
             p=Path(name)
             if p.is_absolute() or '..' in p.parts or '\\' in name or ':' in name:
                 raise Incompatible('Unsafe integration archive path')
