@@ -5,6 +5,11 @@ import integration, update_guard
 from resilience import retry
 
 class ReleaseMonitor(unittest.TestCase):
+    def test_workflow_command_line_flags(self):
+        a=update_guard.arguments(['run','--platform','tizen','--state','state.json','--stage','preflight','--','bash','preflight.sh','tizen'])
+        self.assertEqual(a.platform,'tizen');self.assertEqual(a.command,['bash','preflight.sh','tizen'])
+        a=update_guard.arguments(['failure','--platform','webos','--state','webos-state.json'])
+        self.assertEqual(a.command,[])
     def test_unsorted_platform_releases_and_prerelease(self):
         rows=[{'tag_name':tag,'id':i,'prerelease':pre} for tag,i,pre in [
             ('v2.0.2.19',9,False),('webos-v2.0.300015',8,False),('v2.0.3.21',7,False),

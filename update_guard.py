@@ -108,8 +108,17 @@ def recovered(platform,state):
         if prefix in (issue.get('body') or '') or other in (issue.get('body') or ''):
             api('repos/'+REPO+'/issues/'+str(issue['number']),{'state':'closed','state_reason':'completed'},'PATCH')
 
-if __name__=='__main__':
+def arguments(argv):
     p=argparse.ArgumentParser();p.add_argument('action',choices=['run','failure']);p.add_argument('--platform',required=True);p.add_argument('--state',required=True);p.add_argument('--stage',default='workflow');p.add_argument('command',nargs=argparse.REMAINDER)
-    a=p.parse_args()
+    # REMAINDER after a positional action would consume --platform/--state.
+    # Parse our flags before the separator; pass the command unchanged afterward.
+    p=argparse.ArgumentParser();p.add_argument('action',choices=['run','failure']);p.add_argument('--platform',required=True);p.add_argument('--state',required=True);p.add_argument('--stage',default='workflow')
+    split=argv.index('--') if '--' in argv else len(argv)
+    a=p.parse_args(argv[:split]);a.command=argv[split+1:]
+    return a
+
+if __name__=='__main__':
+    import sys
+    a=arguments(sys.argv[1:])
     if a.action=='failure':failure(a.platform,a.state,a.stage)
     else:run(a.platform,a.state,a.stage,a.command[1:] if a.command[:1]==['--'] else a.command)
