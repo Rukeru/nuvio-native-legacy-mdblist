@@ -67,3 +67,19 @@ Controlled fixtures can verify requests, lifecycle, isolation, thresholds,
 layout geometry and catalogue costs. Live account acceptance, real TV frame
 times, playback and installation remain pending until measured on hardware.
 Do not infer a TV frame rate from host CPU timings or the attached 60 FPS photo.
+
+## Release verification follow-up
+
+The user confirmed that Desktop 0.1.29-alpha used Connect MDBList. At the
+reviewed Desktop commit, MdbListAuthPersistence.desktop.kt stores browser
+OAuth tokens in the local profile-scoped nuvio_mdblist_auth store. Its
+ProviderCredentialSync.kt exports MDBList apiKey only, not those tokens.
+Consequently a successful Desktop browser connection does not supply an API
+key to the TV through the existing Nuvio credential RPC. The manual key fallback
+is required for that setup; no raw Desktop token was extracted or published.
+
+LG build run 37891653712 failed during preparation because the shared patch
+helper loaded provenance from disk before the caller saved upstream_commit.
+Persist the exact checkout before applying the shared patch helper. The added
+preparation regression executes the builder against a temporary mocked checkout
+and verifies source commit, engine commit, all six patch records and LG version.

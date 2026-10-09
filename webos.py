@@ -81,6 +81,9 @@ def prepare(args):
     subprocess.run(['git','-C',str(root),'fetch','origin',BASE],check=True)
     subprocess.run(['git','-C',str(root),'checkout','--detach',state['upstream']['tag_name']],check=True)
     state['upstream_commit']=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
+    # The shared patch helper reads and updates the provenance file; persist the
+    # exact checkout first so reloading its result cannot discard this field.
+    Path('webos-state.json').write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     subprocess.run(['git','-C',str(root),'apply','--3way','--index',str(Path('mdblist.patch').resolve())],check=True)
     from tizen_improvements import apply
     apply(root,'webos-state.json')

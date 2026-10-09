@@ -21,7 +21,7 @@ and the separate LG release channel. Samsung continues using Latest unchanged.
 1. Download the unsigned Tizen 8 TPK from [the latest custom release](https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/latest).
 2. Sign it for your TV and install it. The custom package installs the MDBList
    integration and its compatible update channel.
-3. Add your MDBList key through the app's existing account credential settings.
+3. Add your MDBList API key under **Settings → Tracking → MDBList**, or let account sync import the API key saved in Nuvio Desktop.
 4. Open **Settings → Account and profiles → Tracking → Track playback with
    MDBList** and enable it for each profile you want to track.
 
@@ -91,9 +91,9 @@ release. The official engine's release checksum and exact source commit are reco
 Third-party source URLs and native build instructions remain in upstream tools.
 This repository uses the upstream GPL-3.0 license; third-party notices are retained.
 
-## Additional Samsung improvements
+## Preserved shared TV improvements
 
-The Tizen channel also preserves strict cached-source filtering, the season-chart
+Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Tizen improvements and limitations](TIZEN-IMPROVEMENTS.md). The four patches
 are tested on every Samsung rebuild; the LG channel keeps its existing patch set.
