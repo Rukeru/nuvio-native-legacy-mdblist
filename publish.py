@@ -56,4 +56,6 @@ for attempt in range(6):
 request(base + '/releases/' + str(release['id']), {'draft': False, 'make_latest': 'true', 'body': body}, 'PATCH')
 print('Published checked update release:', state['tag'])
 from update_guard import recovered
-recovered('tizen', state)
+try: recovered('tizen', state)
+except Exception as error:
+    print('::warning::Release is published; closing resolved update issues failed: '+str(error))

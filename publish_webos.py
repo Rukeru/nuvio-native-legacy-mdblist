@@ -58,4 +58,6 @@ for attempt in range(6):
 request(base + '/releases/' + str(release['id']), {'draft': False, 'make_latest': 'false', 'body': body}, 'PATCH')
 print('Published checked update release:', state['tag'])
 from update_guard import recovered
-recovered('webos', state)
+try: recovered('webos', state)
+except Exception as error:
+    print('::warning::Release is published; closing resolved update issues failed: '+str(error))

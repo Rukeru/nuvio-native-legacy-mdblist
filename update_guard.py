@@ -111,7 +111,6 @@ def recovered(platform,state):
             api('repos/'+REPO+'/issues/'+str(issue['number']),{'state':'closed','state_reason':'completed'},'PATCH')
 
 def arguments(argv):
-    p=argparse.ArgumentParser();p.add_argument('action',choices=['run','failure']);p.add_argument('--platform',required=True);p.add_argument('--state',required=True);p.add_argument('--stage',default='workflow');p.add_argument('command',nargs=argparse.REMAINDER)
     # REMAINDER after a positional action would consume --platform/--state.
     # Parse our flags before the separator; pass the command unchanged afterward.
     p=argparse.ArgumentParser();p.add_argument('action',choices=['run','failure']);p.add_argument('--platform',required=True);p.add_argument('--state',required=True);p.add_argument('--stage',default='workflow')
@@ -123,4 +122,4 @@ if __name__=='__main__':
     import sys
     a=arguments(sys.argv[1:])
     if a.action=='failure':failure(a.platform,a.state,a.stage)
-    else:run(a.platform,a.state,a.stage,a.command[1:] if a.command[:1]==['--'] else a.command)
+    else:run(a.platform,a.state,a.stage,a.command)

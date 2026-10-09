@@ -1,11 +1,11 @@
 """Compare real GLES UI against the first build and 2.0.2.11, without user data."""
 from pathlib import Path
 import argparse, hashlib, json, os, subprocess, tarfile, tempfile, urllib.request
+from resilience import fetch as transport_fetch
 
 REPO='https://api.github.com/repos/Rukeru/nuvio-native-legacy-mdblist'
 def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Nuvio-public-UI-profile'}),timeout=180) as reply:
-        return reply.read()
+    return transport_fetch(urllib.request.Request(url,headers={'User-Agent':'Nuvio-public-UI-profile'}),timeout=180)
 def changelog_only(current):
     # Reuse the completed rendering comparison only for this exact additive UI
     # patch, with identical upstream and all previous patch digests. An upstream

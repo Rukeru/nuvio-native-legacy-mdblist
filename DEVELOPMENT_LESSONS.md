@@ -231,6 +231,13 @@ all prior cache/layout fixes. The map has one mutex; internal helpers called
 under it must not lock it again. Test real pthread concurrency and both durable
 unwatch and positive-history import behavior, not no-op mutex fixtures.
 
+The first Linux preflight caught the upstream unwatch fixture's missing catalogue
+revision doubles, then proved the old episode journal tombstones prevented the
+new test from exercising post-prune protection. Keep durable journal tombstones
+for whole-title/movie removals; prune confirmed episode entries normally because
+vistonao protects them. Do not weaken the upstream post-prune or newer-remote-watch
+assertions to make a port pass. Those assertions now run before every full build.
+
 Transport reads retry only timeouts, connection failures and HTTP 408/429/5xx,
 at most three attempts with bounded backoff. Never retry conflicts, assertions,
 compiler/linker errors, bad checksums, auth failures or changed contracts as if
@@ -246,3 +253,8 @@ Successful publication closes the matching issues. Failed updates never delete
 or replace the last working release or weaken Samsung's shell/engine identity
 gate. A changed host/resource/engine requires a newly signed full TPK install;
 do not promise the old shell can accept an incompatible native core.
+
+Regression coverage also exercises interrupted public uploads/draft creation,
+refusal to modify live assets, notification deduplication/recovery, keyed label
+collisions and archive checksum/path rejection. A failure to close an issue after
+successful publication is a warning, not evidence that the live release failed.
