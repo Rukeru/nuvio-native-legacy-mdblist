@@ -11,7 +11,10 @@ def run(current,out):
     evidence={'hardware':'GitHub Linux runner / Mesa software GLES2; not a TV','baselines':[]}
     with tempfile.TemporaryDirectory(prefix='nuvio-ui-profile-') as temp:
         temp=Path(temp)
+        print('UI-profile: current production and cache experiment',flush=True)
+        subprocess.run(['bash',str(current/'tests/ui_profile.sh'),str(current),str(out/'current')],check=True)
         for tag in ('v2.0.2.3','v2.0.2.11'):
+            print('UI-profile: published baseline '+tag,flush=True)
             release=json.loads(fetch(REPO+'/releases/tags/'+tag))
             asset=next(a for a in release['assets'] if a['name'].startswith('source-') and a['name'].endswith('.tar.gz'))
             data=fetch(asset['browser_download_url']);sha=hashlib.sha256(data).hexdigest()
@@ -22,7 +25,6 @@ def run(current,out):
             tree=next(p.parent for p in checkout.rglob('src') if p.is_dir() and (p/'home.c').is_file())
             subprocess.run(['bash',str(current/'tests/ui_profile.sh'),str(tree),str(out/tag)],check=True)
             evidence['baselines'].append({'tag':tag,'source_sha256':sha,'release':release['html_url']})
-        subprocess.run(['bash',str(current/'tests/ui_profile.sh'),str(current),str(out/'current')],check=True)
     (out/'PROVENANCE.json').write_text(json.dumps(evidence,indent=2)+'\n')
 
 if __name__=='__main__':
