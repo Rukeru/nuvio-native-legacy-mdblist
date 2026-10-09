@@ -1024,6 +1024,51 @@ index 0000000..4c277ac
 +/* -1 local complete/not resumable, 1 precise local selected, 0 no valid local. */
 +int mdb_resume_apply(MdbItem *item,double pos,double duration,long long updated,int completed);
 +#endif
+diff --git a/src/serieaud.c b/src/serieaud.c
+index 14d9754..892fd0e 100644
+--- a/src/serieaud.c
++++ b/src/serieaud.c
+@@ -914,7 +914,7 @@ static void cardRetencao(GfxRect c, const SaBloco *b, int usar, float a) {
+     txt_desenhar_alpha(l, lx, ly, a);
+   }
+   // Eixo de episodios: todos quando cabem, senao de k em k (o em foco sempre).
+-  { int k = 1;
++  if (!saBaking) { int k = 1;
+     float larg = (float)txt_largura(TXT_ILHA_NUM, "E24") + 14.0f;
+     while (passo * (float)k < larg && k < nEps) k++;
+     for (i = 0; i < nEps; i++) {
+@@ -1090,14 +1090,26 @@ static void cachedRet(GfxRect c,const SaBloco *b,int usar,float a) {
+   if (!chartcache_draw(&retCache,c,saKey(b,usar),paintRet,&p,a)) {
+     saNoPanel=1; cardRetencao(c,b,usar,a); saNoPanel=0; return;
+   }
+-  if (retGeo.valid && usar && dentro(b->sel) && serieaud_retencao(b->sel)>=0) {
++  if (retGeo.valid && usar && dentro(b->sel)) {
+     float xs=c.x+retGeo.gx+retGeo.step*b->sel;
+     float ys=c.y+retGeo.top+(retGeo.bot-retGeo.top)*(retGeo.hi-serieaud_retencao(b->sel))/(float)(retGeo.hi-retGeo.lo);
+     gfx_cor((GfxRect){xs-1,c.y+retGeo.top-10,2,retGeo.bot-retGeo.top+10},0,1,1,1,.18f*a);
+-    ponto(xs,ys,14,1,1,1,a);
+-    char text[16]; snprintf(text,sizeof text,"E%d",eps[b->sel].ep);
+-    TxtLinha l=txt_linha(TXT_LOG_18B,text,245,245,245,255);
+-    txt_desenhar_alpha(l,xs-l.w*.5f,c.y+retGeo.bot+10,a);
++    if (serieaud_retencao(b->sel)>=0) ponto(xs,ys,14,1,1,1,a);
++  }
++  /* Axis labels depend on selection: keep the original spacing and hide
++     neighbours of the focused label without rebaking the expensive curve. */
++  if (retGeo.valid && usar) {
++    int k=1;
++    float width=(float)txt_largura(TXT_ILHA_NUM,"E24")+14;
++    while (retGeo.step*k<width && k<nEps) k++;
++    for (int i=0;i<nEps;i++) {
++      int selected=i==b->sel;
++      if (!selected && i%k && i!=nEps-1) continue;
++      if (!selected && dentro(b->sel) && fabsf((float)(i-b->sel))*retGeo.step<width) continue;
++      char text[16]; snprintf(text,sizeof text,"E%d",eps[i].ep);
++      TxtLinha l=selected?txt_linha(TXT_LOG_18B,text,245,245,245,255):txt_linha(TXT_ILHA_NUM,text,130,134,142,255);
++      txt_desenhar_alpha(l,c.x+retGeo.gx+retGeo.step*i-l.w*.5f,c.y+retGeo.bot+10,a);
++    }
+   }
+ }
+ static void cachedDig(GfxRect c,const SaBloco *b,int usar,float a) {
 diff --git a/src/streams.c b/src/streams.c
 index b49d0fd..a649db1 100644
 --- a/src/streams.c
