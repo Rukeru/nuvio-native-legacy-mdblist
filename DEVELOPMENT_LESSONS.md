@@ -286,3 +286,10 @@ produces a named, non-quarantined publication-stale notification and preserves
 the last live release. A fresh run from the current default branch automatically
 retries on the repair push or next hourly poll. Include public GitHub error
 messages in diagnostics without printing request bodies or authorization headers.
+
+Keep simulated failure reports isolated from the real Actions step summary.
+Updater regression fixtures must temporarily disable GITHUB_STEP_SUMMARY and
+restore it before production preflight. Otherwise a successful LG/Samsung run
+can display an invented Settings conflict or quarantine notice from a test.
+Verify the existing summary stays unchanged while the complete updater suite
+runs; real compatibility reports and failure notifications remain enabled.

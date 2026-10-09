@@ -4,6 +4,12 @@ from unittest.mock import patch
 import integration, update_guard
 from resilience import retry
 
+# Simulated conflicts must exercise real diagnostics without contaminating the
+# actual Actions summary. Restore the runner environment before real preflight.
+_summary_environment = patch.dict('os.environ', {'GITHUB_STEP_SUMMARY': ''})
+def setUpModule(): _summary_environment.start()
+def tearDownModule(): _summary_environment.stop()
+
 class ReleaseMonitor(unittest.TestCase):
     def test_workflow_command_line_flags(self):
         a=update_guard.arguments(['run','--platform','tizen','--state','state.json','--stage','preflight','--','bash','preflight.sh','tizen'])
