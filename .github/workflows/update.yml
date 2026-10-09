@@ -58,7 +58,7 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/Samsung/Tizen.NET/6ab8cb41e7ccab90a3ba838e7f6d6b38a9c4ec08/workload/scripts/workload-install.sh -o "$RUNNER_TEMP/tizen-workload.sh"
           bash "$RUNNER_TEMP/tizen-workload.sh" -v 10.0.120 -t 8.0.400 -d "$DOTNET_ROOT"
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg libsdl2-dev
+          sudo apt-get install -y -qq ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev xvfb xauth ripgrep
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
         if: steps.discover.outputs.build == 'true'
         with:
@@ -81,6 +81,16 @@ jobs:
           "$RUNNER_TEMP/trakt-check"
           cc -std=c11 -Wall -Wextra -Iupstream/src $(sdl2-config --cflags) upstream/tests/idioma.c upstream/src/idioma.c -o "$RUNNER_TEMP/language-check"
           "$RUNNER_TEMP/language-check"
+      - name: Compare Home and progress rendering against published baselines
+        if: steps.discover.outputs.build == 'true'
+        run: xvfb-run -a python3 profile_ui.py --current upstream --out ui-profile
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && steps.discover.outputs.build == 'true'
+        with:
+          name: ui-profile-evidence
+          path: ui-profile/
+          if-no-files-found: warn
+          retention-days: 7
       - name: Build Tizen 8 using the upstream native toolchain
         id: native
         if: steps.discover.outputs.build == 'true'
