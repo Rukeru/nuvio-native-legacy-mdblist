@@ -96,7 +96,7 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
-integration and seven reviewed shared patches are applied and tested on every
+integration and eight reviewed shared patches are applied and tested on every
 Samsung and LG rebuild, followed by the platform-specific updater. Read
 [DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
@@ -110,3 +110,10 @@ season window, with production rendering limited to visible rows. A full-card te
 Home reads compact MDBList Up Next identifiers without copying API keys per card.
 The Samsung workflow compares actual GLES UI against published 2.0.2.3 and
 2.0.2.11 and retains `ui-profile-evidence`; host results do not prove TV FPS.
+
+
+Watched-history imports now merge MDBList movies/episodes and Nuvio account
+history alongside Trakt. Background reads are independent of Continue Watching
+and playback-reporting consent; small indexed batches preserve the successful
+performance renderer. TV unwatch intent is protected from older snapshots.
+See DEVELOPMENT_LESSONS.md for verification, identity and history-size limits.
