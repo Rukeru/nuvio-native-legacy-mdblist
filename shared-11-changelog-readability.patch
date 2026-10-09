@@ -1,0 +1,137 @@
+diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
+index 61e529b8ae200e932e0f7b1ce1d017d12580c1fb..c2ca9dafc5671ade820def3deee0c5ca9bb44c64 100644
+--- a/DEVELOPMENT_LESSONS.md
++++ b/DEVELOPMENT_LESSONS.md
+@@ -184,3 +184,10 @@ OK while hidden behind the opaque changelog. The actual app event router is test
+ with both a notice and changelog present: OK dismisses the changelog, the notice
+ remains available, and Back then closes the notice. Patch 9 stays immutable after
+ its first LG publication; this interaction correction is an additive patch.
++
++The actual GLES captures found the default art-derived accent can be near white.
++White text on an accent-filled close button was unreadable. Patch 11 uses a dark
++button fill independent of the accent, tests at least 4.5:1 label contrast across
++dark/mid/pale accents, and separates the version subtitle from the large title.
++Capture the actual page count; the builder keeps at most six highlights so the
++standard release uses two balanced pages. Published patches 9/10 remain intact.
+diff --git a/src/mdbchangelog.c b/src/mdbchangelog.c
+index 0a16769a1f8504748236243bc3b38ed39e1371d0..31cd52fd5e84643bbf276952131ae90aa4edf959 100644
+--- a/src/mdbchangelog.c
++++ b/src/mdbchangelog.c
+@@ -21,6 +21,7 @@
+ static int checked, opened, page;
+ 
+ int mdbchangelog_aberto(void) { return opened; }
++int mdbchangelog_paginas(void) { return PAGES; }
+ void mdbchangelog_abrir(void) { opened = 1; page = 0; }
+ void mdbchangelog_primeira_vez(void) {
+   char *seen;
+@@ -61,14 +62,14 @@ void mdbchangelog_desenhar(void) {
+   gfx_cor((GfxRect){0, 0, NV_TELA_W, NV_TELA_H}, 0, .025f, .035f, .060f, 1);
+   gfx_cor((GfxRect){x, y, 1320, 900}, 32.0f / 900, .065f, .080f, .115f, 1);
+   gfx_anel((GfxRect){x, y, 1320, 900}, 32.0f / 900, 1, 1, 1, 1, .12f);
+-  gfx_cor((GfxRect){x + 56, y + 54, 7, 106}, .04f, r, g, b, 1);
++  gfx_cor((GfxRect){x + 56, y + 54, 7, 126}, .04f, r, g, b, 1);
+   line(TXT_TITULO1, i18n("What's new"), x + 90, y + 56, 1120, 0);
+   snprintf(version, sizeof version, i18n("Version %s is installed"), NV_VERSAO);
+-  line(TXT_CALLOUT, version, x + 92, y + 122, 1100, 1);
++  line(TXT_CALLOUT, version, x + 92, y + 152, 1100, 1);
+   for (int row = 0; row < 3; row++) {
+     int n = page * 3 + row;
+     if (n >= COUNT) break;
+-    float cy = y + 206 + row * 172;
++    float cy = y + 226 + row * 172;
+     gfx_cor((GfxRect){x + 56, cy, 1208, 152}, 20.0f / 152, .105f, .128f, .174f, 1);
+     gfx_cor((GfxRect){x + 80, cy + 26, 10, 10}, .5f, r, g, b, 1);
+     line(TXT_HEADLINE, i18n(MDB_CHANGES[n].title), x + 110, cy + 22, 1110, 0);
+@@ -79,7 +80,8 @@ void mdbchangelog_desenhar(void) {
+     snprintf(pages, sizeof pages, i18n("%d / %d   ·   Left / right for more"), page + 1, PAGES);
+     line(TXT_CAPTION, pages, x + 56, y + 772, 800, 1);
+   } else line(TXT_CAPTION, i18n("Reopen from Settings > About & help"), x + 56, y + 772, 800, 1);
+-  gfx_cor((GfxRect){x + 1004, y + 762, 260, 72}, .25f, r, g, b, 1);
++  /* Accents can be white or very pale: keep the selected button readable. */
++  gfx_cor((GfxRect){x + 1004, y + 762, 260, 72}, .25f, .16f, .20f, .30f, 1);
+   gfx_anel((GfxRect){x + 996, y + 754, 276, 88}, .25f, 3, 1, 1, 1, .9f);
+   line(TXT_HEADLINE, i18n("OK · Got it"), x + 1032, y + 783, 210, 0);
+   ESCALA_SE_COUBER_FIM();
+diff --git a/src/mdbchangelog.h b/src/mdbchangelog.h
+index b9eadcc9e4f20c6fe06434036ade41c094395e6e..5dae3b4aca6bcedc0ff51f797c51153282d30efd 100644
+--- a/src/mdbchangelog.h
++++ b/src/mdbchangelog.h
+@@ -5,6 +5,7 @@
+ void mdbchangelog_primeira_vez(void);
+ void mdbchangelog_abrir(void);
+ int mdbchangelog_aberto(void);
++int mdbchangelog_paginas(void);
+ void mdbchangelog_evento(const SDL_Event *e);
+ void mdbchangelog_desenhar(void);
+ #endif
+diff --git a/tests/fluidez_perf.c b/tests/fluidez_perf.c
+index 79c4dcbf310f24892d7d21ce4b63febbcff8b29a..82fd7cb1b2cf18b1940ba06a00998dd7e69adca4 100644
+--- a/tests/fluidez_perf.c
++++ b/tests/fluidez_perf.c
+@@ -481,7 +481,7 @@ static void changelogShots(SDL_Window *window) {
+   app_evento(&confirm);assert(!mdbchangelog_aberto() && avisos_aberto());
+   confirm.key.keysym.sym=SDLK_ESCAPE;avisos_evento(&confirm);assert(!avisos_aberto());
+   mdbchangelog_abrir();
+-  for(int page=0;page<3;page++) {
++  for(int page=0;page<mdbchangelog_paginas();page++) {
+     for(int frame=0;frame<20;frame++) {
+       txt_novo_quadro();gfx_novo_quadro();gfx_sem_recorte();
+       mdbchangelog_desenhar();glFinish();
+diff --git a/tests/mdbchangelog.c b/tests/mdbchangelog.c
+index 77df79948ff16e30920e431b00b5e0bbf64c91fd..7f66ed417942c32e8cfac297bb5749496f1f3f7f 100644
+--- a/tests/mdbchangelog.c
++++ b/tests/mdbchangelog.c
+@@ -2,11 +2,14 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <math.h>
+ #define NV_VERSAO "2.0.2.17"
+ #include "../src/mdbchangelog.c"
+ static char saved[80];
+ static int reads, writes, fail_save, drawn, blocks;
+ static float scale = 1, configured = 1;
++static float accent = .3f, button_luminance;
++static float linear(float c) {return c<=.04045f ? c/12.92f : powf((c+.055f)/1.055f,2.4f);}
+ char *dados_ler(const char *name) {
+   assert(!strcmp(name, SEEN)); reads++;
+   return saved[0] ? strdup(saved) : NULL;
+@@ -17,7 +20,7 @@ int dados_gravar(const char *name, const char *s) {
+   snprintf(saved, sizeof saved, "%s", s); return 1;
+ }
+ const char *i18n(const char *s) { return s; }
+-void ajustes_acento(float *r,float *g,float *b) {*r=.3f;*g=.2f;*b=.8f;}
++void ajustes_acento(float *r,float *g,float *b) {*r=*g=*b=accent;}
+ float gfx_escala_ui(void) {return configured;}
+ float gfx_escala(void) {return scale;}
+ void gfx_escala_sair(float s) {scale=s;}
+@@ -25,12 +28,18 @@ void gfx_cor(GfxRect rect,float radius,float r,float g,float b,float a) {
+   (void)radius;(void)r;(void)g;(void)b;(void)a;
+   assert(rect.x >= 0 && rect.y >= 0);
+   assert(rect.x + rect.w <= NV_TELA_W + .01f && rect.y + rect.h <= NV_TELA_H + .01f); drawn++;
++  if(rect.w==260 && rect.h==72) button_luminance=.2126f*linear(r)+.7152f*linear(g)+.0722f*linear(b);
+ }
+ void gfx_anel(GfxRect rect,float radius,float width,float r,float g,float b,float a) {
+   (void)width;gfx_cor(rect,radius,r,g,b,a);
+ }
+ TxtLinha txt_linha_corta(TxtEstilo st,const char *s,int r,int g,int b,int a,float width) {
+-  (void)st;(void)r;(void)g;(void)b;(void)a;assert(s && width>0);return (TxtLinha){0};
++  (void)st;(void)a;assert(s && width>0);
++  if(!strcmp(s,"OK · Got it")) {
++    float text_luminance=.2126f*linear(r/255.f)+.7152f*linear(g/255.f)+.0722f*linear(b/255.f);
++    assert((text_luminance+.05f)/(button_luminance+.05f)>=4.5f);
++  }
++  return (TxtLinha){0};
+ }
+ void txt_desenhar(TxtLinha l,float x,float y) {(void)l;assert(x>=0 && y>=0);}
+ float txt_bloco_corta(TxtEstilo st,const char *s,int r,int g,int b,float x,float y,float width,float leading,float alpha,int lines) {
+@@ -47,7 +56,7 @@ int main(void) {
+   key(SDLK_RIGHT,1);assert(page==0);key(SDLK_RIGHT,0);assert(page==1);
+   for(int i=0;i<PAGES+2;i++)key(SDLK_RIGHT,0);assert(page==PAGES-1);
+   for(int i=0;i<PAGES+2;i++)key(SDLK_LEFT,0);assert(page==0);
+-  for(int s=0;s<3;s++) {configured=1+s*.25f;drawn=blocks=0;scale=1;
++  for(int s=0;s<3;s++) {configured=1+s*.25f;accent=s*.5f;drawn=blocks=0;scale=1;
+     mdbchangelog_desenhar();assert(drawn>0 && blocks==3 && scale==1);}
+   key(SDLK_RETURN,0);assert(!opened && writes==1 && !strcmp(saved,NV_VERSAO));
+   restart();mdbchangelog_primeira_vez();assert(!opened);

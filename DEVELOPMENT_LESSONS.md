@@ -184,3 +184,10 @@ OK while hidden behind the opaque changelog. The actual app event router is test
 with both a notice and changelog present: OK dismisses the changelog, the notice
 remains available, and Back then closes the notice. Patch 9 stays immutable after
 its first LG publication; this interaction correction is an additive patch.
+
+The actual GLES captures found the default art-derived accent can be near white.
+White text on an accent-filled close button was unreadable. Patch 11 uses a dark
+button fill independent of the accent, tests at least 4.5:1 label contrast across
+dark/mid/pale accents, and separates the version subtitle from the large title.
+Capture the actual page count; the builder keeps at most six highlights so the
+standard release uses two balanced pages. Published patches 9/10 remain intact.

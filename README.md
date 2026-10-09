@@ -96,7 +96,7 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
-integration and ten reviewed shared patches are applied and tested on every
+integration and eleven reviewed shared patches are applied and tested on every
 Samsung and LG rebuild, followed by the platform-specific updater. Read
 [DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
@@ -123,7 +123,7 @@ See DEVELOPMENT_LESSONS.md for verification, identity and history-size limits.
 
 After an update, a compact **What's new** card appears once when Home is ready.
 It shows the installed version and short release highlights, with three cards
-per page. Use Left/Right to change pages and OK or Back to dismiss. Reopen it
+per page, with readable controls even when your accent colour is very pale. Use Left/Right to change pages and OK or Back to dismiss. Reopen it
 from **Settings > About & help > What's new** at any time.
 
 The notes are embedded in the native build, including bounded highlights from

@@ -13,7 +13,8 @@ PATCHES = ('tizen-01-source-cache.patch', 'tizen-02-season-charts.patch',
            'shared-07-progress-home-performance.patch',
            'shared-08-watched-history-sync.patch',
            'shared-09-installed-changelog.patch',
-           'shared-10-changelog-modal-guards.patch')
+           'shared-10-changelog-modal-guards.patch',
+           'shared-11-changelog-readability.patch')
 
 def changelog(source, state):
     """Embed bounded public release highlights, never fetch from the TV UI."""
@@ -27,7 +28,7 @@ def changelog(source, state):
     notes.append(("Official Nuvio features", "Includes the features and fixes from Nuvio " + version.removeprefix('v') + "."))
     body = re.sub(r'<!--.*?-->|```.*?```', '', upstream.get('body') or '', flags=re.S)
     for raw in body.splitlines():
-        if len(notes) >= 7: break
+        if len(notes) >= 6: break
         if not re.match(r'^\s*[-*+]\s+', raw): continue
         text = re.sub(r'^\s*[-*+]\s+', '', raw)
         text = re.sub(r'!?\[([^\]]*)\]\([^)]*\)', r'\1', text)

@@ -6,11 +6,11 @@ from tizen_improvements import changelog
 
 class ChangelogTests(unittest.TestCase):
     def test_future_public_release_and_bounded_plain_notes(self):
-        state={'upstream':{'tag_name':'v2.0.3','body':'<!-- hidden -->\n- Faster Home\n- Fixed [episode titles](https://example.test)\n- Quote " and slash \\ and café\n```\n- hidden command\n```\n- Download the package\n- '+('very long ' * 100)}}
+        state={'upstream':{'tag_name':'v2.0.3','body':'<!-- hidden -->\n- Faster Home\n- Fixed [episode titles](https://example.test), quote " and slash \\ and café\n```\n- hidden command\n```\n- Download the package\n- '+('very long ' * 100)}}
         with tempfile.TemporaryDirectory() as folder:
             notes=changelog(folder,state)
             header=(Path(folder)/'src/mdbchangelog_notes.h').read_text(encoding='utf8')
-            self.assertEqual(len(notes),7)
+            self.assertEqual(len(notes),6)
             self.assertIn('Nuvio 2.0.3',header)
             self.assertIn('Fixed episode titles',header)
             self.assertNotIn('https://',header)

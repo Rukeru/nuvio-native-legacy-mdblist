@@ -27,7 +27,7 @@ class WebOSRules(unittest.TestCase):
                 state = json.loads(Path('webos-state.json').read_text())
                 self.assertEqual(state['upstream_commit'], 'exact-source-sha')
                 self.assertEqual(state['engine_commit'], 'engine-sha')
-                self.assertEqual(len(state['tizen_improvements']), 10)
+                self.assertEqual(len(state['tizen_improvements']), 11)
                 self.assertEqual(json.loads((root/'deploy/app/appinfo.json').read_text())['version'],'2.0.200005')
             finally:
                 os.chdir(old)

@@ -1,6 +1,6 @@
 # Tizen source filtering, season charts and MDBList providers
 
-Ordered patches `tizen-01` through `tizen-05`, `shared-06` through `shared-10` follow
+Ordered patches `tizen-01` through `tizen-05`, `shared-06` through `shared-11` follow
 the common `mdblist.patch` on both platforms, before the platform updater.
 Every Samsung and LG rebuild applies and tests these improvements. Conflicts stop
 the build; the previous published package remains available. `SOURCE.json`
@@ -117,7 +117,7 @@ API references: [MDBList OpenAPI](https://api.mdblist.com/schema/),
 
 ## Shared tracking, performance and layout correction
 
-Both builders now apply the same ten reviewed patches after the original MDBList
+Both builders now apply the same eleven reviewed patches after the original MDBList
 integration. Patch filenames 1–5 are retained to preserve provenance/history.
 Settings > Tracking > MDBList provides masked manual API-key entry, connection
 validation, account-sync status, independent playback consent, disconnect and a
@@ -188,7 +188,7 @@ the distinction between positive-history import and remote deletion mirroring.
 
 After an update, a compact **What's new** card appears once when Home is ready.
 It shows the installed version and short release highlights, with three cards
-per page. Use Left/Right to change pages and OK or Back to dismiss. Reopen it
+per page, with readable controls even when your accent colour is very pale. Use Left/Right to change pages and OK or Back to dismiss. Reopen it
 from **Settings > About & help > What's new** at any time.
 
 The notes are embedded in the native build, including bounded highlights from
