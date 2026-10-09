@@ -12,7 +12,7 @@ cd upstream
 flags=(-std=gnu11 -UNDEBUG -Isrc)
 read -ra sdl <<< "$(sdl2-config --cflags)"
 if [ "$platform" = webos ]; then flags+=(-DNV_WEBOS); fi
-for module in ajustes app catalogo contalib contapend visto vistoep sync player streams descoberta vertudo mdblistlibrary mdblistscrobble; do
+for module in ajustes app catalogo contalib contapend visto vistoep vistonao sync player streams descoberta vertudo mdblistlibrary mdblistscrobble; do
   component="interface-$module"
   echo "Compatibility syntax: $module ($platform)"
   cc "${flags[@]}" "${sdl[@]}" -fsyntax-only "src/$module.c"
@@ -24,6 +24,7 @@ bash tests/mdblist.sh
 component=app-update-channel-tests
 bash tests/mdblist_channel.sh
 component=watched-history-unwatch-tests
+bash tests/contapend.sh
 bash tests/vistonao.sh
 component=watched-history-concurrency-tests
 bash tests/vistoep_corrida.sh

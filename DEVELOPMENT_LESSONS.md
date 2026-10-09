@@ -234,9 +234,18 @@ unwatch and positive-history import behavior, not no-op mutex fixtures.
 The first Linux preflight caught the upstream unwatch fixture's missing catalogue
 revision doubles, then proved the old episode journal tombstones prevented the
 new test from exercising post-prune protection. Keep durable journal tombstones
-for whole-title/movie removals; prune confirmed episode entries normally because
-vistonao protects them. Do not weaken the upstream post-prune or newer-remote-watch
+for whole-title/movie removals; prune confirmed episode entries only when a
+matching vistonao guard protects them. Do not weaken the upstream post-prune or newer-remote-watch
 assertions to make a port pass. Those assertions now run before every full build.
+
+Upgrade fixtures must start with old persisted data, not only gestures created
+by the new build. A pre-2.0.3 episode removal exists in the account journal without
+a vistonao entry: normal 2.0.3 pruning would erase that intent. The optional
+read-only handoff checks the journal's explicit account, profile, episode and
+gesture time before pruning. No guard means retain the original entry and time;
+a genuinely newer remote watch still wins. Test legacy prune/restart and new
+post-prune protection together, including account/profile isolation. Do not
+retimestamp old gestures, change the journal format or weaken either fixture.
 
 Transport reads retry only timeouts, connection failures and HTTP 408/429/5xx,
 at most three attempts with bounded backoff. Never retry conflicts, assertions,

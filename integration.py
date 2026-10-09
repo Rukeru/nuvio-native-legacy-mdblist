@@ -136,7 +136,10 @@ def contracts(root,platform,state):
                   'src/ajustes_ux_tela.inc':['#include "mdbsettings_tracking.inc"']},
       'account-history':{'src/contalib.c':['contalib_vistos_tick','vistoep_fonte(v->id'],
                          'src/vistoep.c':['pthread_mutex_lock(&mapLock)','lapBarra','vistoep_revisao'],
-                         'src/sync.c':['mdb_credentials']},
+                         'src/sync.c':['mdb_credentials'],
+                         'src/app.c':['contapend_lapides_guardadas(vistonao_guardada)'],
+                         'src/contapend.c':['lapideGuardada(usuario, ents[i].perfil'],
+                         'src/vistonao.h':['vistonao_guardada']},
       'playback-tracking':{'src/player.c':['mdblist','mdblist_scrobble'], 'src/mdblistlibrary.c':['/sync/watched']},
       'ui-performance-library':{'src/episodeindex.c':['episodeindex'], 'src/chartcache.c':['chartcache']},
       'app-updater-changelog':{'src/app.c':['mdbchangelog','contalib_vistos_tick']}}
