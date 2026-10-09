@@ -48,7 +48,7 @@ def inspect(path, expected_version):
         info=json.load(t.extractfile(files[root+'appinfo.json']))
         if info['id']!='space.nuvio.native.legacy' or info['version']!=expected_version or info['type']!='native' or info['main']!='nuvio-proto': raise ValueError('Wrong LG package metadata')
         for n in files:
-            if '..' in Path(n).parts or re.search(r'/(conta-|discord-p|jellyfin-p|emby-p|plex-p)',n) or '/art/cache/' in n or '/art/collections/' in n or n.endswith('/mdblist.txt'): raise ValueError('Unexpected private file in package')
+            if '..' in Path(n).parts or re.search(r'/(conta-|discord-p|jellyfin-p|emby-p|plex-p|mdblist-p[0-9]+\.txt)',n) or '/art/cache/' in n or '/art/collections/' in n or n.endswith('/mdblist.txt'): raise ValueError('Unexpected private file in package')
         for name in ['lib/dts-starfish-webos3.so','lib/dts-starfish-webos4.so','licenses/dts/COPYING.LGPLv2.1','licenses/dts/SOURCE.txt','licencas/p2p-avisos.txt']:
             if root+name not in files: raise ValueError('Missing native component: '+name)
         m=files[root+'nuvio-proto']
@@ -81,8 +81,11 @@ def prepare(args):
     subprocess.run(['git','-C',str(root),'fetch','origin',BASE],check=True)
     subprocess.run(['git','-C',str(root),'checkout','--detach',state['upstream']['tag_name']],check=True)
     state['upstream_commit']=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
-    for patch in ['mdblist.patch','webos-update.patch']:
-        subprocess.run(['git','-C',str(root),'apply','--3way','--index',str(Path(patch).resolve())],check=True)
+    subprocess.run(['git','-C',str(root),'apply','--3way','--index',str(Path('mdblist.patch').resolve())],check=True)
+    from tizen_improvements import apply
+    apply(root,'webos-state.json')
+    state=json.loads(Path('webos-state.json').read_text())
+    subprocess.run(['git','-C',str(root),'apply','--3way','--index',str(Path('webos-update.patch').resolve())],check=True)
     app=root/'deploy/app/appinfo.json'; info=json.loads(app.read_text())
     if info['version']!=state['upstream_version']: raise ValueError('Release/source version mismatch')
     info['version']=state['version']; info['title']='Nuvio Legacy + MDBList'

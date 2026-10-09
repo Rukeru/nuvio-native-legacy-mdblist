@@ -1,4 +1,4 @@
-"""Apply reviewed Tizen-only improvements after the common MDBList patch."""
+"""Apply reviewed shared TV improvements after the common MDBList patch."""
 import argparse
 import hashlib
 import json
@@ -7,7 +7,8 @@ import subprocess
 
 PATCHES = ('tizen-01-source-cache.patch', 'tizen-02-season-charts.patch',
            'tizen-03-mdblist-watchlist.patch', 'tizen-04-mdblist-continue.patch',
-           'tizen-05-mdblist-account-key.patch')
+           'tizen-05-mdblist-account-key.patch',
+           'shared-06-tracking-performance-layout.patch')
 
 def apply(source, state_file):
     root = Path(__file__).resolve().parent
@@ -20,7 +21,7 @@ def apply(source, state_file):
     state = json.loads(Path(state_file).read_text())
     state['tizen_improvements'] = provenance
     Path(state_file).write_text(json.dumps(state, indent=2) + '\n')
-    print('Applied all Tizen improvements and fixes; source provenance recorded')
+    print('Applied shared TV improvements and fixes; source provenance recorded')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

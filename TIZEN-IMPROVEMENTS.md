@@ -114,3 +114,31 @@ API references: [MDBList OpenAPI](https://api.mdblist.com/schema/),
 [MDBList docs](https://api.mdblist.com/docs/),
 [AIOStreams transformer](https://github.com/Viren070/AIOStreams/blob/b17de1eabd7d98e6f4a65aa01229d215081ff38f/packages/core/src/transformers/stremio.ts),
 [AIOStreams stream route](https://github.com/Viren070/AIOStreams/blob/b17de1eabd7d98e6f4a65aa01229d215081ff38f/packages/server/src/routes/stremio/stream.ts).
+
+## Shared tracking, performance and layout correction
+
+Both builders now apply the same six reviewed patches after the original MDBList
+integration. Patch filenames 1–5 are retained to preserve provenance/history.
+Settings > Tracking > MDBList provides masked manual API-key entry, connection
+validation, account-sync status, independent playback consent, disconnect and a
+watched threshold (85% default). Credentials persist per account/profile using
+atomic app-private files with owner-only permissions; they are not an encrypted
+hardware keychain. Pending edits/removals win over stale cloud pulls until the
+existing credential RPC acknowledges them. Unsupported server writes keep the
+local key and display an explicit status. OAuth connections are separate from
+API keys and cannot be converted into a personal key.
+
+MDBList library requests now use query API-key authentication, matching the
+original tracker. Background /user validation and separate HTTP diagnostics
+distinguish rejected keys, network failures and quotas. Pause and stop both mark
+watched at 80% on MDBList: below the chosen threshold their remote percentage is
+capped at 79.99%; exact resume time stays local. Completion is sent once per
+playback session; start at the beginning permits an intentional rewatch.
+Periodic progress survives as local resume data; unsent in-memory API jobs can
+be lost if the process is killed while offline.
+
+A revision/season index removes repeated episode scans, preserving catalogue
+order. Collections columns and navigation reserve the fixed detail panel and
+focus overhang. Physical-TV frame times, account acceptance and playback remain
+pending; controlled regression tests do not establish real-device FPS.
+See DEVELOPMENT_LESSONS.md for evidence and regression safeguards.
