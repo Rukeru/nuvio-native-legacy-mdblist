@@ -151,9 +151,11 @@ The new bounded index and consistent batch snapshot reduce repeated history
 work; only relevant watched changes invalidate the visible title.
 
 The card preserves readable row sizes through a focus-following season window.
-All seasons remain reachable. The original growth animation remains live; settled
-graph content is cached within the shared 6 MiB budget. Hidden/closed targets
-release without resetting animation gates. Allocation failure renders directly.
+All seasons remain reachable and the original growth animation remains live.
+Production draws only the visible rows, with indexed and cached progress data.
+A full-card texture experiment remains benchmark-only because fewer draws did
+not establish lower rendering time. Existing hidden/closed Numbers targets
+release without resetting animation gates; the shared 6 MiB budget stays fixed.
 
 Home uses a compact scoped Up Next identifier snapshot instead of copying API
 keys and formatting identifiers per card. Native credential persistence and

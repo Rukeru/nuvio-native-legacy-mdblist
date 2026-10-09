@@ -106,7 +106,7 @@ account reader and credential persistence are preserved. Manual entry in Trackin
 is an optional fallback. No personal key belongs in this repository or build secret.
 
 Your Progress now uses indexed, consistent watched snapshots and a readable
-season window, with settled rendering cached inside the existing graphics budget.
+season window, with production rendering limited to visible rows. A full-card texture experiment remains benchmark-only; fewer draws did not establish a speedup. Existing chart caches retain their graphics budget.
 Home reads compact MDBList Up Next identifiers without copying API keys per card.
 The Samsung workflow compares actual GLES UI against published 2.0.2.3 and
 2.0.2.11 and retains `ui-profile-evidence`; host results do not prove TV FPS.

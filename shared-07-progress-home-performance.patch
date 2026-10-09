@@ -1,8 +1,8 @@
 diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
-index 24c7d5f..43f0540 100644
+index 24c7d5f..bcf3c73 100644
 --- a/DEVELOPMENT_LESSONS.md
 +++ b/DEVELOPMENT_LESSONS.md
-@@ -72,3 +72,33 @@ Connection diagnostics must recover on a later successful authenticated read or
+@@ -72,3 +72,37 @@ Connection diagnostics must recover on a later successful authenticated read or
  write. A transient error must not leave a permanent failed status. Local storage
  status describes saved credentials; API validation has its own connection row.
  The library fixture covers failure followed by a successful retry.
@@ -24,10 +24,14 @@ index 24c7d5f..43f0540 100644
 +
 +Large season sets were squeezed into four columns, producing rows shorter
 +than their labels and progress-bar overflow. A readable focus-following window
-+keeps every season reachable. Preserve entry animations; cache only settled
-+content, release hidden/closed targets, and retain the shared 6 MiB budget and
-+direct-render fallback. Test counts, revisions, navigation geometry, concurrent
-+growth, cache invalidation and GL screenshots, not just compilation.
++keeps every season reachable. Preserve entry animations and draw only visible
++rows. A full-card texture experiment reduced 37-season draws from 159 to 11,
++but Mesa submission time rose from about 0.9 to 4.2 ms. Fewer draws alone do
++not establish a speedup: measure completion too. Keep this texture experiment
++behind a benchmark-only definition; production uses the visible direct path
++and cached/indexed data. Release hidden/closed Numbers targets and retain the
++existing 6 MiB budget. Test counts, revisions, navigation geometry, concurrent
++growth, invalidation and GL screenshots, not just compilation.
 +
 +Per-card Home checks copied keys and reformatted the same Up Next IDs. A compact
 +scoped snapshot eliminates that work and avoids the network/data lock on render.
@@ -226,10 +230,10 @@ index ae47173..6e3bc05 100644
  
  #endif
 diff --git a/src/temporadas_grafico.c b/src/temporadas_grafico.c
-index fbe628f..4885ca5 100644
+index fbe628f..d54fc13 100644
 --- a/src/temporadas_grafico.c
 +++ b/src/temporadas_grafico.c
-@@ -11,6 +11,7 @@
+@@ -11,9 +11,13 @@
  #include "layout.h"
  #include "ajustes.h"
  #include "idioma.h"
@@ -237,7 +241,13 @@ index fbe628f..4885ca5 100644
  #include <stdio.h>
  #include <string.h>
  #include <math.h>
-@@ -52,11 +53,13 @@ int tgraf_coluna(const TgDados *d, int numero) {
++#ifdef NV_PROGRESS_CACHE_EXPERIMENT
++#include <stdlib.h>
++#endif
+ 
+ // --- MEDIDAS (1920x1080) -----------------------------------------------------
+ // Cabecalho no mesmo TXT_HEADLINE dos "Numeros da temporada", e dois cartoes do
+@@ -52,11 +56,13 @@ int tgraf_coluna(const TgDados *d, int numero) {
  
  int tgraf_montar(TgDados *d, const TgEp *eps, int n, int sabe, int agT, int agE,
                   int especiais, const AmigosTitulo *amg) {
@@ -251,7 +261,7 @@ index fbe628f..4885ca5 100644
    d->sabe = sabe;
    for (i = 0; i < n; i++) {
      const TgEp *e = &eps[i];
-@@ -163,9 +166,13 @@ static int     dIdx = -1;
+@@ -163,9 +169,13 @@ static int     dIdx = -1;
  static unsigned dCat, dVisto, dAmg;
  static int     dAgT, dAgE, dNEps, dValido;
  static TgEp    epsBuf[1200]; /* match catalogue capacity; do not omit late seasons */
@@ -265,7 +275,7 @@ index fbe628f..4885ca5 100644
    int agT = extras_agenda_temporada(), agE = extras_agenda_episodio();
    int n = cat_n_episodios(idx), i, k = 0, sabe;
    AmigosTitulo at;
-@@ -175,24 +182,25 @@ const TgDados *tgraf_dados(int idx) {
+@@ -175,24 +185,25 @@ const TgDados *tgraf_dados(int idx) {
      dValido = 0;
      return &dados;
    }
@@ -296,19 +306,23 @@ index fbe628f..4885ca5 100644
    dAmg = amigostitulo_revisao(); dAgT = agT; dAgE = agE; dNEps = n; dValido = 1;
    return &dados;
  }
-@@ -201,8 +209,10 @@ const TgDados *tgraf_dados(int idx) {
+@@ -201,8 +212,13 @@ const TgDados *tgraf_dados(int idx) {
  
  static char animImdb[24];
  static Uint32 animIni;
-+static ChartCache progressCache;
- 
+-
 -void tgraf_reiniciar(void) { animImdb[0] = 0; animIni = 0; }
++#ifdef NV_PROGRESS_CACHE_EXPERIMENT
++static ChartCache progressCache;
 +void tgraf_cache_liberar(void) { chartcache_clear(&progressCache); }
++#else
++void tgraf_cache_liberar(void) {} /* production draws only the visible window */
++#endif
 +void tgraf_reiniciar(void) { animImdb[0] = 0; animIni = 0; tgraf_cache_liberar(); }
  
  float tgraf_altura(void) { return TG_CAB + TG_CARD_H; }
  
-@@ -304,27 +314,43 @@ static void colunaNumeros(const TgDados *d, float x, float y, float w, int foco,
+@@ -304,27 +320,43 @@ static void colunaNumeros(const TgDados *d, float x, float y, float w, int foco,
  // quando completa. A linha focada leva o fundo de foco das listas
  // (plrui_linha_foco). Muitas temporadas: ate 4 colunas de linhas.
  #define TG_LIN_TEMP_H 46.0f
@@ -362,7 +376,7 @@ index fbe628f..4885ca5 100644
      float x = ax + (float)col * (colW + 24.0f), y = ay + (float)lin * linH;
      float g = crescer(i, agora), yc = y + linH * 0.5f;
      char rot[16], cont[32];
-@@ -339,7 +365,7 @@ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNume
+@@ -339,7 +371,7 @@ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNume
      txt_desenhar_alpha(lr, x, yc - (float)lr.h * 0.5f, a * (focado || escolhida ? 1.0f : 0.8f));
      if (d->sabe) snprintf(cont, sizeof cont, i18n("%d/%d eps"), t->vistos, t->exibidos);
      else snprintf(cont, sizeof cont, i18n(t->exibidos == 1 ? "%d episódio" : "%d episódios"), t->exibidos);
@@ -371,16 +385,19 @@ index fbe628f..4885ca5 100644
      tx = x + 58.0f;
      tw = colW - 58.0f - (float)lc.w - 18.0f - ck;
      if (tw < 40.0f) tw = 40.0f;
-@@ -361,6 +387,30 @@ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNume
+@@ -361,6 +393,39 @@ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNume
    }
  }
  
++#ifdef NV_PROGRESS_CACHE_EXPERIMENT
++/* Benchmark-only experiment: fewer draws alone did not establish lower cost. */
 +typedef struct { const TgDados *data; int focus,selected; Uint32 time; } ProgressPaint;
 +static void paintProgress(GfxRect card,const void *context) {
 +  const ProgressPaint *p=context;
 +  desenhaGrafico(p->data,card,p->focus,p->selected,1,p->time);
 +}
-+static void cachedProgress(const TgDados *d,GfxRect card,int focus,int selected,float alpha,Uint32 now) {
++static void drawProgress(const TgDados *d,GfxRect card,int focus,int selected,float alpha,Uint32 now) {
++  if(getenv("NV_PROGRESS_DIRECT")){desenhaGrafico(d,card,focus,selected,alpha,now);return;}
 +  TgLayout layout=tgraf_layout(d->n,card.w,focus>=0?focus:tgraf_coluna(d,selected));
 +  if(!layout.count)return;
 +  /* Keep the original growth animation live, then reuse its settled content. */
@@ -399,10 +416,16 @@ index fbe628f..4885ca5 100644
 +    desenhaGrafico(d,card,focus,selected,alpha,now);
 +}
 +
++#else
++static void drawProgress(const TgDados *d,GfxRect card,int focus,int selected,float alpha,Uint32 now) {
++  desenhaGrafico(d,card,focus,selected,alpha,now);
++}
++#endif
++
  // OS AMIGOS FICAM FORA DO GRAFICO (dono, 06/10: "so as barras; pessoas/social
  // algo separado, menos poluido"): um cartao calmo ao lado, sem aro nem rosto
  // apagado — ate tres linhas (rosto, nome, "Na sua frente"/"Atrás de você" e a
-@@ -408,8 +458,8 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
+@@ -408,8 +473,8 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
    float alt = tgraf_altura();
    GfxRect cg, ca;
    int temAmg;
@@ -413,12 +436,12 @@ index fbe628f..4885ca5 100644
    // A animacao comeca quando o bloco aparece pela primeira vez nesta serie.
    if (strcmp(animImdb, d->imdb)) {
      snprintf(animImdb, sizeof animImdb, "%s", d->imdb);
-@@ -421,7 +471,10 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
+@@ -421,7 +486,10 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
    cg = (GfxRect){ x, y + TG_CAB, temAmg ? w - TG_AMG_W - TG_GAP : w, TG_CARD_H };
    notasui_painel(cg, TG_RAIO, a);
    colunaNumeros(d, cg.x + TG_PAD, cg.y + 30.0f, TG_STAT_W - 8.0f, foco, a);
 -  desenhaGrafico(d, cg, foco, selNumero, a, agora);
-+  cachedProgress(d, cg, foco, selNumero, a, agora);
++  drawProgress(d, cg, foco, selNumero, a, agora);
 +  {TgLayout layout=tgraf_layout(d->n,cg.w,foco>=0?foco:tgraf_coluna(d,selNumero));
 +   if(layout.count<d->n){char range[48];snprintf(range,sizeof range,"%d–%d / %d",layout.first+1,layout.first+layout.count,d->n);
 +    TxtLinha page=txt_linha(TXT_ILHA_SUB,range,243,242,239,255);txt_desenhar_alpha(page,x+cg.w-page.w,y+22,a*.72f);}}
@@ -426,7 +449,7 @@ index fbe628f..4885ca5 100644
      ca = (GfxRect){ x + w - TG_AMG_W, y + TG_CAB, TG_AMG_W, TG_CARD_H };
      notasui_painel(ca, TG_RAIO, a);
 diff --git a/src/temporadas_grafico.h b/src/temporadas_grafico.h
-index 2a0f606..b2f779a 100644
+index 2a0f606..de1e297 100644
 --- a/src/temporadas_grafico.h
 +++ b/src/temporadas_grafico.h
 @@ -57,6 +57,7 @@ typedef struct {
@@ -444,7 +467,7 @@ index 2a0f606..b2f779a 100644
 +// Bounded visible season window; all seasons remain reachable through focus.
 +typedef struct { int first,count,columns,rows; float columnWidth,rowHeight; } TgLayout;
 +TgLayout tgraf_layout(int seasons,float cardWidth,int focusedIndex);
-+// Release the render target when the section/page leaves the screen.
++// Release benchmark-only targets; production caches data, not panel textures.
 +void tgraf_cache_liberar(void);
  #endif
 diff --git a/src/vistoep.c b/src/vistoep.c
@@ -667,7 +690,7 @@ index fb2015e..0dca2d4 100644
  void vistoep_esquecer(void);   // logout
  
 diff --git a/tests/fluidez_perf.c b/tests/fluidez_perf.c
-index 7c3421e..9fedc10 100644
+index 7c3421e..fc119ce 100644
 --- a/tests/fluidez_perf.c
 +++ b/tests/fluidez_perf.c
 @@ -39,6 +39,7 @@
@@ -686,7 +709,7 @@ index 7c3421e..9fedc10 100644
    // Detalhe por cima.
    { HomeItem it;
      if (home_item_focado(&it)) {
-@@ -466,6 +468,28 @@ static void cenario(SDL_Window *w, const char *cen) {
+@@ -466,6 +468,30 @@ static void cenario(SDL_Window *w, const char *cen) {
    }
  }
  
@@ -697,17 +720,19 @@ index 7c3421e..9fedc10 100644
 +    TgDados data={0};strcpy(data.imdb,"tt0096697");int seasons=counts[scene],count=0;
 +    for(int season=1;season<=seasons;season++)for(int ep=1;ep<=18;ep++)eps[count++]=(TgEp){(short)season,(short)ep,(signed char)(ep<=season%18)};
 +    tgraf_montar(&data,eps,count,1,0,0,0,NULL);tgraf_reiniciar();
-+    unsigned long long rectangles=0;double cpu=0;
++    unsigned long long rectangles=0;double cpu=0,total=0;
 +    for(int frame=0;frame<120;frame++){
 +      SDL_PumpEvents();tex_bombear(3);txt_novo_quadro();tex_novo_quadro();gfx_novo_quadro();gfx_sem_recorte();
 +      glClearColor(.015f,.04f,.18f,1);glClear(GL_COLOR_BUFFER_BIT);
 +      Uint64 start=SDL_GetPerformanceCounter();
 +      tgraf_desenhar(&data,48,180,1824,last?seasons-1:0,last?seasons:1,1,frame?10000+(Uint32)frame*16:1);
-+      if(frame>=20){cpu+=ms(start,SDL_GetPerformanceCounter());rectangles+=(unsigned)gfx_n_rect;}
-+      glFinish();if(frame<119)SDL_GL_SwapWindow(window);
++      Uint64 submitted=SDL_GetPerformanceCounter();
++      glFinish();
++      if(frame>=20){cpu+=ms(start,submitted);total+=ms(start,SDL_GetPerformanceCounter());rectangles+=(unsigned)gfx_n_rect;}
++      if(frame<119)SDL_GL_SwapWindow(window);
 +    }
 +    char path[900];snprintf(path,sizeof path,"%s-progress-%d-%s.bmp",prefix,seasons,last?"last":"first");guardar(path);
-+    printf("[progress-render] seasons=%d focus=%d stable_rects_avg=%.2f submit_cpu_ms=%.3f host=Mesa\n",seasons,last?seasons-1:0,rectangles/100.0,cpu/100.0);
++    printf("[progress-render] seasons=%d focus=%d stable_rects_avg=%.2f submit_cpu_ms=%.3f complete_render_ms=%.3f mode=%s host=Mesa\n",seasons,last?seasons-1:0,rectangles/100.0,cpu/100.0,total/100.0,getenv("NV_PROGRESS_DIRECT")?"direct":"cache-experiment");
 +  }
 +  tgraf_reiniciar();
 +}
@@ -715,7 +740,7 @@ index 7c3421e..9fedc10 100644
  int main(int argc, char **argv) {
    static const char *const todos[] = { "moderna", "imersiva", "padrao", "dinamica", "dono", "c9", "frost",
                                         "borrada" };
-@@ -485,7 +509,12 @@ int main(int argc, char **argv) {
+@@ -485,7 +511,12 @@ int main(int argc, char **argv) {
    assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0);
    IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
@@ -728,9 +753,12 @@ index 7c3421e..9fedc10 100644
    w = SDL_CreateWindow("Nuvio: fluidez (medida)", SDL_WINDOWPOS_CENTERED,
                         SDL_WINDOWPOS_CENTERED, 1920, 1080,
                         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
-@@ -506,6 +535,7 @@ int main(int argc, char **argv) {
+@@ -504,8 +535,9 @@ int main(int argc, char **argv) {
+   ajusta(so ? so : "moderna");
+   assert(home_iniciar("deploy/app/art"));
    povoar();
-   for (i = 0; i < 8; i++)
+-  for (i = 0; i < 8; i++)
++  for (i = 0; !getenv("NV_PROGRESS_ONLY") && i < 8; i++)
      if (!so || !strcmp(so, todos[i])) cenario(w, todos[i]);
 +  progressShots(w);
    SDL_GL_DeleteContext(gl);
@@ -763,10 +791,10 @@ index 368283a..55280e5 100644
  }
 diff --git a/tests/progress_perf.c b/tests/progress_perf.c
 new file mode 100644
-index 0000000..c0b94fc
+index 0000000..997b041
 --- /dev/null
 +++ b/tests/progress_perf.c
-@@ -0,0 +1,90 @@
+@@ -0,0 +1,87 @@
 +/* Real progress data and renderer, deterministic drawing backend; no TV FPS claim. */
 +#define NV_PROGRESS_PERF
 +#include "../src/vistoep.c"
@@ -837,13 +865,10 @@ index 0000000..c0b94fc
 +  graphCalls=textCalls=draws=0;start=clock();
 +  for(int frame=0;frame<1000;frame++)tgraf_desenhar(data,48,200,1824,-1,1,1,10000+frame*16);
 +  printf("progress %d episodes/%d seasons: rebuild_reads=%llu build_ms=%.3f; stable_1000_frames bars=%d text_calls=%d draws=%d draw_cpu_ms=%.3f\n",sizes[test],data->n,reads,buildMs,graphCalls,textCalls,draws,1000.0*(clock()-start)/CLOCKS_PER_SEC);
-+  unsigned bakes=progressCache.builds;assert(progressCache.valid);
-+  tgraf_desenhar(data,48,190,1824,-1,1,.5f,30000);assert(progressCache.builds==bakes);
-+  tgraf_desenhar(data,48,190,1824,2,1,1,30000);assert(progressCache.builds==bakes+1);
-+  language++;tgraf_desenhar(data,48,190,1824,2,1,1,30000);assert(progressCache.builds==bakes+2);
-+  font++;tgraf_desenhar(data,48,190,1824,2,1,1,30000);assert(progressCache.builds==bakes+3);
-+  tgraf_desenhar(data,48,1200,1824,2,1,1,30000);assert(!progressCache.target.tex);
-+  targetsAvailable=0;graphCalls=0;tgraf_desenhar(data,48,200,1824,2,1,1,30000);assert(graphCalls>0);targetsAvailable=1;
++  graphCalls=0;tgraf_desenhar(data,48,190,1824,-1,1,.5f,30000);assert(graphCalls>0);
++  language++;font++;tgraf_desenhar(data,48,190,1824,2,1,1,30000);
++  graphCalls=draws=0;tgraf_desenhar(data,48,1200,1824,2,1,1,30000);assert(!graphCalls&&!draws);
++  targetsAvailable=0;tgraf_desenhar(data,48,200,1824,2,1,1,30000);assert(graphCalls>0);targetsAvailable=1;
 +  vistoep_definir(item.imdb,1,1,1);assert(tgraf_dados(0)->vistos==sizes[test]/2+1);
 + }
 + for(int seasons=1;seasons<=64;seasons++)for(int focus=0;focus<seasons;focus++) {
@@ -854,8 +879,8 @@ index 0000000..c0b94fc
 +   assert(layout.count<=layout.rows*layout.columns&&layout.first+layout.count<=seasons);
 +  }
 + }
-+ tgraf_reiniciar();assert(!progressCache.target.tex);
-+ vistoep_esquecer();puts("progress fixture: watched counts and stable-cache assertions passed");
++ tgraf_reiniciar();
++ vistoep_esquecer();puts("progress fixture: watched counts, stable data cache and visible-window assertions passed");
 +}
 diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
 index f275678..fa102de 100644
@@ -876,10 +901,10 @@ index f275678..fa102de 100644
  cc "${flags[@]}" tests/mdbresume.c src/mdbresume.c -lm -o "$out/resume"
 diff --git a/tests/ui_profile.sh b/tests/ui_profile.sh
 new file mode 100644
-index 0000000..ac950fb
+index 0000000..fe98d9b
 --- /dev/null
 +++ b/tests/ui_profile.sh
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,31 @@
 +#!/bin/bash
 +# Actual GLES2 UI on Linux/Mesa. Counts are comparable; CPU is not a TV FPS prediction.
 +set -euo pipefail
@@ -896,16 +921,21 @@ index 0000000..ac950fb
 +  [ "$source" = src/main.c ] || sources+=("$source")
 +done
 +cc "${sources[@]}" "$fixture_root/tests/fluidez_perf.c" -Isrc \
-+  -DNV_LINUX_DESKTOP -DNV_FLUIDEZ_PERF -DNV_SHOT_HOOKS -DNV_TRAKT_CLIENT_ID='"fixture-only"' \
++  -DNV_LINUX_DESKTOP -DNV_FLUIDEZ_PERF -DNV_PROGRESS_CACHE_EXPERIMENT -DNV_SHOT_HOOKS -DNV_TRAKT_CLIENT_ID='"fixture-only"' \
 +  -O2 -UNDEBUG -g $(pkg-config --cflags sdl2 SDL2_image SDL2_ttf glesv2 egl zlib) \
 +  $(pkg-config --libs sdl2 SDL2_image SDL2_ttf glesv2 egl zlib) -pthread -ldl -lm -o "$temp/profile"
 +for scene in moderna dinamica; do
 +  mkdir -p "$temp/$scene"
-+  LIBGL_ALWAYS_SOFTWARE=1 NV_HOME_ONLY=1 NV_CENARIO="$scene" \
++  LIBGL_ALWAYS_SOFTWARE=1 NV_HOME_ONLY=1 NV_PROGRESS_DIRECT=1 NV_CENARIO="$scene" \
 +  NUVIO_DADOS="$temp/$scene" NUVIO_DUMP_FUNDO_DIR="$temp" \
 +  NV_PROGRESS_SHOTS="$out/$scene" "$temp/profile" > "$out/home-$scene.txt" 2>&1
 +  rg '^\[(moderna|dinamica|progress-render)\]' "$out/home-$scene.txt" || true
 +done
++mkdir -p "$temp/cache"
++LIBGL_ALWAYS_SOFTWARE=1 NV_HOME_ONLY=1 NV_PROGRESS_ONLY=1 NV_CENARIO=moderna \
++NUVIO_DADOS="$temp/cache" NUVIO_DUMP_FUNDO_DIR="$temp" \
++NV_PROGRESS_SHOTS="$out/cache-experiment" "$temp/profile" > "$out/progress-cache-experiment.txt" 2>&1
++rg '^\[progress-render\]' "$out/progress-cache-experiment.txt" || true
 diff --git a/tests/vistoep_threads.c b/tests/vistoep_threads.c
 new file mode 100644
 index 0000000..304efd3

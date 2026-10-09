@@ -68,28 +68,10 @@ layout geometry and catalogue costs. Live account acceptance, real TV frame
 times, playback and installation remain pending until measured on hardware.
 Do not infer a TV frame rate from host CPU timings or the attached 60 FPS photo.
 
-## Release verification follow-up
-
-The user confirmed that Desktop 0.1.29-alpha used Connect MDBList. At the
-reviewed Desktop commit, MdbListAuthPersistence.desktop.kt stores browser
-OAuth tokens in the local profile-scoped nuvio_mdblist_auth store. Its
-ProviderCredentialSync.kt exports MDBList apiKey only, not those tokens.
-That source does not show export of OAuth tokens through the credential RPC.
-The user subsequently confirmed successful automatic API-key sync on 2.0.2.11.
-Do not infer that an account lacks a separately exported key from its browser
-connection alone. Preserve the working native credential reader and persistence;
-manual entry is an optional fallback. No raw Desktop token was extracted.
-
-LG build run 37891653712 failed during preparation because the shared patch
-helper loaded provenance from disk before the caller saved upstream_commit.
-Persist the exact checkout before applying the shared patch helper. The added
-preparation regression executes the builder against a temporary mocked checkout
-and verifies source commit, engine commit, all six patch records and LG version.
-
-Connection status recovers after a later successful authenticated request. A
-local saved-key status does not claim that API validation is pending forever.
-The library regression covers failure followed by a successful retry. Native
-fixtures must run with assertions enabled; the shared test script sets -UNDEBUG.
+Connection diagnostics must recover on a later successful authenticated read or
+write. A transient error must not leave a permanent failed status. Local storage
+status describes saved credentials; API validation has its own connection row.
+The library fixture covers failure followed by a successful retry.
 
 ## User follow-up and performance investigation
 
@@ -108,10 +90,14 @@ Only watched changes to the visible series invalidate its cached totals.
 
 Large season sets were squeezed into four columns, producing rows shorter
 than their labels and progress-bar overflow. A readable focus-following window
-keeps every season reachable. Preserve entry animations; cache only settled
-content, release hidden/closed targets, and retain the shared 6 MiB budget and
-direct-render fallback. Test counts, revisions, navigation geometry, concurrent
-growth, cache invalidation and GL screenshots, not just compilation.
+keeps every season reachable. Preserve entry animations and draw only visible
+rows. A full-card texture experiment reduced 37-season draws from 159 to 11,
+but Mesa submission time rose from about 0.9 to 4.2 ms. Fewer draws alone do
+not establish a speedup: measure completion too. Keep this texture experiment
+behind a benchmark-only definition; production uses the visible direct path
+and cached/indexed data. Release hidden/closed Numbers targets and retain the
+existing 6 MiB budget. Test counts, revisions, navigation geometry, concurrent
+growth, invalidation and GL screenshots, not just compilation.
 
 Per-card Home checks copied keys and reformatted the same Up Next IDs. A compact
 scoped snapshot eliminates that work and avoids the network/data lock on render.
