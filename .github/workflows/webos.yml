@@ -43,12 +43,18 @@ jobs:
           umask 077
           printf '%s\n' "$BUILD_PROPERTIES" > "$NUVIO_PROPERTIES"
           python3 webos.py prepare
+      - name: Install native shared test headers
+        if: steps.discover.outputs.build == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsdl2-dev
       - name: Test MDBList and platform isolation
         if: steps.discover.outputs.build == 'true'
         run: |
           python3 -m unittest discover -s . -v
           bash upstream/tests/mdblist.sh
           bash upstream/tests/mdblist_channel.sh
+          bash upstream/tests/tizen_improvements.sh
           cc -std=c11 -Wall -Wextra -Werror -DNV_WEBOS -ffunction-sections -fdata-sections -Wl,--gc-sections -Iupstream/src upstream/tests/mdblist_webos.c upstream/src/mdblistwebos.c -o "$RUNNER_TEMP/webos-check"
           "$RUNNER_TEMP/webos-check"
           python3 -c 'import pathlib,sys; assert b"nuvio-mdblist-webos/1" in pathlib.Path(sys.argv[1]).read_bytes()' "$RUNNER_TEMP/webos-check"
