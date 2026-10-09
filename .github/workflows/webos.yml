@@ -55,6 +55,7 @@ jobs:
           timeout 300 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
       - name: Check interfaces, Settings, watched history and tracking before full build
         id: preflight
+        timeout-minutes: 10
         if: steps.discover.outputs.build == 'true'
         run: python3 update_guard.py run --platform webos --state webos-state.json --stage compatibility-tests -- bash preflight.sh webos
       - name: Prepare the exact source and verified SDK
@@ -67,15 +68,10 @@ jobs:
           if [ -z "$BUILD_PROPERTIES" ]; then echo 'Shared build settings are missing.' >&2; exit 1; fi
           umask 077
           printf '%s\n' "$BUILD_PROPERTIES" > "$NUVIO_PROPERTIES"
-          python3 webos.py prepare
+          python3 update_guard.py run --platform webos --state webos-state.json --stage webos-sdk-engine-recipe -- python3 webos.py prepare
       - name: Test MDBList and platform isolation
         if: steps.discover.outputs.build == 'true'
-        run: |
-          cc -std=c11 -Wall -Wextra -Werror -DNV_WEBOS -ffunction-sections -fdata-sections -Wl,--gc-sections -Iupstream/src upstream/tests/mdblist_webos.c upstream/src/mdblistwebos.c -o "$RUNNER_TEMP/webos-check"
-          "$RUNNER_TEMP/webos-check"
-          python3 -c 'import pathlib,sys; assert b"nuvio-mdblist-webos/1" in pathlib.Path(sys.argv[1]).read_bytes()' "$RUNNER_TEMP/webos-check"
-          cc -std=c11 -Wall -Wextra -Werror -Iupstream/src upstream/tests/trakt_scrobble.c upstream/src/traktscrobble.c -lm -o "$RUNNER_TEMP/trakt-check"
-          "$RUNNER_TEMP/trakt-check"
+        run: python3 update_guard.py run --platform webos --state webos-state.json --stage platform-contracts -- bash platform-checks.sh webos
       - name: Install the pinned LG packaging CLI
         if: steps.discover.outputs.build == 'true'
         run: npm install --fetch-retries=3 --fetch-retry-mintimeout=5000 --prefix "$RUNNER_TEMP/lg-cli" --no-audit --no-fund @webos-tools/cli@3.2.6
