@@ -809,7 +809,7 @@ index 5753acad12002053c03d229bafddb2604dcf1405..b7ef91e390e409d078ccd6fc7e5e78fc
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream 使用者名稱"),
 diff --git a/src/mdbformat.c b/src/mdbformat.c
-index 054ea7e13be890ae5d53c91c2f04f5522a68323b..c5952927503235f1ff75f0c1bf605126441688fa 100644
+index 054ea7e13be890ae5d53c91c2f04f5522a68323b..8ec6d3934cae573c3af87b5fecde8763a276f877 100644
 --- a/src/mdbformat.c
 +++ b/src/mdbformat.c
 @@ -51,8 +51,8 @@ static void metadata(const char *p,const char *end,MdbItem *out,int show) {
@@ -823,6 +823,43 @@ index 054ea7e13be890ae5d53c91c2f04f5522a68323b..c5952927503235f1ff75f0c1bf605126
   else return 0;
   return written>0&&(size_t)written<n;
  }
+@@ -64,7 +64,7 @@ static int cursorOf(const char *json,const char *end,char *cursor,size_t n) {
+  return 1;
+ }
+ int mdb_parse_watchlist(const char *json,MdbItem *out,int max,char *cursor,size_t size) {
+- const char *end=json?js_fim(json):NULL;if(!end||*json!='{')return -1;
++ const char *end=json?js_fim(json):NULL;if(!end||*json!='{'||end==json||end[-1]!='}')return -1;
+  if(!mdb_prop(json,end,"movies")&&!mdb_prop(json,end,"shows"))return -1;
+  int count=0;
+  for(int show=0;show<2;show++) {
+@@ -88,7 +88,8 @@ static int episodeIdentity(const char *p,const char *end,MdbItem *item,const cha
+ }
+ int mdb_parse_playback(const char *json,MdbItem *out,int max) {
+  while(json&&isspace((unsigned char)*json))json++;
+- const char *p=json?js_raiz_array(json):NULL;if(!json||*json!='[')return -1;
++ const char *rootEnd=json?js_fim(json):NULL;
++ const char *p=json?js_raiz_array(json):NULL;if(!json||*json!='['||!rootEnd||rootEnd==json||rootEnd[-1]!=']')return -1;
+  int count=0;
+  while(p&&*p=='{'&&count<max) {
+   const char *end=js_fim(p);if(!end)return -1;MdbItem item;char type[16];
+@@ -106,7 +107,7 @@ int mdb_parse_playback(const char *json,MdbItem *out,int max) {
+ }
+ int mdb_parse_next(const char *json,MdbItem *out,int max,int *more) {
+  const char *end=json?js_fim(json):NULL,*a=end?mdb_prop(json,end,"items"):NULL;
+- if(!a||*a!='[')return -1;const char *v=mdb_prop(json,end,"has_more");*more=v&&!strncmp(v,"true",4);
++ if(!a||*a!='['||end==json||end[-1]!='}')return -1;const char *v=mdb_prop(json,end,"has_more");*more=v&&!strncmp(v,"true",4);
+  const char *p=a+1;while(p<end&&isspace((unsigned char)*p))p++;int count=0;
+  while(p&&*p=='{'&&count<max) {const char *f=js_fim(p);if(!f||f>end)return -1;MdbItem item;
+   if(episodeIdentity(p,f,&item,"next_episode")) {item.next=1;item.updated=stamp(p,f,"last_watched_at");out[count++]=item;}
+@@ -114,7 +115,7 @@ int mdb_parse_next(const char *json,MdbItem *out,int max,int *more) {
+  }return count;
+ }
+ int mdb_filter_watched(const char *json,MdbItem *items,int n,char *cursor,size_t size) {
+- const char *end=json?js_fim(json):NULL;if(!end||*json!='{')return -1;
++ const char *end=json?js_fim(json):NULL;if(!end||*json!='{'||end==json||end[-1]!='}')return -1;
+  if(!mdb_prop(json,end,"movies")&&!mdb_prop(json,end,"episodes")&&!mdb_prop(json,end,"shows")&&!mdb_prop(json,end,"seasons"))return -1;
+  for(int show=0;show<2;show++) {
+   const char *a=mdb_prop(json,end,show?"episodes":"movies");if(!a||*a!='[')continue;
 diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
 index 621fd1bec6ee539ab94bff64ad2ce676462324c9..aae4c3042e11ec9b05c3935dbffaab5d2919357e 100644
 --- a/src/mdblistlibrary.c
@@ -1000,7 +1037,7 @@ index b49d0fdfe37d7d3b5b48d75fc182513df7b5b799..a649db19df59bd2795fc6ad6954d1e3f
        } else c->abortou = 1;
        pthread_mutex_unlock(&verTrava);
 diff --git a/tests/mdbformat.c b/tests/mdbformat.c
-index 9cddf13a7f82b6d91494185d1f10f949e76c2eae..a32d85ae1d0b4a7b02beb49f49ccb90f0ed72690 100644
+index 9cddf13a7f82b6d91494185d1f10f949e76c2eae..7a3c417a9df629accd44ae0e483c8f56c0be1d69 100644
 --- a/tests/mdbformat.c
 +++ b/tests/mdbformat.c
 @@ -4,7 +4,7 @@
@@ -1012,6 +1049,15 @@ index 9cddf13a7f82b6d91494185d1f10f949e76c2eae..a32d85ae1d0b4a7b02beb49f49ccb90f
   assert(mdb_watchlist_body(body,sizeof body,"tmdb:m123","movie"));
   assert(!mdb_watchlist_body(body,sizeof body,"tmdb:t123","movie"));
   assert(!mdb_watchlist_body(body,sizeof body,"tt123:1:2","series"));
+@@ -14,6 +14,8 @@ int main(void) {
+  int n=mdb_parse_watchlist("{\"movies\":[{\"id\":9,\"title\":\"Unknown external id\"},{\"ids\":{\"imdb\":\"tt123\"},\"title\":\"Film\"}],\"shows\":[{\"ids\":{\"tmdb\":55},\"title\":\"Show\"}],\"pagination\":{\"next_cursor\":\"page2\"}}",items,8,cursor,sizeof cursor);
+  assert(n==2&&!strcmp(items[0].id,"tt123")&&!strcmp(items[1].id,"tmdb:t55")&&!strcmp(cursor,"page2"));
+  assert(mdb_parse_watchlist("{\"error\":\"unauthorized\"}",items,8,cursor,sizeof cursor)<0);
++ assert(mdb_parse_watchlist("{\"movies\":[{\"ids\":{\"imdb\":\"tt123\"}}]",items,8,cursor,sizeof cursor)<0);
++ assert(mdb_parse_playback("[{\"type\":\"movie\",\"progress\":20,\"movie\":{\"ids\":{\"imdb\":\"tt123\"}}}",items,8)<0);
+  assert(mdb_parse_watchlist("{\"movies\":[],\"shows\":[],\"pagination\":{\"next_cursor\":null}}",items,8,cursor,sizeof cursor)==0&&!cursor[0]);
+  n=mdb_parse_playback(" [{\"type\":\"movie\",\"progress\":35.5,\"runtime\":100,\"movie\":{\"ids\":{\"imdb\":\"tt123\"}},\"paused_at\":\"2026-10-08T01:00:00Z\"},{\"type\":\"episode\",\"progress\":25,\"show\":{\"ids\":{\"tmdb\":55}},\"episode\":{\"season\":0,\"number\":2}}, {\"type\":\"movie\",\"progress\":80,\"movie\":{\"ids\":{\"imdb\":\"tt999\"}}}, {\"type\":\"movie\",\"progress\":\"20\",\"movie\":{\"ids\":{\"imdb\":\"tt777\"}}} ]",items,8);
+  assert(n==2&&items[0].progress==35.5&&items[0].runtime==100&&items[0].updated>0&&items[1].season==0&&items[1].episode==2&&items[1].runtime==0);
 diff --git a/tests/mdblistlibrary.c b/tests/mdblistlibrary.c
 new file mode 100644
 index 0000000000000000000000000000000000000000..9695580dc3585fc2d715b4e422c59d0709580a13
