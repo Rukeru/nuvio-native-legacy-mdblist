@@ -21,15 +21,7 @@ for line in (dest / 'SHA256SUMS.txt').read_text().splitlines():
     expected[name] = 'sha256:' + sha
 expected['SHA256SUMS.txt'] = 'sha256:' + hashlib.sha256((dest / 'SHA256SUMS.txt').read_bytes()).hexdigest()
 
-def request(url, data=None, method=None, binary=False):
-    headers = {'Authorization': 'Bearer ' + token, 'User-Agent': 'Nuvio-MDBList-channel',
-               'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
-    if data is not None:
-        headers['Content-Type'] = 'application/octet-stream' if binary else 'application/json'
-        if not binary: data = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=120) as r: return json.load(r)
-
+from release_http import request, delete_asset
 base = 'https://api.github.com/repos/' + repo
 body = ('MDBList-preserving LG webOS build of upstream ' + state['upstream']['tag_name'] + '.\n\n'
         'Install the IPK once through your existing LG installation method. MDBList tracking is opt-in per profile. '
@@ -49,9 +41,7 @@ if existing and not existing['draft']: raise SystemExit('Release already publish
 if existing:
     release = existing
     for asset in release['assets']:
-        req = urllib.request.Request(base + '/releases/assets/' + str(asset['id']), method='DELETE',
-            headers={'Authorization': 'Bearer ' + token, 'User-Agent': 'Nuvio-MDBList-channel'})
-        with urllib.request.urlopen(req, timeout=60): pass
+        delete_asset(asset['id'])
 else:
     release = request(base + '/releases', {'tag_name': state['tag'],
         'target_commitish': os.environ['GITHUB_SHA'], 'name': 'Nuvio webOS ' + state['core_version'] + ' + MDBList',
@@ -67,3 +57,5 @@ for attempt in range(6):
     time.sleep(10)
 request(base + '/releases/' + str(release['id']), {'draft': False, 'make_latest': 'false', 'body': body}, 'PATCH')
 print('Published checked update release:', state['tag'])
+from update_guard import recovered
+recovered('webos', state)

@@ -21,13 +21,13 @@ class WebOSRules(unittest.TestCase):
                 (root/'tools/Dockerfile').write_text('RUN curl -fsSL "$SDK_URL" -o /tmp/sdk.tar.gz \\\n  && mkdir -p /opt \\\n')
                 props = Path('fixture.properties').resolve()
                 props.write_text('NUVIO_SUPABASE_URL=https://example.test\nNUVIO_SUPABASE_ANON_KEY=fixture\nTV_LOGIN_WEB_BASE_URL=https://example.test\n')
-                Path('webos-state.json').write_text(json.dumps({'upstream':{'tag_name':'v2.0.2'},'upstream_version':'2.0.2','version':'2.0.200005'}))
+                Path('webos-state.json').write_text(json.dumps({'upstream':{'tag_name':'v2.0.2'},'upstream_version':'2.0.2','version':'2.0.200005','upstream_commit':'exact-source-sha','integration':{'fingerprint':'fixture','components':[{'component':'settings','sha256':'fixture'}]}}))
                 with patch.dict(os.environ, {'NUVIO_PROPERTIES':str(props)}), patch('webos.subprocess.run'), patch('webos.subprocess.check_output',return_value='exact-source-sha\n'), patch('webos.api',return_value={'sha':'engine-sha'}), patch('webos.download'):
                     webos.prepare(None)
                 state = json.loads(Path('webos-state.json').read_text())
                 self.assertEqual(state['upstream_commit'], 'exact-source-sha')
                 self.assertEqual(state['engine_commit'], 'engine-sha')
-                self.assertEqual(len(state['tizen_improvements']), 11)
+                self.assertEqual(state['integration']['components'][0]['component'], 'settings')
                 self.assertEqual(json.loads((root/'deploy/app/appinfo.json').read_text())['version'],'2.0.200005')
             finally:
                 os.chdir(old)

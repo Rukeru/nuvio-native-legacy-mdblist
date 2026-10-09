@@ -10,6 +10,10 @@ and a subsequent workflow confirmed that an unchanged upstream release is skippe
 Only shared settings from the official public app are stored in the encrypted
 Actions build secret; personal login details and MDBList keys are excluded.
 
+For 2.0.3 and later, see [automatic update safeguards](UPDATER.md): hourly
+platform checks, named component adapters, compatibility tests before SDK setup,
+bounded transport retries and automatic issues for incompatible upstream changes.
+
 ## LG webOS
 
 LG packages and automatic updates are also available in this repository. Read
@@ -40,9 +44,9 @@ Supported property names are in upstream `tools/env.sh`: `NUVIO_SUPABASE_URL`,
 
 ## What happens after activation
 
-- GitHub checks for a new published upstream release every six hours. Scheduled
+- GitHub checks for a new published upstream release every hour. Scheduled
   runs can be delayed by GitHub; this is not an immediate release webhook.
-- It applies `mdblist.patch` using Git's three-way merge, runs tracking
+- It assembles verified owned modules and named three-way component adapters, runs tracking
   and update tests, builds with the upstream ARM Docker toolchain, checks the
   actual ELF and Tizen 8 package, and publishes only after verifying GitHub's
   uploaded asset SHA-256 digests. A conflict or failure leaves the current live

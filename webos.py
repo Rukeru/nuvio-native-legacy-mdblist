@@ -7,6 +7,7 @@ from pathlib import Path
 import argparse, hashlib, io, json, os, re, shutil, struct, subprocess, tarfile
 import urllib.request
 from channel import api, UPSTREAM, CHANNEL, BASE, version
+from resilience import fetch
 
 SDK_URL = 'https://github.com/openlgtv/buildroot-nc4/releases/download/webos-a38c582/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz'
 SDK_SHA = '04ad3311b48b4557a7002aef56ae2e167478e8e129f37daac04649bddf813616'
@@ -17,14 +18,15 @@ def package_version(tag, run):
     return f'{major}.{minor}.{patch*100000+run}'
 
 def needed(upstream, releases, force=False):
-    published = next((r for r in releases if r['tag_name'].startswith('webos-v') and
-                      not r['draft'] and not r['prerelease']), None)
+    from update_guard import stable
+    if upstream.get('draft') or upstream.get('prerelease'): return False
+    published = stable(releases, 'webos-v')
     return force or published is None or ('<!-- webos-upstream-release: ' + str(upstream['id']) + ' -->') not in (published.get('body') or '')
 
 def download(url, path, sha):
     if not re.fullmatch(r'[0-9a-f]{64}',sha): raise ValueError('Missing input SHA-256')
     req=urllib.request.Request(url,headers={'User-Agent':'Nuvio-MDBList-webOS'})
-    with urllib.request.urlopen(req,timeout=120) as r, path.open('wb') as f: shutil.copyfileobj(r,f)
+    path.write_bytes(fetch(req))
     if hashlib.sha256(path.read_bytes()).hexdigest()!=sha: raise ValueError('Input checksum mismatch')
 
 def ar_members(path):
@@ -63,12 +65,15 @@ def inspect(path, expected_version):
         return {'appinfo':info,'glibc_max':glibc,'binary_sha256':hashlib.sha256(b).hexdigest(),'binary_bytes':len(b),'mdblist_tracking_present':True,'dts_and_engine_preserved':True}
 
 def discover(args):
-    upstream=api('repos/'+UPSTREAM+'/releases/latest')
-    releases=api('repos/'+CHANNEL+'/releases?per_page=100')
+    from update_guard import pages, stable, blocked
+    upstream=stable(pages('repos/'+UPSTREAM+'/releases'))
+    if upstream is None: raise ValueError('No stable official release')
+    releases=pages('repos/'+CHANNEL+'/releases')
     do_build=needed(upstream,releases,args.force)
     v=package_version(upstream['tag_name'],args.run)
     state={'upstream':upstream,'upstream_version':version(upstream['tag_name']),
            'version':v,'core_version':v,'tag':'webos-v'+v,'build':do_build,'base_commit':BASE}
+    if do_build and blocked('webos',state,args.force): do_build=state['build']=False
     Path('webos-state.json').write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('build='+str(do_build).lower()+'\n')
@@ -77,18 +82,9 @@ def discover(args):
 def prepare(args):
     state=json.loads(Path('webos-state.json').read_text())
     root=Path('upstream').resolve()
-    subprocess.run(['git','clone','--filter=blob:none','--no-checkout','https://github.com/'+UPSTREAM+'.git',str(root)],check=True)
-    subprocess.run(['git','-C',str(root),'fetch','origin',BASE],check=True)
-    subprocess.run(['git','-C',str(root),'checkout','--detach',state['upstream']['tag_name']],check=True)
-    state['upstream_commit']=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
-    # The shared patch helper reads and updates the provenance file; persist the
-    # exact checkout first so reloading its result cannot discard this field.
-    Path('webos-state.json').write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
-    subprocess.run(['git','-C',str(root),'apply','--3way','--index',str(Path('mdblist.patch').resolve())],check=True)
-    from tizen_improvements import apply
-    apply(root,'webos-state.json')
-    state=json.loads(Path('webos-state.json').read_text())
-    subprocess.run(['git','-C',str(root),'apply','--3way','--index',str(Path('webos-update.patch').resolve())],check=True)
+    if 'integration' not in state or not root.is_dir(): raise ValueError('Run compatibility preflight first')
+    commit=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
+    if commit!=state['upstream_commit']:raise ValueError('Preflight checkout changed')
     app=root/'deploy/app/appinfo.json'; info=json.loads(app.read_text())
     if info['version']!=state['upstream_version']: raise ValueError('Release/source version mismatch')
     info['version']=state['version']; info['title']='Nuvio Legacy + MDBList'

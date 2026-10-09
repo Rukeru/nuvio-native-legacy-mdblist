@@ -191,3 +191,58 @@ button fill independent of the accent, tests at least 4.5:1 label contrast acros
 dark/mid/pale accents, and separates the version subtitle from the large title.
 Capture the actual page count; the builder keeps at most six highlights so the
 standard release uses two balanced pages. Published patches 9/10 remain intact.
+
+### Upstream 2.0.3: component adapters and compatibility quarantine
+
+The LG scheduled run 37973930428 detected the stable 2.0.3 release but failed
+before compilation: the original MDBList patch conflicted with five redesigned
+Settings files. Samsung's workflow was active, but no run followed that release;
+the six-hour schedules offered no prompt-delivery guarantee. GitHub can delay
+or drop scheduled runs. Do not describe scheduled polling as an upstream webhook.
+
+Both monitors now poll hourly at separate minutes, accept repository dispatch,
+and run after integration/updater pushes. Detection paginates releases, excludes
+drafts/prereleases and selects the highest numeric version independently for each
+platform. Never assume GitHub's release-list order is version order. The LG app
+also selects the newest numeric webOS package when its list is unsorted.
+
+2.0.3+ uses integration/manifest.json: owned modules are copied with verified
+digests; nine component adapters merge against the immutable 2.0.3 base. The
+historical twelve shared/base patches and LG patch remain unchanged for release
+audit. Settings' custom IDs, persisted keys, defaults and descriptors come from
+one mdbsettings.def registry; the Tracking rows have an owned include. Keep the
+section enum, preview artwork and help table aligned with the presentation map.
+Coverage must prove every option appears exactly once. The 58 custom translation
+entries merge by decoded key rather than patching 29 positional language tables;
+preserve upstream native translations and reject changed owned keys explicitly.
+
+Preflight applies every adapter, records its component/digest, checks interfaces,
+validates Settings/languages, syntax-checks affected C modules and runs behavior
+fixtures before installing a TV SDK or reading private build properties. Token
+checks are diagnostics only: compilation and functional tests remain mandatory.
+SOURCE.json records the exact upstream commit, component and overlay digests.
+Do not declare compatibility from a patch applying cleanly.
+
+2.0.3's durable unwatch judge must remain authoritative. Remote Nuvio/MDBList
+imports use vistoep_fonte with the remote watched timestamp; vistoep_definir is
+for local gestures. Retain the indexed map, revision caches, 64-row/frame merge
+limit, profile isolation, scrobbling consent/threshold, installed changelog and
+all prior cache/layout fixes. The map has one mutex; internal helpers called
+under it must not lock it again. Test real pthread concurrency and both durable
+unwatch and positive-history import behavior, not no-op mutex fixtures.
+
+Transport reads retry only timeouts, connection failures and HTTP 408/429/5xx,
+at most three attempts with bounded backoff. Never retry conflicts, assertions,
+compiler/linker errors, bad checksums, auth failures or changed contracts as if
+they were transient. Public POSTs need reconciliation after an unknown result;
+publication uses draft assets and verifies all checksums before making it live.
+
+Failures produce a named compatibility report, Actions summary, diagnostic
+artifact and deduplicated GitHub issue. Source/check conflicts are quarantined
+by platform, upstream release ID and integration fingerprint: later polls skip
+the expensive build. Changing the reviewed integration/updater or receiving a
+new upstream release rechecks automatically. Manual force is for investigation.
+Successful publication closes the matching issues. Failed updates never delete
+or replace the last working release or weaken Samsung's shell/engine identity
+gate. A changed host/resource/engine requires a newly signed full TPK install;
+do not promise the old shell can accept an incompatible native core.

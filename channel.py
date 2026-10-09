@@ -16,10 +16,11 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 from shell_id import shell_id
+from resilience import fetch
 
 UPSTREAM = 'iqui27/nuvio-native-legacy'
 CHANNEL = 'Rukeru/nuvio-native-legacy-mdblist'
-BASE = '0fcfa601650aba3d61fbb9f8f9d97738e2c75a4c'
+BASE = '8ed4517c4319c4cbdb62be72654360c0dec9b771'
 
 def api(path, missing=False):
     req = urllib.request.Request('https://api.github.com/' + path,
@@ -27,7 +28,7 @@ def api(path, missing=False):
     token = os.environ.get('GH_TOKEN')
     if token: req.add_header('Authorization', 'Bearer ' + token)
     try:
-        with urllib.request.urlopen(req, timeout=60) as r: return json.load(r)
+        return json.loads(fetch(req, timeout=60))
     except urllib.error.HTTPError as e:
         if missing and e.code == 404: return None
         raise
@@ -43,13 +44,16 @@ def needed(upstream, published, force=False):
     return force or published is None or marker not in (published.get('body') or '')
 
 def discover(args):
-    upstream = api('repos/' + UPSTREAM + '/releases/latest')
-    published = api('repos/' + CHANNEL + '/releases/latest', missing=True)
+    from update_guard import pages, stable, blocked
+    upstream = stable(pages('repos/' + UPSTREAM + '/releases'))
+    if upstream is None: raise ValueError('No stable official release')
+    published = stable(pages('repos/' + CHANNEL + '/releases'))
     do_build = needed(upstream, published, args.force)
     v = version(upstream['tag_name'])
     core = v + '.' + str(args.run)
     info = {'upstream': upstream, 'version': v, 'core_version': core,
             'tag': 'v' + core, 'build': do_build, 'base_commit': BASE}
+    if do_build and blocked('tizen', info, args.force): do_build = info['build'] = False
     Path(args.state).write_text(json.dumps(info, indent=2) + '\n')
     output = os.environ.get('GITHUB_OUTPUT')
     if output:
@@ -64,8 +68,7 @@ def download(url, dest, digest=None):
                'https://raw.githubusercontent.com/NuvioMedia/nuvio-engine/')
     if not url.startswith(allowed): raise ValueError('Unexpected input URL')
     req = urllib.request.Request(url, headers={'User-Agent': 'Nuvio-MDBList-channel'})
-    with urllib.request.urlopen(req, timeout=120) as r, open(dest, 'wb') as f:
-        shutil.copyfileobj(r, f)
+    Path(dest).write_bytes(fetch(req))
     if digest and 'sha256:' + hashlib.sha256(Path(dest).read_bytes()).hexdigest() != digest:
         raise ValueError('Official release download checksum mismatch')
 
@@ -103,8 +106,7 @@ def dependencies(args):
         archive = cache / (name + '.tar.xz')
         req = urllib.request.Request(url, headers={'User-Agent': 'Nuvio-MDBList-channel'})
         try:
-            with urllib.request.urlopen(req, timeout=120) as r, archive.open('wb') as f:
-                shutil.copyfileobj(r, f)
+            archive.write_bytes(fetch(req))
             with tarfile.open(archive, 'r:xz') as t:
                 if any(Path(m.name).parts[0] != name for m in t.getmembers()):
                     raise ValueError('Unexpected dependency archive root: ' + name)
@@ -120,12 +122,10 @@ def dependencies(args):
 def prepare(args):
     state = json.loads(Path(args.state).read_text())
     root = Path(args.source).resolve()
-    subprocess.run(['git', 'clone', '--filter=blob:none', '--no-checkout',
-        'https://github.com/' + UPSTREAM + '.git', str(root)], check=True)
-    subprocess.run(['git', '-C', str(root), 'fetch', 'origin', BASE], check=True)
-    subprocess.run(['git', '-C', str(root), 'checkout', '--detach', state['upstream']['tag_name']], check=True)
-    state['upstream_commit'] = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
-    subprocess.run(['git', '-C', str(root), 'apply', '--3way', '--index', str(Path(args.patch).resolve())], check=True)
+    if 'integration' not in state or not root.is_dir():
+        raise ValueError('Run compatibility preflight before SDK preparation')
+    commit = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
+    if commit != state['upstream_commit']: raise ValueError('Preflight checkout changed')
     actual = json.loads((root / 'deploy/app/appinfo.json').read_text())['version']
     if actual != state['version']: raise ValueError('Release tag and source version differ')
     props = Path(os.environ['NUVIO_PROPERTIES']).read_text()
