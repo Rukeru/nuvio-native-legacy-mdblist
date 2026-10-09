@@ -1,8 +1,8 @@
 # Tizen source filtering, season charts and MDBList providers
 
-Ordered patches named `tizen-01` through `tizen-05` follow the common `mdblist.patch` in
-the Samsung build. The LG workflow continues applying its existing patches.
-Every Tizen rebuild applies and tests all four improvements. Conflicts stop
+Ordered patches `tizen-01` through `tizen-05`, `shared-06` and `shared-07` follow
+the common `mdblist.patch` on both platforms, before the platform updater.
+Every Samsung and LG rebuild applies and tests these improvements. Conflicts stop
 the build; the previous published package remains available. `SOURCE.json`
 records every improvement patch's SHA-256.
 
@@ -117,7 +117,7 @@ API references: [MDBList OpenAPI](https://api.mdblist.com/schema/),
 
 ## Shared tracking, performance and layout correction
 
-Both builders now apply the same six reviewed patches after the original MDBList
+Both builders now apply the same seven reviewed patches after the original MDBList
 integration. Patch filenames 1–5 are retained to preserve provenance/history.
 Settings > Tracking > MDBList provides masked manual API-key entry, connection
 validation, account-sync status, independent playback consent, disconnect and a
@@ -142,3 +142,26 @@ order. Collections columns and navigation reserve the fixed detail panel and
 focus overhang. Physical-TV frame times, account acceptance and playback remain
 pending; controlled regression tests do not establish real-device FPS.
 See DEVELOPMENT_LESSONS.md for evidence and regression safeguards.
+
+## Your Progress and Home follow-up
+
+Your Progress is a separate section from Season by the Numbers. Its totals were
+already cached, but rebuilding used a linear watched-map lookup per episode.
+The new bounded index and consistent batch snapshot reduce repeated history
+work; only relevant watched changes invalidate the visible title.
+
+The card preserves readable row sizes through a focus-following season window.
+All seasons remain reachable. The original growth animation remains live; settled
+graph content is cached within the shared 6 MiB budget. Hidden/closed targets
+release without resetting animation gates. Allocation failure renders directly.
+
+Home uses a compact scoped Up Next identifier snapshot instead of copying API
+keys and formatting identifiers per card. Native credential persistence and
+account sync are unchanged. Existing Tracking settings, independent consent,
+85% threshold, Trakt dispatch, retries and completion dedup are preserved.
+
+The Samsung workflow compares actual GLES rendering with published 2.0.2.3 and
+2.0.2.11. Synthetic fixtures, Mesa CPU times and submitted draw counts do not
+prove restored TV FPS. With the existing meter enabled, tracking stage timings
+contain durations/sample counts only. Collections remains a separate preserved
+fix from shared patch 6.

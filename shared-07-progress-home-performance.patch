@@ -1,0 +1,944 @@
+diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
+index 24c7d5f..43f0540 100644
+--- a/DEVELOPMENT_LESSONS.md
++++ b/DEVELOPMENT_LESSONS.md
+@@ -72,3 +72,33 @@ Connection diagnostics must recover on a later successful authenticated read or
+ write. A transient error must not leave a permanent failed status. Local storage
+ status describes saved credentials; API validation has its own connection row.
+ The library fixture covers failure followed by a successful retry.
++
++## User follow-up and performance investigation
++
++The user confirmed that 2.0.2.11 automatically synchronized their MDBList key.
++Preserve mdbcredentials.c and sync.c unchanged. Reviewing Desktop's local OAuth
++store did not establish that this user's account lacked a separately exported
++API key; do not insist on manual entry when native account sync has succeeded.
++
++Your Progress is separate from Season by the Numbers; the chart toggle hides
++the latter only. Its data cache already avoided stable-frame recomputation.
++The rebuild did a linear map lookup per episode: 8,880,600 visits for 1200
++episodes in an 8000-entry synthetic watched map. A bounded 32 KiB hash index
++reduces this to 2,569 probes. Real network writes could reallocate that map
++while UI readers traversed it; a mutex and consistent batch snapshot protect it.
++Only watched changes to the visible series invalidate its cached totals.
++
++Large season sets were squeezed into four columns, producing rows shorter
++than their labels and progress-bar overflow. A readable focus-following window
++keeps every season reachable. Preserve entry animations; cache only settled
++content, release hidden/closed targets, and retain the shared 6 MiB budget and
++direct-render fallback. Test counts, revisions, navigation geometry, concurrent
++growth, cache invalidation and GL screenshots, not just compilation.
++
++Per-card Home checks copied keys and reformatted the same Up Next IDs. A compact
++scoped snapshot eliminates that work and avoids the network/data lock on render.
++It does not change mdbcredentials.c, sync.c or tracking endpoints. Compare real
++GLES rendering with published first build 2.0.2.3 and 2.0.2.11. Host timings and
++synthetic draws cannot establish restored 60 FPS on the user's Samsung TV.
++The performance meter's tracking timings contain only durations and sample
++counts, never credentials or content identifiers.
+diff --git a/src/app.c b/src/app.c
+index f31273c..dae1576 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -2784,6 +2784,8 @@ void app_atualizar(float dt, Uint32 agora) {
+   // onde o vinculo e feito, "Aguardando a autorizacao" nunca saia do lugar
+   // mesmo com a pessoa ja tendo autorizado no celular.
+   traktauth_passo((unsigned)agora);
++  int measureTracking=ajustes_medidor_desempenho();
++  Uint64 trackingStart=measureTracking?SDL_GetPerformanceCounter():0;
+   mdb_credentials_scope();
+   mdblist_limiar(ajustes_mdblist_limiar());
+   mdblist_atualizar(ajustes_mdblist_rastrear(), perfis_ativo());
+@@ -2792,6 +2794,12 @@ void app_atualizar(float dt, Uint32 agora) {
+     if(notice) ilha_avisar("mdblist:library", ILHA_INFO, "aj_bookmark", i18n(notice), 6500u, 0);
+     if(refresh) desc_repetir();
+   }
++  if(measureTracking) {
++    static double totalMs,maxMs;static unsigned samples;static Uint32 reported;
++    double elapsed=1000.0*(double)(SDL_GetPerformanceCounter()-trackingStart)/(double)SDL_GetPerformanceFrequency();
++    totalMs+=elapsed;if(elapsed>maxMs)maxMs=elapsed;samples++;
++    if(agora-reported>=3000){printf("[tracking-perf] ui_avg_ms=%.3f ui_max_ms=%.3f samples=%u\n",totalMs/samples,maxMs,samples);totalMs=maxMs=0;samples=0;reported=agora;}
++  }
+   discord_passo((unsigned)agora);
+   // PERSONAL SERVERS (servidores.h: Jellyfin, Emby, Plex): the modules fetches on its own workers; the
+   // Home is rebuilt when its row snapshot changes or the option flips. One
+diff --git a/src/chartcache.c b/src/chartcache.c
+index 7ad5dd7..9af7df4 100644
+--- a/src/chartcache.c
++++ b/src/chartcache.c
+@@ -3,7 +3,7 @@
+ #include "text.h"
+ #include <stdio.h>
+ #include <math.h>
+-/* Three panel targets together may use at most 6 MiB. Failure is a direct
++/* Visible panel targets together may use at most 6 MiB. Failure is a direct
+    rendering fallback, never a missing chart. No image-cache eviction. */
+ static size_t allocated;
+ #define CHART_BUDGET (6u * 1024u * 1024u)
+diff --git a/src/detail.c b/src/detail.c
+index 06adbec..c2d8afb 100644
+--- a/src/detail.c
++++ b/src/detail.c
+@@ -3341,7 +3341,8 @@ void detail_atualizar(float dt, Uint32 agora) {
+         }
+       }
+     }
+-    aberto = 0; saindo = 0; t = 0.0f; carro = 0; trailer_fechar(); return;
++    aberto = 0; saindo = 0; t = 0.0f; carro = 0; trailer_fechar();
++    serieaud_bloco_liberar_cache();tgraf_cache_liberar();return;
+   }
+ 
+   // SEGURAR OK SEM RESPOSTA NA TELA (dono, 06/10): na home o cartao ganha a
+@@ -6930,6 +6931,11 @@ static void maisDesenhar(void) {
+ 
+ void detail_desenhar(Uint32 agora) {
+   if (!aberto) return;
++  /* Release hidden targets without resetting text or entry animation gates. */
++  float progressY=conteudoSec[SEC_PROGTEMP]-scrollY;
++  float numbersY=conteudoSec[SEC_NUMEROS]-scrollY;
++  if(!ehSerie()||progressY>=NV_TELA_H||progressY+tgraf_altura()<=0)tgraf_cache_liberar();
++  if(!ehSerie()||!ajustes_season_numbers()||numbersY>=NV_TELA_H||numbersY+serieaud_bloco_altura()<=0)serieaud_bloco_liberar_cache();
+   amigostitulo_atualizar();   // barato: so remonta quando o feed social mudou
+   // COR VIVA: a pagina do titulo manda na cor, acima da home que pode estar
+   // desenhada por baixo (a prioridade resolve o mesmo quadro). A chave e a
+diff --git a/src/mdblist.c b/src/mdblist.c
+index d476fec..a660931 100644
+--- a/src/mdblist.c
++++ b/src/mdblist.c
+@@ -7,6 +7,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <time.h>
++#include <stdatomic.h>
+ 
+ /* FIFO, rather than Trakt's single pending slot: a new episode's start must
+    never overwrite the preceding episode's stop. Credentials are copied at
+@@ -17,7 +18,8 @@ static pthread_mutex_t trava = PTHREAD_MUTEX_INITIALIZER;
+ static MdbPedido fila[MDB_QUEUE];
+ static int inicio, quantidade, fioVivo, ligado, perfil, bloqueado, ultimoHttp;
+ static unsigned geracao;
+-static unsigned contaGeracao;
++static atomic_uint contaGeracao;
++unsigned mdblist_geracao_conta(void) { return atomic_load(&contaGeracao); }
+ static time_t retentar, ultimoStart;
+ static char chave[80];
+ static MdbScrobbleEstado estado;
+diff --git a/src/mdblist.h b/src/mdblist.h
+index d696c76..ef7d877 100644
+--- a/src/mdblist.h
++++ b/src/mdblist.h
+@@ -4,6 +4,8 @@
+ /* Snapshot for the independent library provider. Never returns a live key
+    pointer; generation changes on account/profile changes, not consent. */
+ int mdblist_credencial(char *dst, size_t n, unsigned *generation);
++// Read-only generation for render snapshots; no key copy or tracker mutex.
++unsigned mdblist_geracao_conta(void);
+ /* Playback writes only. Ratings and their master switch remain in extras.c. */
+ void mdblist_definir_chave(const char *chave);
+ /* Main loop: apply profile/consent changes and service deferred retries. */
+diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
+index 6d93ea4..ee1482c 100644
+--- a/src/mdblistlibrary.c
++++ b/src/mdblistlibrary.c
+@@ -27,6 +27,10 @@ static int watchN,blocked,worker,noticeCode,verifyPending,connection;
+ static time_t watchAt,backoff;
+ static unsigned generation,serial;
+ static Job jobs[JOB_MAX];
++static pthread_mutex_t nextLock=PTHREAD_MUTEX_INITIALIZER;
++static char nextIds[CW_MAX][96];
++static int nextCount;
++static unsigned nextGeneration;
+ /* Code 1 means a confirmed write; 2 a failure with local state retained;
+    3 a failed read using any previous snapshot. No response text is surfaced. */
+ static int credentials(char *key,unsigned *gen) {
+@@ -272,7 +276,12 @@ int mdb_library_continue(CatItem *out,int max) {
+  if(!fresh&&allowed(gen)) {
+   MdbItem *next=calloc(CW_MAX,sizeof *next);int n=next?cwRead(next,key,gen):-1;
+   pthread_mutex_lock(&lock);
+-  if(n>=0&&gen==generation){memcpy(cw,next,(size_t)n*sizeof *next);cwN=n;cwAt=time(NULL);}
++  if(n>=0&&gen==generation){
++   memcpy(cw,next,(size_t)n*sizeof *next);cwN=n;cwAt=time(NULL);
++   pthread_mutex_lock(&nextLock);nextCount=0;nextGeneration=gen;
++   for(int i=0;i<n;i++)if(next[i].next)snprintf(nextIds[nextCount++],sizeof nextIds[0],"%s:%d:%d",next[i].id,next[i].season,next[i].episode);
++   pthread_mutex_unlock(&nextLock);
++  }
+   pthread_mutex_unlock(&lock);free(next);
+   if(n<0)problem(gen,422,0,0);
+  }
+@@ -296,8 +305,8 @@ int mdb_library_continue(CatItem *out,int max) {
+  free(copy);return n;
+ }
+ int mdb_library_next(const char *id) {
+- if(!id)return 0;char key[80];unsigned gen;if(!credentials(key,&gen))return 0;memset(key,0,sizeof key);
+- int found=0;pthread_mutex_lock(&lock);
+- for(int i=0;i<cwN&&!found;i++)if(cw[i].next){char compound[96];snprintf(compound,sizeof compound,"%s:%d:%d",cw[i].id,cw[i].season,cw[i].episode);found=!strcmp(id,compound);}
+- pthread_mutex_unlock(&lock);return found;
++ if(!id)return 0;unsigned gen=mdblist_geracao_conta();
++ int found=0;pthread_mutex_lock(&nextLock);
++ if(gen==nextGeneration)for(int i=0;i<nextCount&&!found;i++)found=!strcmp(id,nextIds[i]);
++ pthread_mutex_unlock(&nextLock);return found;
+ }
+diff --git a/src/notasui.c b/src/notasui.c
+index eef70fa..acfc5cc 100644
+--- a/src/notasui.c
++++ b/src/notasui.c
+@@ -309,6 +309,7 @@ void notasui_cor_rampa(int d, float *r, float *g, float *b) {
+ void notasui_painel(GfxRect r, float raio, float a) { painel(r, raio, a); }
+ 
+ static TextoGate gateFontes;
++void notasui_mapa_liberar_cache(void) { chartcache_clear(&mapaCache); }
+ void notasui_reiniciar(void) { textogate_reiniciar(&gateFontes); chartcache_clear(&mapaCache); }
+ 
+ typedef struct {
+diff --git a/src/notasui.h b/src/notasui.h
+index 85814eb..85d63c8 100644
+--- a/src/notasui.h
++++ b/src/notasui.h
+@@ -69,6 +69,7 @@ void  notasui_cor_rampa(int decimos, float *r, float *g, float *b);
+ void  notasui_painel(GfxRect r, float raio, float a);
+ // Volta o portao do texto (nova pagina de titulo).
+ void  notasui_reiniciar(void);
++void notasui_mapa_liberar_cache(void);
+ 
+ // Uma marca sozinha (para os cartoes da aba de notas): centralizada em (xc, yc)
+ // dentro de uma caixa `h` de altura. Devolve a largura usada.
+diff --git a/src/serieaud.c b/src/serieaud.c
+index 892fd0e..9d9c0a1 100644
+--- a/src/serieaud.c
++++ b/src/serieaud.c
+@@ -759,6 +759,7 @@ static int eixoBruto(int i, int eixo) {
+ #define BL_CEL_GAP    6.0f
+ 
+ static TextoGate gateBloco;
++void serieaud_bloco_liberar_cache(void) { chartcache_clear(&retCache);chartcache_clear(&digCache);notasui_mapa_liberar_cache(); }
+ void serieaud_bloco_reiniciar(void) { textogate_reiniciar(&gateBloco); chartcache_clear(&retCache); chartcache_clear(&digCache); notasui_reiniciar(); }
+ float serieaud_bloco_altura(void) { return BL_CAB + BL_RET_H + BL_GAP + BL_DIG_H; }
+ 
+diff --git a/src/serieaud.h b/src/serieaud.h
+index ae47173..6e3bc05 100644
+--- a/src/serieaud.h
++++ b/src/serieaud.h
+@@ -136,5 +136,6 @@ float serieaud_bloco_altura(void);
+ float serieaud_bloco(float x, float y, const SaBloco *b, float a);
+ // Volta o portao do texto (nova pagina de titulo).
+ void  serieaud_bloco_reiniciar(void);
++void serieaud_bloco_liberar_cache(void);
+ 
+ #endif
+diff --git a/src/temporadas_grafico.c b/src/temporadas_grafico.c
+index fbe628f..4885ca5 100644
+--- a/src/temporadas_grafico.c
++++ b/src/temporadas_grafico.c
+@@ -11,6 +11,7 @@
+ #include "layout.h"
+ #include "ajustes.h"
+ #include "idioma.h"
++#include "chartcache.h"
+ #include <stdio.h>
+ #include <string.h>
+ #include <math.h>
+@@ -52,11 +53,13 @@ int tgraf_coluna(const TgDados *d, int numero) {
+ 
+ int tgraf_montar(TgDados *d, const TgEp *eps, int n, int sabe, int agT, int agE,
+                  int especiais, const AmigosTitulo *amg) {
++  static unsigned completedRevision;
+   int i, j;
+   char imdb[sizeof d->imdb];
+   memcpy(imdb, d->imdb, sizeof imdb);
+   memset(d, 0, sizeof *d);
+   memcpy(d->imdb, imdb, sizeof imdb);
++  d->revision=++completedRevision;
+   d->sabe = sabe;
+   for (i = 0; i < n; i++) {
+     const TgEp *e = &eps[i];
+@@ -163,9 +166,13 @@ static int     dIdx = -1;
+ static unsigned dCat, dVisto, dAmg;
+ static int     dAgT, dAgE, dNEps, dValido;
+ static TgEp    epsBuf[1200]; /* match catalogue capacity; do not omit late seasons */
++static VistoPar progressPairs[1200];
++static signed char progressStates[1200];
+ 
+ const TgDados *tgraf_dados(int idx) {
+   const CatItem *ci = cat_item(idx);
++  char id[24];snprintf(id,sizeof id,"%s",ci?ci->imdb:"");
++  {char *suffix=strchr(id,':');if(suffix)*suffix=0;}
+   int agT = extras_agenda_temporada(), agE = extras_agenda_episodio();
+   int n = cat_n_episodios(idx), i, k = 0, sabe;
+   AmigosTitulo at;
+@@ -175,24 +182,25 @@ const TgDados *tgraf_dados(int idx) {
+     dValido = 0;
+     return &dados;
+   }
+-  if (dValido && idx == dIdx && !strncmp(dados.imdb, ci->imdb, sizeof dados.imdb - 1) &&
+-      dCat == cat_revisao() && dVisto == vistoep_revisao() &&
++  if (dValido && idx == dIdx && !strcmp(dados.imdb,id) &&
++      dCat == cat_revisao() && dVisto == vistoep_revisao_titulo(ci->imdb) &&
+       dAmg == amigostitulo_revisao() && dAgT == agT && dAgE == agE && dNEps == n)
+     return &dados;
+-  sabe = vistoep_conhecido(ci->imdb);
+   for (i = 0; i < n && k < (int)(sizeof epsBuf / sizeof epsBuf[0]); i++) {
+     const CatEp *e = cat_episodio(idx, i);
+     if (!e) continue;
+     epsBuf[k].temporada = (short)e->temporada;
+     epsBuf[k].episodio = (short)e->episodio;
+-    epsBuf[k].visto = (signed char)(sabe ? vistoep_estado(ci->imdb, e->temporada, e->episodio) : -1);
++    progressPairs[k]=(VistoPar){(short)e->temporada,(short)e->episodio};
+     k++;
+   }
++  unsigned watchedRevision=vistoep_snapshot(ci->imdb,progressPairs,k,progressStates,&sabe);
++  for(i=0;i<k;i++)epsBuf[i].visto=progressStates[i];
+   temAmg = amigostitulo_obter(ci->imdb, &at);
+   snprintf(dados.imdb, sizeof dados.imdb, "%s", ci->imdb);
+   { char *dp = strchr(dados.imdb, ':'); if (dp) *dp = 0; }
+   tgraf_montar(&dados, epsBuf, k, sabe, agT, agE, 0, temAmg ? &at : NULL);
+-  dIdx = idx; dCat = cat_revisao(); dVisto = vistoep_revisao();
++  dIdx = idx; dCat = cat_revisao(); dVisto = watchedRevision;
+   dAmg = amigostitulo_revisao(); dAgT = agT; dAgE = agE; dNEps = n; dValido = 1;
+   return &dados;
+ }
+@@ -201,8 +209,10 @@ const TgDados *tgraf_dados(int idx) {
+ 
+ static char animImdb[24];
+ static Uint32 animIni;
++static ChartCache progressCache;
+ 
+-void tgraf_reiniciar(void) { animImdb[0] = 0; animIni = 0; }
++void tgraf_cache_liberar(void) { chartcache_clear(&progressCache); }
++void tgraf_reiniciar(void) { animImdb[0] = 0; animIni = 0; tgraf_cache_liberar(); }
+ 
+ float tgraf_altura(void) { return TG_CAB + TG_CARD_H; }
+ 
+@@ -304,27 +314,43 @@ static void colunaNumeros(const TgDados *d, float x, float y, float w, int foco,
+ // quando completa. A linha focada leva o fundo de foco das listas
+ // (plrui_linha_foco). Muitas temporadas: ate 4 colunas de linhas.
+ #define TG_LIN_TEMP_H 46.0f
++TgLayout tgraf_layout(int seasons,float cardWidth,int focusedIndex) {
++  TgLayout result={0};
++  float available=cardWidth-3*TG_PAD-TG_STAT_W;
++  if(seasons<1||available<=0)return result;
++  result.rows=(int)((TG_CARD_H-52)/TG_LIN_TEMP_H);
++  int maxColumns=(int)((available+24)/324); /* minimum 300 px per column */
++  if(maxColumns<1)maxColumns=1;
++  if(maxColumns>4)maxColumns=4;
++  result.columns=(seasons+result.rows-1)/result.rows;
++  if(result.columns>maxColumns)result.columns=maxColumns;
++  int capacity=result.columns*result.rows;
++  if(focusedIndex<0)focusedIndex=0;if(focusedIndex>=seasons)focusedIndex=seasons-1;
++  result.first=(focusedIndex/capacity)*capacity;
++  result.count=seasons-result.first;if(result.count>capacity)result.count=capacity;
++  result.columnWidth=(available-(result.columns-1)*24)/result.columns;
++  result.rowHeight=(TG_CARD_H-52)/(float)result.rows;
++  return result;
++}
+ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNumero,
+                            float a, Uint32 agora) {
+   float ax = card.x + TG_PAD + TG_STAT_W + TG_PAD, aw = card.x + card.w - TG_PAD - ax;
+-  float ay = card.y + 26.0f, ah = card.h - 52.0f;
++  float ay = card.y + 26.0f;
+   float ar, ag, ab, colW, linH;
+-  int i, nCol, porCol;
++  int selected=foco>=0?foco:tgraf_coluna(d,selNumero);
++  TgLayout layout=tgraf_layout(d->n,card.w,selected);
++  int i, nCol=layout.columns, porCol=layout.rows;
+   if (d->n <= 0) return;
+   ajustes_acento(&ar, &ag, &ab);
+   // Fio separador da coluna da serie.
+   gfx_cor((GfxRect){ ax - TG_PAD * 0.5f - 1.0f, card.y + 28.0f, 1.0f, card.h - 56.0f }, 0.0f,
+           1.0f, 1.0f, 1.0f, a * 0.08f);
+-  porCol = (int)(ah / TG_LIN_TEMP_H);
+-  if (porCol < 1) porCol = 1;
+-  nCol = (d->n + porCol - 1) / porCol;
+-  if (nCol > 4) { nCol = 4; porCol = (d->n + 3) / 4; }
+-  linH = ah / (float)porCol;
+-  if (linH > TG_LIN_TEMP_H + 8.0f) linH = TG_LIN_TEMP_H + 8.0f;
++  if(!nCol)return;
++  linH = layout.rowHeight;
+   colW = (aw - (float)(nCol - 1) * 24.0f) / (float)nCol;
+-  for (i = 0; i < d->n; i++) {
++  for (i = layout.first; i < layout.first+layout.count; i++) {
+     const TgTemp *t = &d->t[i];
+-    int col = i / porCol, lin = i % porCol, focado = (i == foco), escolhida = (t->numero == selNumero);
++    int col = (i-layout.first) / porCol, lin = (i-layout.first) % porCol, focado = (i == foco), escolhida = (t->numero == selNumero);
+     float x = ax + (float)col * (colW + 24.0f), y = ay + (float)lin * linH;
+     float g = crescer(i, agora), yc = y + linH * 0.5f;
+     char rot[16], cont[32];
+@@ -339,7 +365,7 @@ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNume
+     txt_desenhar_alpha(lr, x, yc - (float)lr.h * 0.5f, a * (focado || escolhida ? 1.0f : 0.8f));
+     if (d->sabe) snprintf(cont, sizeof cont, i18n("%d/%d eps"), t->vistos, t->exibidos);
+     else snprintf(cont, sizeof cont, i18n(t->exibidos == 1 ? "%d episódio" : "%d episódios"), t->exibidos);
+-    lc = txt_linha(TXT_ILHA_SUB, cont, 243, 242, 239, 255);
++    lc = txt_linha_corta(TXT_ILHA_SUB, cont, 243, 242, 239, 255,colW-58-18-40-ck);
+     tx = x + 58.0f;
+     tw = colW - 58.0f - (float)lc.w - 18.0f - ck;
+     if (tw < 40.0f) tw = 40.0f;
+@@ -361,6 +387,30 @@ static void desenhaGrafico(const TgDados *d, GfxRect card, int foco, int selNume
+   }
+ }
+ 
++typedef struct { const TgDados *data; int focus,selected; Uint32 time; } ProgressPaint;
++static void paintProgress(GfxRect card,const void *context) {
++  const ProgressPaint *p=context;
++  desenhaGrafico(p->data,card,p->focus,p->selected,1,p->time);
++}
++static void cachedProgress(const TgDados *d,GfxRect card,int focus,int selected,float alpha,Uint32 now) {
++  TgLayout layout=tgraf_layout(d->n,card.w,focus>=0?focus:tgraf_coluna(d,selected));
++  if(!layout.count)return;
++  /* Keep the original growth animation live, then reuse its settled content. */
++  if(!ajustes_animacoes_reduzidas()&&now-animIni<TG_ANIM_MS+(Uint32)(layout.first+layout.count-1)*TG_ANIM_PASSO) {
++    desenhaGrafico(d,card,focus,selected,alpha,now);return;
++  }
++  float r,g,b;ajustes_acento(&r,&g,&b);
++  uint64_t key=d->revision;
++  key=(key^(unsigned)(focus+1))*1099511628211ULL;
++  key=(key^(unsigned)(selected+1))*1099511628211ULL;
++  key=(key^(unsigned)(r*255))*1099511628211ULL;
++  key=(key^(unsigned)(g*255))*1099511628211ULL;
++  key=(key^(unsigned)(b*255))*1099511628211ULL;
++  ProgressPaint paint={d,focus,selected,now};
++  if(!chartcache_draw(&progressCache,card,key,paintProgress,&paint,alpha))
++    desenhaGrafico(d,card,focus,selected,alpha,now);
++}
++
+ // OS AMIGOS FICAM FORA DO GRAFICO (dono, 06/10: "so as barras; pessoas/social
+ // algo separado, menos poluido"): um cartao calmo ao lado, sem aro nem rosto
+ // apagado — ate tres linhas (rosto, nome, "Na sua frente"/"Atrás de você" e a
+@@ -408,8 +458,8 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
+   float alt = tgraf_altura();
+   GfxRect cg, ca;
+   int temAmg;
+-  if (!tgraf_existe(d) || a <= 0.001f) return;
+-  if (y >= NV_TELA_H || y + alt <= 0.0f) return;
++  if (!tgraf_existe(d) || a <= 0.001f) { tgraf_cache_liberar();return; }
++  if (y >= NV_TELA_H || y + alt <= 0.0f) { tgraf_cache_liberar();return; }
+   // A animacao comeca quando o bloco aparece pela primeira vez nesta serie.
+   if (strcmp(animImdb, d->imdb)) {
+     snprintf(animImdb, sizeof animImdb, "%s", d->imdb);
+@@ -421,7 +471,10 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
+   cg = (GfxRect){ x, y + TG_CAB, temAmg ? w - TG_AMG_W - TG_GAP : w, TG_CARD_H };
+   notasui_painel(cg, TG_RAIO, a);
+   colunaNumeros(d, cg.x + TG_PAD, cg.y + 30.0f, TG_STAT_W - 8.0f, foco, a);
+-  desenhaGrafico(d, cg, foco, selNumero, a, agora);
++  cachedProgress(d, cg, foco, selNumero, a, agora);
++  {TgLayout layout=tgraf_layout(d->n,cg.w,foco>=0?foco:tgraf_coluna(d,selNumero));
++   if(layout.count<d->n){char range[48];snprintf(range,sizeof range,"%d–%d / %d",layout.first+1,layout.first+layout.count,d->n);
++    TxtLinha page=txt_linha(TXT_ILHA_SUB,range,243,242,239,255);txt_desenhar_alpha(page,x+cg.w-page.w,y+22,a*.72f);}}
+   if (temAmg) {
+     ca = (GfxRect){ x + w - TG_AMG_W, y + TG_CAB, TG_AMG_W, TG_CARD_H };
+     notasui_painel(ca, TG_RAIO, a);
+diff --git a/src/temporadas_grafico.h b/src/temporadas_grafico.h
+index 2a0f606..b2f779a 100644
+--- a/src/temporadas_grafico.h
++++ b/src/temporadas_grafico.h
+@@ -57,6 +57,7 @@ typedef struct {
+   int meuT, meuE;            // o episodio visto mais adiante (0 = nenhum)
+   int nAmg, nFrente, nAtras; // amigos com posicao conhecida
+   int totalAmg;              // amigos no titulo (pode passar de AMT_MAX)
++  unsigned revision;         // completed summary; stable across render frames
+   TgAmigo amg[AMT_MAX];      // os da frente primeiro, cada grupo do mais adiantado ao menos
+ } TgDados;
+ 
+@@ -87,4 +88,9 @@ void tgraf_desenhar(const TgDados *d, float x, float y, float w, int foco,
+                     int selNumero, float a, Uint32 agora);
+ // Nova pagina: a animacao de crescer volta a tocar na proxima vez.
+ void tgraf_reiniciar(void);
++// Bounded visible season window; all seasons remain reachable through focus.
++typedef struct { int first,count,columns,rows; float columnWidth,rowHeight; } TgLayout;
++TgLayout tgraf_layout(int seasons,float cardWidth,int focusedIndex);
++// Release the render target when the section/page leaves the screen.
++void tgraf_cache_liberar(void);
+ #endif
+diff --git a/src/vistoep.c b/src/vistoep.c
+index 79c9e30..46d9de5 100644
+--- a/src/vistoep.c
++++ b/src/vistoep.c
+@@ -5,6 +5,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <pthread.h>
+ 
+ // TETO. Uma pessoa que acompanha 100 series com 50 episodios cada tem 5000
+ // entradas; a 24 bytes sao 120 KB, que cabem com folga ate no heap FIXO de
+@@ -21,6 +22,18 @@ static Marca *mapa;
+ static int n, cap, avisouTeto;
+ // Sobe a cada mudanca de estado no mapa (vistoep_revisao).
+ static unsigned revisao;
++/* Bounded index: 32 KiB, below 50% load at the existing 8000-entry limit.
++   Readers never follow a map pointer while a network worker reallocates it. */
++static unsigned short slots[16384];
++static pthread_mutex_t mapLock=PTHREAD_MUTEX_INITIALIZER;
++static char observedTitle[16];
++static unsigned observedRevision;
++#ifdef NV_PROGRESS_PERF
++static unsigned long long vistoep_perf_reads;
++#define VE_READ() (++vistoep_perf_reads)
++#else
++#define VE_READ() ((void)0)
++#endif
+ 
+ // So o id do titulo. "tt123:2:8" e "tt123" tem de casar: o primeiro e o formato
+ // que CatItem.imdb carrega num item de "Continuar assistindo", e quem chama
+@@ -35,9 +48,16 @@ static void base(const char *origem, char *dst, size_t tam) {
+ }
+ 
+ static int achar(const char *id, int t, int e) {
+-  int i;
+-  for (i = 0; i < n; i++)
++  unsigned hash=2166136261u;
++  for(const unsigned char *p=(const unsigned char *)id;*p;p++)hash=(hash^*p)*16777619u;
++  hash=(hash^(unsigned)t)*16777619u;hash=(hash^(unsigned)e)*16777619u;
++  unsigned at=hash&16383u;
++  for(unsigned tries=0;tries<16384;tries++,at=(at+1)&16383u) {
++    VE_READ();
++    if(!slots[at])return -(int)at-1;
++    int i=slots[at]-1;
+     if (mapa[i].temp == t && mapa[i].ep == e && !strcmp(mapa[i].id, id)) return i;
++  }
+   return -1;
+ }
+ 
+@@ -49,7 +69,10 @@ static int definir(const char *imdb, int temporada, int episodio, int visto) {
+       episodio < 1 || episodio > SHRT_MAX) return 0;
+   i = achar(id, temporada, episodio);
+   if (i >= 0) {
+-    if (mapa[i].visto != (visto ? 1 : 0)) revisao++;
++    if (mapa[i].visto != (visto ? 1 : 0)) {
++      revisao++;
++      if(!strcmp(observedTitle,id))observedRevision++;
++    }
+     mapa[i].visto = visto ? 1 : 0;
+     return 1;
+   }
+@@ -74,13 +97,17 @@ static int definir(const char *imdb, int temporada, int episodio, int visto) {
+   mapa[n].temp = (short)temporada;
+   mapa[n].ep = (short)episodio;
+   mapa[n].visto = visto ? 1 : 0;
++  slots[-i-1]=(unsigned short)(n+1);
+   n++;
+   revisao++;
++  if(!strcmp(observedTitle,id))observedRevision++;
+   return 1;
+ }
+ 
+ void vistoep_definir(const char *imdb, int temporada, int episodio, int visto) {
++  pthread_mutex_lock(&mapLock);
+   definir(imdb, temporada, episodio, visto);
++  pthread_mutex_unlock(&mapLock);
+ }
+ 
+ int vistoep_estado(const char *imdb, int temporada, int episodio) {
+@@ -88,8 +115,11 @@ int vistoep_estado(const char *imdb, int temporada, int episodio) {
+   int i;
+   base(imdb, id, sizeof id);
+   if (!id[0]) return -1;
++  pthread_mutex_lock(&mapLock);
+   i = achar(id, temporada, episodio);
+-  return i < 0 ? -1 : (int)mapa[i].visto;
++  int state=i < 0 ? -1 : (int)mapa[i].visto;
++  pthread_mutex_unlock(&mapLock);
++  return state;
+ }
+ 
+ int vistoep_contar(const char *imdb) {
+@@ -97,7 +127,9 @@ int vistoep_contar(const char *imdb) {
+   int i, k = 0;
+   base(imdb, id, sizeof id);
+   if (!id[0]) return 0;
++  pthread_mutex_lock(&mapLock);
+   for (i = 0; i < n; i++) if (mapa[i].visto && !strcmp(mapa[i].id, id)) k++;
++  pthread_mutex_unlock(&mapLock);
+   return k;
+ }
+ 
+@@ -106,8 +138,11 @@ int vistoep_conhecido(const char *imdb) {
+   int i;
+   base(imdb, id, sizeof id);
+   if (!id[0]) return 0;
+-  for (i = 0; i < n; i++) if (!strcmp(mapa[i].id, id)) return 1;
+-  return 0;
++  int known=0;
++  pthread_mutex_lock(&mapLock);
++  for (i = 0; i < n; i++) if (!strcmp(mapa[i].id, id)) {known=1;break;}
++  pthread_mutex_unlock(&mapLock);
++  return known;
+ }
+ 
+ int vistoep_marcar_lote(const char *imdb, const VistoPar *pares, int qtd, int visto) {
+@@ -116,7 +151,9 @@ int vistoep_marcar_lote(const char *imdb, const VistoPar *pares, int qtd, int vi
+   for (i = 0; i < qtd; i++) {
+     if (vistoep_estado(imdb, pares[i].temporada, pares[i].episodio) == (visto ? 1 : 0))
+       continue;
++    pthread_mutex_lock(&mapLock);
+     mudou += definir(imdb, pares[i].temporada, pares[i].episodio, visto);
++    pthread_mutex_unlock(&mapLock);
+   }
+   return mudou;
+ }
+@@ -140,6 +177,7 @@ int vistoep_ate_aqui(const char *imdb, int temporada, int episodio,
+   // NUMERO antes de decidir se cabe pedir a acao ("Ate aqui (7 episodios)"), e
+   // sem isto ela teria de alocar um vetor so para descobrir o tamanho — ou,
+   // pior, passar max=0 e receber 0 sempre, que foi o primeiro erro aqui.
++  pthread_mutex_lock(&mapLock);
+   for (i = 0; i < n; i++) {
+     if (strcmp(mapa[i].id, id)) continue;
+     if (!antesOuIgual(mapa[i].temp, mapa[i].ep, temporada, episodio)) continue;
+@@ -150,6 +188,7 @@ int vistoep_ate_aqui(const char *imdb, int temporada, int episodio,
+     }
+     k++;
+   }
++  pthread_mutex_unlock(&mapLock);
+   return k;
+ }
+ 
+@@ -158,6 +197,7 @@ int vistoep_temporada(const char *imdb, int temporada, VistoPar *saida, int max)
+   int i, k = 0;
+   base(imdb, id, sizeof id);
+   if (!id[0]) return 0;
++  pthread_mutex_lock(&mapLock);
+   for (i = 0; i < n; i++) {                 // saida nula = contagem, ver acima
+     if (mapa[i].temp != temporada || strcmp(mapa[i].id, id)) continue;
+     if (saida) {
+@@ -167,6 +207,7 @@ int vistoep_temporada(const char *imdb, int temporada, VistoPar *saida, int max)
+     }
+     k++;
+   }
++  pthread_mutex_unlock(&mapLock);
+   return k;
+ }
+ 
+@@ -199,12 +240,31 @@ int vistoep_lote(const char *imdb, int ateAqui, int temporada, int episodio,
+   return k;
+ }
+ 
+-int vistoep_n(void) { return n; }
+-unsigned vistoep_revisao(void) { return revisao; }
++int vistoep_n(void) { pthread_mutex_lock(&mapLock);int value=n;pthread_mutex_unlock(&mapLock);return value; }
++unsigned vistoep_revisao(void) { pthread_mutex_lock(&mapLock);unsigned value=revisao;pthread_mutex_unlock(&mapLock);return value; }
++
++static unsigned titleRevision(const char *id) { /* mapLock held; one visible series */
++  if(strcmp(observedTitle,id)){snprintf(observedTitle,sizeof observedTitle,"%s",id);observedRevision++;}
++  return observedRevision;
++}
++unsigned vistoep_revisao_titulo(const char *imdb) {
++  char id[16];base(imdb,id,sizeof id);pthread_mutex_lock(&mapLock);
++  unsigned value=titleRevision(id);pthread_mutex_unlock(&mapLock);return value;
++}
++unsigned vistoep_snapshot(const char *imdb,const VistoPar *pairs,int count,signed char *states,int *known) {
++  char id[16];base(imdb,id,sizeof id);pthread_mutex_lock(&mapLock);
++  unsigned value=titleRevision(id);*known=0;
++  for(int i=0;i<n;i++)if(!strcmp(mapa[i].id,id)){*known=1;break;}
++  for(int i=0;i<count;i++){int at=achar(id,pairs[i].temporada,pairs[i].episodio);states[i]=(signed char)(at<0?-1:mapa[at].visto);}
++  pthread_mutex_unlock(&mapLock);return value;
++}
+ 
+ void vistoep_esquecer(void) {
++  pthread_mutex_lock(&mapLock);
+   free(mapa); mapa = NULL; n = 0; cap = 0; avisouTeto = 0;
++  memset(slots,0,sizeof slots);observedTitle[0]=0;observedRevision++;
+   revisao++;
++  pthread_mutex_unlock(&mapLock);
+ }
+ 
+ // ------------------------------------------------------------------- Trakt
+@@ -252,7 +312,9 @@ int vistoep_ler_progresso(const char *imdb, const char *json) {
+       if (!strcmp(concluido, "true")) feito = 1;
+       else if (!strcmp(concluido, "false")) feito = 0;
+       else continue;
++      pthread_mutex_lock(&mapLock);
+       total += definir(imdb, nt, ne, feito);
++      pthread_mutex_unlock(&mapLock);
+       if (fe >= ft) break;
+     }
+     if (ft >= fim) break;
+diff --git a/src/vistoep.h b/src/vistoep.h
+index fb2015e..0dca2d4 100644
+--- a/src/vistoep.h
++++ b/src/vistoep.h
+@@ -82,6 +82,11 @@ int  vistoep_lote(const char *imdb, int ateAqui, int temporada, int episodio,
+ // Sobe a cada episodio que muda de estado (ou entra no mapa) e no logout: quem
+ // resume o mapa (o grafico de temporadas) so recalcula quando ela muda.
+ unsigned vistoep_revisao(void);
++// Current visible title only: unrelated series history cannot invalidate it.
++unsigned vistoep_revisao_titulo(const char *imdb);
++// Consistent batched watched states and their captured title revision.
++unsigned vistoep_snapshot(const char *imdb,const VistoPar *pairs,int count,
++                         signed char *states,int *known);
+ int  vistoep_n(void);          // total de episodios no mapa, para log e teste
+ void vistoep_esquecer(void);   // logout
+ 
+diff --git a/tests/fluidez_perf.c b/tests/fluidez_perf.c
+index 7c3421e..9fedc10 100644
+--- a/tests/fluidez_perf.c
++++ b/tests/fluidez_perf.c
+@@ -39,6 +39,7 @@
+ #include "dados.h"
+ #include "detail.h"
+ #include "extras.h"   // extras_shot_relacionados (NV_SHOT_HOOKS): fileiras do detalhe
++#include "temporadas_grafico.h"
+ #include "fundo.h"
+ #include "gfx.h"
+ #include "home.h"
+@@ -343,6 +344,7 @@ static void cenario(SDL_Window *w, const char *cen) {
+     quadro(w, &qs[i], t); t += 16;
+   }
+   relatar(cen, "navegando", qs, n);
++  if(getenv("NV_HOME_ONLY"))return;
+   // Detalhe por cima.
+   { HomeItem it;
+     if (home_item_focado(&it)) {
+@@ -466,6 +468,28 @@ static void cenario(SDL_Window *w, const char *cen) {
+   }
+ }
+ 
++static void progressShots(SDL_Window *window) {
++  const char *prefix=getenv("NV_PROGRESS_SHOTS");if(!prefix)return;
++  int counts[]={6,37,64};static TgEp eps[1200];
++  for(int scene=0;scene<3;scene++)for(int last=0;last<2;last++) {
++    TgDados data={0};strcpy(data.imdb,"tt0096697");int seasons=counts[scene],count=0;
++    for(int season=1;season<=seasons;season++)for(int ep=1;ep<=18;ep++)eps[count++]=(TgEp){(short)season,(short)ep,(signed char)(ep<=season%18)};
++    tgraf_montar(&data,eps,count,1,0,0,0,NULL);tgraf_reiniciar();
++    unsigned long long rectangles=0;double cpu=0;
++    for(int frame=0;frame<120;frame++){
++      SDL_PumpEvents();tex_bombear(3);txt_novo_quadro();tex_novo_quadro();gfx_novo_quadro();gfx_sem_recorte();
++      glClearColor(.015f,.04f,.18f,1);glClear(GL_COLOR_BUFFER_BIT);
++      Uint64 start=SDL_GetPerformanceCounter();
++      tgraf_desenhar(&data,48,180,1824,last?seasons-1:0,last?seasons:1,1,frame?10000+(Uint32)frame*16:1);
++      if(frame>=20){cpu+=ms(start,SDL_GetPerformanceCounter());rectangles+=(unsigned)gfx_n_rect;}
++      glFinish();if(frame<119)SDL_GL_SwapWindow(window);
++    }
++    char path[900];snprintf(path,sizeof path,"%s-progress-%d-%s.bmp",prefix,seasons,last?"last":"first");guardar(path);
++    printf("[progress-render] seasons=%d focus=%d stable_rects_avg=%.2f submit_cpu_ms=%.3f host=Mesa\n",seasons,last?seasons-1:0,rectangles/100.0,cpu/100.0);
++  }
++  tgraf_reiniciar();
++}
++
+ int main(int argc, char **argv) {
+   static const char *const todos[] = { "moderna", "imersiva", "padrao", "dinamica", "dono", "c9", "frost",
+                                        "borrada" };
+@@ -485,7 +509,12 @@ int main(int argc, char **argv) {
+   assert(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0);
+   IMG_Init(IMG_INIT_PNG | IMG_INIT_JPG);
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
++#ifdef NV_LINUX_DESKTOP
++  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
++  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
++#else
+   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
++#endif
+   w = SDL_CreateWindow("Nuvio: fluidez (medida)", SDL_WINDOWPOS_CENTERED,
+                        SDL_WINDOWPOS_CENTERED, 1920, 1080,
+                        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+@@ -506,6 +535,7 @@ int main(int argc, char **argv) {
+   povoar();
+   for (i = 0; i < 8; i++)
+     if (!so || !strcmp(so, todos[i])) cenario(w, todos[i]);
++  progressShots(w);
+   SDL_GL_DeleteContext(gl);
+   SDL_DestroyWindow(w);
+   SDL_Quit();
+diff --git a/tests/mdblistlibrary.c b/tests/mdblistlibrary.c
+index 368283a..55280e5 100644
+--- a/tests/mdblistlibrary.c
++++ b/tests/mdblistlibrary.c
+@@ -33,6 +33,7 @@ int pthread_create(pthread_t *t,const void *attr,void *(*f)(void *),void *arg){(
+ int pthread_detach(pthread_t t){(void)t;return 0;}
+ static void drain(void){void *(*f)(void *)=scheduled;scheduled=NULL;if(f)f(NULL);}
+ int mdblist_credencial(char *out,size_t n,unsigned *gen){snprintf(out,n,"%s",keyValue);*gen=account;return !!*keyValue;}
++unsigned mdblist_geracao_conta(void) { return account; }
+ char *rede_baixar_st_retry(const char *url,int timeout,const char *const *headers,int *status,int *after){
+  assert(!lock&&network);assert(timeout==15);assert(strstr(url,"apikey=test_key"));assert(!strcmp(headers[0],"Accept: application/json"));
+  *status=http;*after=retry;calls++;
+@@ -76,5 +77,11 @@ int main(void){
+  localPos=3500;assert(mdb_library_continue(items,4)==0&&calls==3); /* completed local, unchanged cache */
+  reset();keyValue="";job=mdb_library_save("tt123","movie",1);assert(mdb_library_result(job)==3&&postCalls==0);
+  reset();mdb_library_tick();drain();assert(!strcmp(mdb_library_status(),"MDBList connected"));
+- free(items);free(watch);puts("MDBList library: pagination/dedup, TTL, failure retention, 401/429, account isolation, write confirmation and precise local resume passed");return 0;
++ /* Drawing consumes a compact snapshot even while the network/data lock is
++    occupied; it does not copy an API key or format identifiers per card. */
++ pthread_mutex_lock(&nextLock);nextCount=1;nextGeneration=account;strcpy(nextIds[0],"tt123:2:3");pthread_mutex_unlock(&nextLock);
++ seen=calls;lock=1;
++ for(int i=0;i<10000;i++){assert(mdb_library_next("tt123:2:3"));assert(!mdb_library_next("tt123:2:4"));}
++ lock=0;assert(calls==seen);account++;assert(!mdb_library_next("tt123:2:3"));
++ free(items);free(watch);puts("MDBList library: pagination/dedup, TTL, failure retention, 401/429, account isolation, write confirmation, render snapshot and precise local resume passed");return 0;
+ }
+diff --git a/tests/progress_perf.c b/tests/progress_perf.c
+new file mode 100644
+index 0000000..c0b94fc
+--- /dev/null
++++ b/tests/progress_perf.c
+@@ -0,0 +1,90 @@
++/* Real progress data and renderer, deterministic drawing backend; no TV FPS claim. */
++#define NV_PROGRESS_PERF
++#include "../src/vistoep.c"
++#include "../src/temporadas_grafico.c"
++#include <assert.h>
++#include <time.h>
++static CatItem item;
++static CatEp episodes[1200];
++static int episodeCount, graphCalls, textCalls, draws;
++static unsigned catalogRevision=1, friendRevision=1;
++int txt_pendentes,gfx_n_rect,gfx_n_bind;
++float gfx_opacidade_grupo=1;
++static int targetsAvailable=1,language,font;
++int ajustes_idioma(void) { return language; }
++int ajustes_medidor_desempenho(void) { return 0; }
++TxtFamilia txt_fonte_interface(void) { return (TxtFamilia)font; }
++Uint64 SDLCALL SDL_GetPerformanceCounter(void) { return (Uint64)clock(); }
++Uint64 SDLCALL SDL_GetPerformanceFrequency(void) { return CLOCKS_PER_SEC; }
++int gfx_mini_disponivel(void) { return targetsAvailable; }
++int gfx_mini_alvo(GfxMini *m,int w,int h) { m->w=w;m->h=h;m->fbo=m->tex=1;return 1; }
++void gfx_mini_liberar(GfxMini *m) { memset(m,0,sizeof *m); }
++void gfx_mini_comecar(GfxMini *m,float x,float y,float scale) { (void)m;(void)x;(void)y;(void)scale; }
++void gfx_mini_terminar(void) {}
++void gfx_mini_desenhar(const GfxMini *m,GfxRect r,float radius,float alpha) { (void)m;(void)r;(void)radius;(void)alpha;draws++; }
++const CatItem *cat_item(int i) { return i==0?&item:NULL; }
++int cat_n_episodios(int i) { return i==0?episodeCount:0; }
++const CatEp *cat_episodio(int i,int e) { return i==0&&e>=0&&e<episodeCount?episodes+e:NULL; }
++unsigned cat_revisao(void) { return catalogRevision; }
++int extras_agenda_temporada(void) { return 0; }
++int extras_agenda_episodio(void) { return 0; }
++unsigned amigostitulo_revisao(void) { return friendRevision; }
++int amigostitulo_obter(const char *id,AmigosTitulo *out) { (void)id; memset(out,0,sizeof *out);return 0; }
++void amigostitulo_primeiro_nome(const char *s,char *out,size_t size) { snprintf(out,size,"%s",s); }
++const char *i18n(const char *s) { return s; }
++int ajustes_animacoes_reduzidas(void) { return 0; }
++void ajustes_acento(float *r,float *g,float *b) { *r=.4f;*g=.7f;*b=1; }
++TxtLinha txt_linha(TxtEstilo style,const char *s,int r,int g,int b,int a) { (void)style;(void)r;(void)g;(void)b;(void)a;textCalls++;return (TxtLinha){1,(int)strlen(s)*10,22,0,0}; }
++TxtLinha txt_linha_corta(TxtEstilo style,const char *s,int r,int g,int b,int a,float w) { TxtLinha result=txt_linha(style,s,r,g,b,a);if(result.w>w)result.w=(int)w;return result; }
++void txt_desenhar_alpha(TxtLinha l,float x,float y,float a) { (void)l;(void)x;(void)y;(void)a;draws++; }
++void gfx_cor(GfxRect r,float radius,float cr,float cg,float cb,float a) { (void)r;(void)radius;(void)cr;(void)cg;(void)cb;(void)a;draws++; }
++void gfx_icone(GfxRect r,const char *icon,float cr,float cg,float cb,float a) { (void)r;(void)icon;(void)cr;(void)cg;(void)cb;(void)a;draws++; }
++void notasui_painel(GfxRect r,float radius,float a) { (void)r;(void)radius;(void)a;draws++; }
++void plrui_linha_foco(GfxRect r,float radius,float a) { (void)r;(void)radius;(void)a;draws++; }
++void plrui_trilho(GfxRect r,float fraction,float cr,float cg,float cb,float a) { (void)r;(void)fraction;(void)cr;(void)cg;(void)cb;(void)a;graphCalls++;draws++; }
++void svd_avatar(GfxRect r,const char *url,const char *name,const char *id,float a) { (void)r;(void)url;(void)name;(void)id;(void)a;draws++; }
++void svd_ponto_vivo(float x,float y,float d,float border,float a,Uint32 t) { (void)x;(void)y;(void)d;(void)border;(void)a;(void)t;draws++; }
++static void seed(int count) {
++ vistoep_esquecer(); episodeCount=count;catalogRevision++;memset(&item,0,sizeof item);strcpy(item.imdb,"tt0096697");
++ for(int i=0;i<8000-count;i++)vistoep_definir("tt0000001",i/100+1,i%100+1,1);
++ for(int i=0;i<count;i++){memset(episodes+i,0,sizeof *episodes);episodes[i].temporada=i/24+1;episodes[i].episodio=i%24+1;vistoep_definir(item.imdb,episodes[i].temporada,episodes[i].episodio,i%2);}
++}
++int main(void) {
++ int sizes[]={72,888,1200};
++ for(int test=0;test<3;test++) {
++  seed(sizes[test]);vistoep_perf_reads=0;clock_t start=clock();
++  const TgDados *data=tgraf_dados(0);
++  double buildMs=1000.0*(clock()-start)/CLOCKS_PER_SEC;
++  unsigned long long reads=vistoep_perf_reads;
++  assert(data->total==sizes[test]&&data->vistos==sizes[test]/2);
++  for(int frame=0;frame<1000;frame++)assert(tgraf_dados(0)==data);
++  assert(vistoep_perf_reads==reads); /* stable frames already cached */
++  unsigned revision=data->revision;
++  vistoep_definir("tt0000001",1,1,0);
++  assert(tgraf_dados(0)->revision==revision); /* unrelated history */
++  vistoep_definir(item.imdb,1,1,0);assert(tgraf_dados(0)->revision==revision); /* no-op */
++  strcat(item.imdb,":1:1");assert(tgraf_dados(0)->revision==revision);strcpy(item.imdb,"tt0096697");
++  tgraf_reiniciar();tgraf_desenhar(data,48,200,1824,-1,1,1,1);
++  graphCalls=textCalls=draws=0;start=clock();
++  for(int frame=0;frame<1000;frame++)tgraf_desenhar(data,48,200,1824,-1,1,1,10000+frame*16);
++  printf("progress %d episodes/%d seasons: rebuild_reads=%llu build_ms=%.3f; stable_1000_frames bars=%d text_calls=%d draws=%d draw_cpu_ms=%.3f\n",sizes[test],data->n,reads,buildMs,graphCalls,textCalls,draws,1000.0*(clock()-start)/CLOCKS_PER_SEC);
++  unsigned bakes=progressCache.builds;assert(progressCache.valid);
++  tgraf_desenhar(data,48,190,1824,-1,1,.5f,30000);assert(progressCache.builds==bakes);
++  tgraf_desenhar(data,48,190,1824,2,1,1,30000);assert(progressCache.builds==bakes+1);
++  language++;tgraf_desenhar(data,48,190,1824,2,1,1,30000);assert(progressCache.builds==bakes+2);
++  font++;tgraf_desenhar(data,48,190,1824,2,1,1,30000);assert(progressCache.builds==bakes+3);
++  tgraf_desenhar(data,48,1200,1824,2,1,1,30000);assert(!progressCache.target.tex);
++  targetsAvailable=0;graphCalls=0;tgraf_desenhar(data,48,200,1824,2,1,1,30000);assert(graphCalls>0);targetsAvailable=1;
++  vistoep_definir(item.imdb,1,1,1);assert(tgraf_dados(0)->vistos==sizes[test]/2+1);
++ }
++ for(int seasons=1;seasons<=64;seasons++)for(int focus=0;focus<seasons;focus++) {
++  float widths[]={1024,1260,1824};
++  for(int w=0;w<3;w++){TgLayout layout=tgraf_layout(seasons,widths[w],focus);
++   assert(layout.count>0&&layout.first<=focus&&focus<layout.first+layout.count);
++   assert(layout.rowHeight>=46&&layout.columnWidth>=300);
++   assert(layout.count<=layout.rows*layout.columns&&layout.first+layout.count<=seasons);
++  }
++ }
++ tgraf_reiniciar();assert(!progressCache.target.tex);
++ vistoep_esquecer();puts("progress fixture: watched counts and stable-cache assertions passed");
++}
+diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
+index f275678..fa102de 100644
+--- a/tests/tizen_improvements.sh
++++ b/tests/tizen_improvements.sh
+@@ -13,6 +13,12 @@ cc "${flags[@]}" "${sdl[@]}" -Itests/stubs/mdblist tests/mdbcredentials.c -o "$o
+ "$out/credentials"
+ cc "${flags[@]}" tests/episodeindex.c src/episodeindex.c -o "$out/episode-index"
+ "$out/episode-index"
++cc "${flags[@]}" "${sdl[@]}" tests/progress_perf.c src/chartcache.c src/js.c -pthread -lm -o "$out/progress"
++"$out/progress"
++cc "${flags[@]}" tests/vistoep.c src/vistoep.c src/js.c -pthread -lm -o "$out/watched"
++"$out/watched"
++cc "${flags[@]}" tests/vistoep_threads.c src/vistoep.c src/js.c -pthread -lm -o "$out/watched-threads"
++"$out/watched-threads"
+ python3 tests/ajustes_secoes.py src/ajustes.c
+ python3 tools/idiomas.py
+ cc "${flags[@]}" tests/mdbresume.c src/mdbresume.c -lm -o "$out/resume"
+diff --git a/tests/ui_profile.sh b/tests/ui_profile.sh
+new file mode 100644
+index 0000000..ac950fb
+--- /dev/null
++++ b/tests/ui_profile.sh
+@@ -0,0 +1,26 @@
++#!/bin/bash
++# Actual GLES2 UI on Linux/Mesa. Counts are comparable; CPU is not a TV FPS prediction.
++set -euo pipefail
++fixture_root="$(cd "$(dirname "$0")/.." && pwd)"
++tree="$(cd "${1:-$fixture_root}" && pwd)"
++out="${2:-$tree/build/ui-profile}"
++mkdir -p "$out"
++out="$(cd "$out" && pwd)"
++temp=$(mktemp -d /tmp/nuvio-fluidez-perf-XXXXXX)
++trap 'rm -rf "$temp"' EXIT
++cd "$tree"
++sources=()
++for source in src/*.c src/dts/*.c; do
++  [ "$source" = src/main.c ] || sources+=("$source")
++done
++cc "${sources[@]}" "$fixture_root/tests/fluidez_perf.c" -Isrc \
++  -DNV_LINUX_DESKTOP -DNV_FLUIDEZ_PERF -DNV_SHOT_HOOKS -DNV_TRAKT_CLIENT_ID='"fixture-only"' \
++  -O2 -UNDEBUG -g $(pkg-config --cflags sdl2 SDL2_image SDL2_ttf glesv2 egl zlib) \
++  $(pkg-config --libs sdl2 SDL2_image SDL2_ttf glesv2 egl zlib) -pthread -ldl -lm -o "$temp/profile"
++for scene in moderna dinamica; do
++  mkdir -p "$temp/$scene"
++  LIBGL_ALWAYS_SOFTWARE=1 NV_HOME_ONLY=1 NV_CENARIO="$scene" \
++  NUVIO_DADOS="$temp/$scene" NUVIO_DUMP_FUNDO_DIR="$temp" \
++  NV_PROGRESS_SHOTS="$out/$scene" "$temp/profile" > "$out/home-$scene.txt" 2>&1
++  rg '^\[(moderna|dinamica|progress-render)\]' "$out/home-$scene.txt" || true
++done
+diff --git a/tests/vistoep_threads.c b/tests/vistoep_threads.c
+new file mode 100644
+index 0000000..304efd3
+--- /dev/null
++++ b/tests/vistoep_threads.c
+@@ -0,0 +1,30 @@
++/* Network history writes may overlap UI reads. Exercise real pthreads. */
++#include "vistoep.h"
++#include <pthread.h>
++#include <assert.h>
++#include <stdio.h>
++static void *writeHistory(void *unused) {
++ (void)unused;
++ for(int i=0;i<12000;i++)vistoep_definir("tt0096697",i/100+1,i%100+1,i%2);
++ return NULL;
++}
++int main(void) {
++ pthread_t worker;
++ vistoep_esquecer();assert(pthread_create(&worker,NULL,writeHistory,NULL)==0);
++ VistoPar pairs[]={{1,1},{1,2},{50,10}};signed char states[3];int known;
++ for(int i=0;i<12000;i++){
++  vistoep_snapshot("tt0096697",pairs,3,states,&known);
++  for(int p=0;p<3;p++)assert(states[p]>=-1&&states[p]<=1);
++  int n=vistoep_n();assert(n>=0&&n<=8000);
++ }
++ assert(pthread_join(worker,NULL)==0);assert(vistoep_n()==8000);
++ assert(vistoep_estado("tt0096697:1:2",1,2)==1);
++ assert(vistoep_estado("tt0096697",1,1)==0);
++ unsigned r=vistoep_revisao_titulo("tt0096697");
++ vistoep_definir("tt0096697",1,1,0);assert(vistoep_revisao_titulo("tt0096697")==r);
++ vistoep_definir("tt0096697",1,1,1);assert(vistoep_revisao_titulo("tt0096697")!=r);
++ vistoep_esquecer();assert(vistoep_estado("tt0096697",1,1)==-1);
++ vistoep_definir("tt0096697",1,1,1);assert(vistoep_estado("tt0096697",1,1)==1);
++ puts("watched index: concurrent map growth, capacity, no-op revisions and reset passed");
++ vistoep_esquecer();
++}

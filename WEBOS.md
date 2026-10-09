@@ -54,7 +54,7 @@ References: [LG package versions](https://webostv.developer.lge.com/develop/refe
 
 ## Shared tracking, performance and layout correction
 
-Both builders now apply the same six reviewed patches after the original MDBList
+Both builders now apply the same seven reviewed patches after the original MDBList
 integration. Patch filenames 1–5 are retained to preserve provenance/history.
 Settings > Tracking > MDBList provides masked manual API-key entry, connection
 validation, account-sync status, independent playback consent, disconnect and a

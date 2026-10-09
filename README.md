@@ -96,12 +96,17 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
-integration and six reviewed shared patches are applied and tested on every
+integration and seven reviewed shared patches are applied and tested on every
 Samsung and LG rebuild, followed by the platform-specific updater. Read
 [DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
 
-Desktop 0.1.29-alpha's browser-based Connect MDBList authorization is stored
-locally in Desktop and is not exported as an API key by Nuvio account sync.
-For that setup, enter your personal API key directly in the TV's Tracking
-settings. No personal key belongs in this repository or its build secret.
+The user confirmed working automatic MDBList API-key sync on 2.0.2.11. The native
+account reader and credential persistence are preserved. Manual entry in Tracking
+is an optional fallback. No personal key belongs in this repository or build secret.
+
+Your Progress now uses indexed, consistent watched snapshots and a readable
+season window, with settled rendering cached inside the existing graphics budget.
+Home reads compact MDBList Up Next identifiers without copying API keys per card.
+The Samsung workflow compares actual GLES UI against published 2.0.2.3 and
+2.0.2.11 and retains `ui-profile-evidence`; host results do not prove TV FPS.

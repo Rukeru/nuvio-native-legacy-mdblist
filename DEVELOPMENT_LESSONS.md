@@ -74,9 +74,11 @@ The user confirmed that Desktop 0.1.29-alpha used Connect MDBList. At the
 reviewed Desktop commit, MdbListAuthPersistence.desktop.kt stores browser
 OAuth tokens in the local profile-scoped nuvio_mdblist_auth store. Its
 ProviderCredentialSync.kt exports MDBList apiKey only, not those tokens.
-Consequently a successful Desktop browser connection does not supply an API
-key to the TV through the existing Nuvio credential RPC. The manual key fallback
-is required for that setup; no raw Desktop token was extracted or published.
+That source does not show export of OAuth tokens through the credential RPC.
+The user subsequently confirmed successful automatic API-key sync on 2.0.2.11.
+Do not infer that an account lacks a separately exported key from its browser
+connection alone. Preserve the working native credential reader and persistence;
+manual entry is an optional fallback. No raw Desktop token was extracted.
 
 LG build run 37891653712 failed during preparation because the shared patch
 helper loaded provenance from disk before the caller saved upstream_commit.
@@ -88,3 +90,33 @@ Connection status recovers after a later successful authenticated request. A
 local saved-key status does not claim that API validation is pending forever.
 The library regression covers failure followed by a successful retry. Native
 fixtures must run with assertions enabled; the shared test script sets -UNDEBUG.
+
+## User follow-up and performance investigation
+
+The user confirmed that 2.0.2.11 automatically synchronized their MDBList key.
+Preserve mdbcredentials.c and sync.c unchanged. Reviewing Desktop's local OAuth
+store did not establish that this user's account lacked a separately exported
+API key; do not insist on manual entry when native account sync has succeeded.
+
+Your Progress is separate from Season by the Numbers; the chart toggle hides
+the latter only. Its data cache already avoided stable-frame recomputation.
+The rebuild did a linear map lookup per episode: 8,880,600 visits for 1200
+episodes in an 8000-entry synthetic watched map. A bounded 32 KiB hash index
+reduces this to 2,569 probes. Real network writes could reallocate that map
+while UI readers traversed it; a mutex and consistent batch snapshot protect it.
+Only watched changes to the visible series invalidate its cached totals.
+
+Large season sets were squeezed into four columns, producing rows shorter
+than their labels and progress-bar overflow. A readable focus-following window
+keeps every season reachable. Preserve entry animations; cache only settled
+content, release hidden/closed targets, and retain the shared 6 MiB budget and
+direct-render fallback. Test counts, revisions, navigation geometry, concurrent
+growth, cache invalidation and GL screenshots, not just compilation.
+
+Per-card Home checks copied keys and reformatted the same Up Next IDs. A compact
+scoped snapshot eliminates that work and avoids the network/data lock on render.
+It does not change mdbcredentials.c, sync.c or tracking endpoints. Compare real
+GLES rendering with published first build 2.0.2.3 and 2.0.2.11. Host timings and
+synthetic draws cannot establish restored 60 FPS on the user's Samsung TV.
+The performance meter's tracking timings contain only durations and sample
+counts, never credentials or content identifiers.
