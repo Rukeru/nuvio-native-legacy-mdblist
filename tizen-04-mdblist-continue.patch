@@ -1,5 +1,5 @@
 diff --git a/src/addons.c b/src/addons.c
-index f87a0a59ff584f75efda25ca890c8db02797df89..7aaa035d41acac6426fd7f9555225a5afe4cccfc 100644
+index f87a0a5..7aaa035 100644
 --- a/src/addons.c
 +++ b/src/addons.c
 @@ -1853,6 +1853,15 @@ static int prazoDoAddon(const Consulta *c, int i) {
@@ -37,7 +37,7 @@ index f87a0a59ff584f75efda25ca890c8db02797df89..7aaa035d41acac6426fd7f9555225a5a
          Stream *a2 = NULL;
          int n2 = stream_extrair(alt, addon[i].nome, &a2);
 diff --git a/src/ajustes.c b/src/ajustes.c
-index d4eaf3093d7b53ea5eca731b728c788ef865b13b..7a32a94534698640a1adc812db4a30c7ea79a855 100644
+index d4eaf30..7a32a94 100644
 --- a/src/ajustes.c
 +++ b/src/ajustes.c
 @@ -684,7 +684,7 @@ static const char *V_CW[]        = { "Card", "Largo", "P\xc3\xb4ster" };
@@ -75,7 +75,7 @@ index d4eaf3093d7b53ea5eca731b728c788ef865b13b..7a32a94534698640a1adc812db4a30c7
          return "Vincule o Simkl em Ajustes: sem o vínculo, o + guarda só na lista desta TV.";
        return "A lista desta TV recebe o título em todos os casos. Isto decide se ele também vai para o Trakt ou para o Simkl.";
 diff --git a/src/ajustes.h b/src/ajustes.h
-index b12b7a3d776175419806693979915966dc5607bc..459bccdc5e04c977636f296edbcff48054888592 100644
+index b12b7a3..459bccd 100644
 --- a/src/ajustes.h
 +++ b/src/ajustes.h
 @@ -350,7 +350,7 @@ int   ajustes_salvos_no_mdblist(void);
@@ -88,7 +88,7 @@ index b12b7a3d776175419806693979915966dc5607bc..459bccdc5e04c977636f296edbcff480
  int   ajustes_envio_auto(void);
  // Forca da vinheta do fundo do titulo, 0..1 (1 = a medida do web).
 diff --git a/src/continuar.c b/src/continuar.c
-index b9314c859375e885454a1f224745a755d168a549..26210c85bec9030ffaafebf45ee3ec15a957f77b 100644
+index b9314c8..26210c8 100644
 --- a/src/continuar.c
 +++ b/src/continuar.c
 @@ -10,6 +10,7 @@
@@ -118,7 +118,7 @@ index b9314c859375e885454a1f224745a755d168a549..26210c85bec9030ffaafebf45ee3ec15
      else if (h && m) snprintf(selo, sizeof selo, i18n("%dh %dmin Restantes"), h, m);
      else if (h) snprintf(selo, sizeof selo, i18n("%dh Restantes"), h);
 diff --git a/src/ctxmenu.c b/src/ctxmenu.c
-index b559a7b1c18163197c85379ea37a1b53fe9cf8b2..6e4999dbe8af3ddf6bf91418b527cf4e9bce62fc 100644
+index b559a7b..6e4999d 100644
 --- a/src/ctxmenu.c
 +++ b/src/ctxmenu.c
 @@ -1000,6 +1000,13 @@ static void aplicar(void) {
@@ -136,7 +136,7 @@ index b559a7b1c18163197c85379ea37a1b53fe9cf8b2..6e4999dbe8af3ddf6bf91418b527cf4e
        // ha como restaura-lo; por isso a confirmacao do menu continua.
        { IlhaAcao a;
 diff --git a/src/descoberta.c b/src/descoberta.c
-index 131593cea2e8c930ed98ffcaae857284a914f643..bf2682f693693493a033c07b6ff188ada2cc5f70 100644
+index 131593c..bf2682f 100644
 --- a/src/descoberta.c
 +++ b/src/descoberta.c
 @@ -2761,17 +2761,17 @@ static int montarContinuar(CatItem *saida, int max) {
@@ -187,7 +187,7 @@ index 131593cea2e8c930ed98ffcaae857284a914f643..bf2682f693693493a033c07b6ff188ad
        x.estreiaMs = x.aSeguir ? cwo_estreia(c->imdb) : CWO_SEM_DATA;
        // POR ITEM, para o log de campo dizer POR QUE um "a seguir" nao virou
 diff --git a/src/detail.c b/src/detail.c
-index f2e58350eccb4e2ec3de59edd1afbe49db25d5b0..8551477603a362e55dad08144d11d4c5511927f6 100644
+index f2e5835..8551477 100644
 --- a/src/detail.c
 +++ b/src/detail.c
 @@ -3329,6 +3329,7 @@ void detail_atualizar(float dt, Uint32 agora) {
@@ -199,7 +199,7 @@ index f2e58350eccb4e2ec3de59edd1afbe49db25d5b0..8551477603a362e55dad08144d11d4c5
      // mostra logoFixo; ao voltar, o hero lia o catalogo novo (vazio ou FALHOU)
      // e caia no nome escrito. Restaura o caminho que funcionou na abertura.
 diff --git a/src/home.c b/src/home.c
-index 1a598ac9fec61d9327026cb697c35b458aff056a..acfc4b657b0b988b6ffa0fedd3cb49d88fb47cfb 100644
+index 1a598ac..acfc4b6 100644
 --- a/src/home.c
 +++ b/src/home.c
 @@ -17,6 +17,7 @@
@@ -229,7 +229,7 @@ index 1a598ac9fec61d9327026cb697c35b458aff056a..acfc4b657b0b988b6ffa0fedd3cb49d8
    // Linha de meta. No web sao tokens juntados por "•"; ci->genero ja chega
    // como "Filme · Terror", que e o par (tipo, primeiro genero) do web.
 diff --git a/src/idioma_bg.h b/src/idioma_bg.h
-index f1875dea3c162d4a202c3bf13cd056e8fb7676a6..78c70c3a1373b4d7e162dc11555ab9ee1178dfb5 100644
+index f1875de..78c70c3 100644
 --- a/src/idioma_bg.h
 +++ b/src/idioma_bg.h
 @@ -2102,6 +2102,7 @@
@@ -249,7 +249,7 @@ index f1875dea3c162d4a202c3bf13cd056e8fb7676a6..78c70c3a1373b4d7e162dc11555ab9ee
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Потребителско име за Xtream"),
 diff --git a/src/idioma_bs.h b/src/idioma_bs.h
-index 05490057bdd3ce879de22a58e1a27d5ab5d61ae1..d199daf720647f3e8c50dfc704350f8e259e01cb 100644
+index 0549005..d199daf 100644
 --- a/src/idioma_bs.h
 +++ b/src/idioma_bs.h
 @@ -2102,6 +2102,7 @@
@@ -269,7 +269,7 @@ index 05490057bdd3ce879de22a58e1a27d5ab5d61ae1..d199daf720647f3e8c50dfc704350f8e
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream korisničko ime"),
 diff --git a/src/idioma_cs.h b/src/idioma_cs.h
-index 7563dc4e4cc28763eae20d783a76b0ad173523cd..7bbeb6185de4d576c6d3ad8fadd0b1b274617d6b 100644
+index 7563dc4..7bbeb61 100644
 --- a/src/idioma_cs.h
 +++ b/src/idioma_cs.h
 @@ -2102,6 +2102,7 @@
@@ -289,7 +289,7 @@ index 7563dc4e4cc28763eae20d783a76b0ad173523cd..7bbeb6185de4d576c6d3ad8fadd0b1b2
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Uživatelské jméno Xtream"),
 diff --git a/src/idioma_da.h b/src/idioma_da.h
-index 4efd7f19fbbf230880cfc1964360cfb8b674576c..8f49041c0948b2a36aded34ee3c1163f15122be8 100644
+index 4efd7f1..8f49041 100644
 --- a/src/idioma_da.h
 +++ b/src/idioma_da.h
 @@ -2102,6 +2102,7 @@
@@ -309,7 +309,7 @@ index 4efd7f19fbbf230880cfc1964360cfb8b674576c..8f49041c0948b2a36aded34ee3c1163f
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream-brugernavn"),
 diff --git a/src/idioma_de.h b/src/idioma_de.h
-index fef60455698b97bc4ba1825d466e1192e33cf007..6161968138a45bf6426d48b0e3217d0d94069c68 100644
+index fef6045..6161968 100644
 --- a/src/idioma_de.h
 +++ b/src/idioma_de.h
 @@ -2101,6 +2101,7 @@
@@ -329,7 +329,7 @@ index fef60455698b97bc4ba1825d466e1192e33cf007..6161968138a45bf6426d48b0e3217d0d
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream-Benutzername"),
 diff --git a/src/idioma_el.h b/src/idioma_el.h
-index 972a676773d8b7af54461ea404bf234f5a4f01f9..87c1b5aa6975aaf09b65d7272f65b489345a1901 100644
+index 972a676..87c1b5a 100644
 --- a/src/idioma_el.h
 +++ b/src/idioma_el.h
 @@ -2102,6 +2102,7 @@
@@ -349,7 +349,7 @@ index 972a676773d8b7af54461ea404bf234f5a4f01f9..87c1b5aa6975aaf09b65d7272f65b489
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Όνομα χρήστη Xtream"),
 diff --git a/src/idioma_es.h b/src/idioma_es.h
-index 817ae3e8ed5a669588406a5873f2e1fae8c4cc5c..8e3d37862ca35f179d894c776cafb5d53292ba54 100644
+index 817ae3e..8e3d378 100644
 --- a/src/idioma_es.h
 +++ b/src/idioma_es.h
 @@ -2101,6 +2101,7 @@
@@ -369,7 +369,7 @@ index 817ae3e8ed5a669588406a5873f2e1fae8c4cc5c..8e3d37862ca35f179d894c776cafb5d5
    T("Uso do Seekr indisponível", "Uso de Seekr no disponible"),
    T("Usuário Xtream", "Usuario Xtream"),
 diff --git a/src/idioma_fr.h b/src/idioma_fr.h
-index 74d53d2e895cc37e49ae089d355f3dd1631b0d29..6213242e5c4e9b3f666dd03a3788dac128cbd3f3 100644
+index 74d53d2..6213242 100644
 --- a/src/idioma_fr.h
 +++ b/src/idioma_fr.h
 @@ -2101,6 +2101,7 @@
@@ -389,7 +389,7 @@ index 74d53d2e895cc37e49ae089d355f3dd1631b0d29..6213242e5c4e9b3f666dd03a3788dac1
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Utilisateur Xtream"),
 diff --git a/src/idioma_hu.h b/src/idioma_hu.h
-index abe7ebd4a5e3b00b2a1cc5a3f8c45cdbaa54b237..3173355fde3a08ab9cecffe5c7ae8a4717d61f1f 100644
+index abe7ebd..3173355 100644
 --- a/src/idioma_hu.h
 +++ b/src/idioma_hu.h
 @@ -2102,6 +2102,7 @@
@@ -409,7 +409,7 @@ index abe7ebd4a5e3b00b2a1cc5a3f8c45cdbaa54b237..3173355fde3a08ab9cecffe5c7ae8a47
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream-felhasználónév"),
 diff --git a/src/idioma_id.h b/src/idioma_id.h
-index 595c07b0dd457b236846ac0a037ec3a4af88eada..67ebf71d8ba7f71f4b57bd9d0f9805d49f06b693 100644
+index 595c07b..67ebf71 100644
 --- a/src/idioma_id.h
 +++ b/src/idioma_id.h
 @@ -2102,6 +2102,7 @@
@@ -429,7 +429,7 @@ index 595c07b0dd457b236846ac0a037ec3a4af88eada..67ebf71d8ba7f71f4b57bd9d0f9805d4
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Nama pengguna Xtream"),
 diff --git a/src/idioma_it.h b/src/idioma_it.h
-index e11847cd6445282283195ccbb4770b0758243e27..7d74cb06b37bc33078f375d4a314c9aa2fb76a47 100644
+index e11847c..7d74cb0 100644
 --- a/src/idioma_it.h
 +++ b/src/idioma_it.h
 @@ -2102,6 +2102,7 @@
@@ -449,7 +449,7 @@ index e11847cd6445282283195ccbb4770b0758243e27..7d74cb06b37bc33078f375d4a314c9aa
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Nome utente Xtream"),
 diff --git a/src/idioma_ja.h b/src/idioma_ja.h
-index c59a0f1ccbc31d338251f0b0ee2fa7b9899e1f64..94a1deb91a76ec6800060d389258801a2c512102 100644
+index c59a0f1..94a1deb 100644
 --- a/src/idioma_ja.h
 +++ b/src/idioma_ja.h
 @@ -2102,6 +2102,7 @@
@@ -469,7 +469,7 @@ index c59a0f1ccbc31d338251f0b0ee2fa7b9899e1f64..94a1deb91a76ec6800060d389258801a
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream のユーザー名"),
 diff --git a/src/idioma_lt.h b/src/idioma_lt.h
-index 020754e64defc970f6be0a58c76b2e8e3488bfde..bb99178591db73a61fdc4be54416c0dcdebfa410 100644
+index 020754e..bb99178 100644
 --- a/src/idioma_lt.h
 +++ b/src/idioma_lt.h
 @@ -2102,6 +2102,7 @@
@@ -489,7 +489,7 @@ index 020754e64defc970f6be0a58c76b2e8e3488bfde..bb99178591db73a61fdc4be54416c0dc
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream naudotojo vardas"),
 diff --git a/src/idioma_nl.h b/src/idioma_nl.h
-index 2f7acbb30e8d198a220f00251d75d0d242916dd4..1873a21302fa01cd62e960611a6cfed688eb20fb 100644
+index 2f7acbb..1873a21 100644
 --- a/src/idioma_nl.h
 +++ b/src/idioma_nl.h
 @@ -2102,6 +2102,7 @@
@@ -509,7 +509,7 @@ index 2f7acbb30e8d198a220f00251d75d0d242916dd4..1873a21302fa01cd62e960611a6cfed6
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream-gebruikersnaam"),
 diff --git a/src/idioma_no.h b/src/idioma_no.h
-index a1efa0b8ee2e00d435fe4bc05d8d4a6916f38d4d..8932a2404e0ffe0383c67cc08b4193f31e31aa64 100644
+index a1efa0b..8932a24 100644
 --- a/src/idioma_no.h
 +++ b/src/idioma_no.h
 @@ -2102,6 +2102,7 @@
@@ -529,7 +529,7 @@ index a1efa0b8ee2e00d435fe4bc05d8d4a6916f38d4d..8932a2404e0ffe0383c67cc08b4193f3
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream-brukernavn"),
 diff --git a/src/idioma_pl.h b/src/idioma_pl.h
-index 07764bbf4f53bf2d6f3337ec5d13e9e4165de9f5..64f7a19eeb35ec15240f5782707679d3302b94eb 100644
+index 07764bb..64f7a19 100644
 --- a/src/idioma_pl.h
 +++ b/src/idioma_pl.h
 @@ -2102,6 +2102,7 @@
@@ -549,7 +549,7 @@ index 07764bbf4f53bf2d6f3337ec5d13e9e4165de9f5..64f7a19eeb35ec15240f5782707679d3
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Nazwa użytkownika Xtream"),
 diff --git a/src/idioma_ptpt.h b/src/idioma_ptpt.h
-index 8c5ec5eb032327cc3e964841c37268fef588ae88..ee89f65a86f0acbd222e92b197d15f83c75d6a25 100644
+index 8c5ec5e..ee89f65 100644
 --- a/src/idioma_ptpt.h
 +++ b/src/idioma_ptpt.h
 @@ -2102,6 +2102,7 @@
@@ -569,7 +569,7 @@ index 8c5ec5eb032327cc3e964841c37268fef588ae88..ee89f65a86f0acbd222e92b197d15f83
    T("Uso do Seekr indisponível", "Uso do Seekr indisponível"),
    T("Usuário Xtream", "Utilizador Xtream"),
 diff --git a/src/idioma_ro.h b/src/idioma_ro.h
-index 8fb7c35eee020d3c26dc4d0efbd2ff43bc6aabfa..7d721377af6ccb065fc9650dd72cc8c3c3c5bb67 100644
+index 8fb7c35..7d72137 100644
 --- a/src/idioma_ro.h
 +++ b/src/idioma_ro.h
 @@ -2101,6 +2101,7 @@
@@ -589,7 +589,7 @@ index 8fb7c35eee020d3c26dc4d0efbd2ff43bc6aabfa..7d721377af6ccb065fc9650dd72cc8c3
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Utilizator Xtream"),
 diff --git a/src/idioma_ru.h b/src/idioma_ru.h
-index 7fab4c59852a7c077c6568c8f1a923f71320ea49..3ec255c9a1f70a1b1b3db652b0d351e07e94b669 100644
+index 7fab4c5..3ec255c 100644
 --- a/src/idioma_ru.h
 +++ b/src/idioma_ru.h
 @@ -2101,6 +2101,7 @@
@@ -609,7 +609,7 @@ index 7fab4c59852a7c077c6568c8f1a923f71320ea49..3ec255c9a1f70a1b1b3db652b0d351e0
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Логин Xtream"),
 diff --git a/src/idioma_sk.h b/src/idioma_sk.h
-index 3b7dde745ace0d7ef4e99086aa5bc24540af4e9e..d1cc1a7a96e26d45b251b3147483cc1fb1fe9bcf 100644
+index 3b7dde7..d1cc1a7 100644
 --- a/src/idioma_sk.h
 +++ b/src/idioma_sk.h
 @@ -2102,6 +2102,7 @@
@@ -629,7 +629,7 @@ index 3b7dde745ace0d7ef4e99086aa5bc24540af4e9e..d1cc1a7a96e26d45b251b3147483cc1f
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Používateľské meno Xtream"),
 diff --git a/src/idioma_sl.h b/src/idioma_sl.h
-index f3b129b2392fbab766dc980ee560c670c9f01a3f..0085ac121ddf75c386c5d981a84dcf949a52fc3f 100644
+index f3b129b..0085ac1 100644
 --- a/src/idioma_sl.h
 +++ b/src/idioma_sl.h
 @@ -2102,6 +2102,7 @@
@@ -649,7 +649,7 @@ index f3b129b2392fbab766dc980ee560c670c9f01a3f..0085ac121ddf75c386c5d981a84dcf94
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Uporabniško ime Xtream"),
 diff --git a/src/idioma_sr.h b/src/idioma_sr.h
-index 60433e493e6a21dc340243d848e531c3ee325ebf..4770b7402b57fd74b269c460f90eec1b26766b54 100644
+index 60433e4..4770b74 100644
 --- a/src/idioma_sr.h
 +++ b/src/idioma_sr.h
 @@ -2102,6 +2102,7 @@
@@ -669,7 +669,7 @@ index 60433e493e6a21dc340243d848e531c3ee325ebf..4770b7402b57fd74b269c460f90eec1b
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream korisničko ime"),
 diff --git a/src/idioma_sv.h b/src/idioma_sv.h
-index 2f0aeed66f4c3623c5012ee1dba610c63c10f5d5..10247ddf360cf6ee9f6ab18e602ff810a9d13794 100644
+index 2f0aeed..10247dd 100644
 --- a/src/idioma_sv.h
 +++ b/src/idioma_sv.h
 @@ -2102,6 +2102,7 @@
@@ -689,7 +689,7 @@ index 2f0aeed66f4c3623c5012ee1dba610c63c10f5d5..10247ddf360cf6ee9f6ab18e602ff810
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream-användarnamn"),
 diff --git a/src/idioma_tab.h b/src/idioma_tab.h
-index 2f29c0c97bb461f4684e6e97fc9ecef0a21e4a81..699ffa9b935aa79b3e378b1d261fc1a15c27b322 100644
+index 2f29c0c..699ffa9 100644
 --- a/src/idioma_tab.h
 +++ b/src/idioma_tab.h
 @@ -2101,6 +2101,7 @@
@@ -709,7 +709,7 @@ index 2f29c0c97bb461f4684e6e97fc9ecef0a21e4a81..699ffa9b935aa79b3e378b1d261fc1a1
    { "Uso do Seekr indisponível", "Seekr usage unavailable" },
    { "Usuário Xtream", "Xtream username" },
 diff --git a/src/idioma_tr.h b/src/idioma_tr.h
-index 95a18bbdcf0eeab88bbca439f8216da4c2c4409b..ddceb7d001438e1fd7a5c7860f812c228d4529d7 100644
+index 95a18bb..ddceb7d 100644
 --- a/src/idioma_tr.h
 +++ b/src/idioma_tr.h
 @@ -2102,6 +2102,7 @@
@@ -729,7 +729,7 @@ index 95a18bbdcf0eeab88bbca439f8216da4c2c4409b..ddceb7d001438e1fd7a5c7860f812c22
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream kullanıcı adı"),
 diff --git a/src/idioma_uk.h b/src/idioma_uk.h
-index af79235bdbde8b34bb81de41b29879db14db77eb..2387bd18c4e58d99542bca41f4346ac0818934d9 100644
+index af79235..2387bd1 100644
 --- a/src/idioma_uk.h
 +++ b/src/idioma_uk.h
 @@ -2101,6 +2101,7 @@
@@ -749,7 +749,7 @@ index af79235bdbde8b34bb81de41b29879db14db77eb..2387bd18c4e58d99542bca41f4346ac0
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Логін Xtream"),
 diff --git a/src/idioma_vi.h b/src/idioma_vi.h
-index 6ee967eb5c9c2392709d1a79d3e376e95a6dbbbc..66a96c944a6868796691640acb64777e07f73263 100644
+index 6ee967e..66a96c9 100644
 --- a/src/idioma_vi.h
 +++ b/src/idioma_vi.h
 @@ -2102,6 +2102,7 @@
@@ -769,7 +769,7 @@ index 6ee967eb5c9c2392709d1a79d3e376e95a6dbbbc..66a96c944a6868796691640acb64777e
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Tên người dùng Xtream"),
 diff --git a/src/idioma_zhcn.h b/src/idioma_zhcn.h
-index f21c1a475466f8611701fc57a820ce4ec6213adc..c6effa88430a0ef0567b3d5a6210b8bebb731ef2 100644
+index f21c1a4..c6effa8 100644
 --- a/src/idioma_zhcn.h
 +++ b/src/idioma_zhcn.h
 @@ -2102,6 +2102,7 @@
@@ -789,7 +789,7 @@ index f21c1a475466f8611701fc57a820ce4ec6213adc..c6effa88430a0ef0567b3d5a6210b8be
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream 用户名"),
 diff --git a/src/idioma_zhtw.h b/src/idioma_zhtw.h
-index 5753acad12002053c03d229bafddb2604dcf1405..b7ef91e390e409d078ccd6fc7e5e78fcc3a2bddc 100644
+index 5753aca..b7ef91e 100644
 --- a/src/idioma_zhtw.h
 +++ b/src/idioma_zhtw.h
 @@ -2102,6 +2102,7 @@
@@ -809,7 +809,7 @@ index 5753acad12002053c03d229bafddb2604dcf1405..b7ef91e390e409d078ccd6fc7e5e78fc
    T("Uso do Seekr indisponível", "Seekr usage unavailable"),
    T("Usuário Xtream", "Xtream 使用者名稱"),
 diff --git a/src/mdbformat.c b/src/mdbformat.c
-index 054ea7e13be890ae5d53c91c2f04f5522a68323b..8ec6d3934cae573c3af87b5fecde8763a276f877 100644
+index 054ea7e..8ec6d39 100644
 --- a/src/mdbformat.c
 +++ b/src/mdbformat.c
 @@ -51,8 +51,8 @@ static void metadata(const char *p,const char *end,MdbItem *out,int show) {
@@ -861,7 +861,7 @@ index 054ea7e13be890ae5d53c91c2f04f5522a68323b..8ec6d3934cae573c3af87b5fecde8763
   for(int show=0;show<2;show++) {
    const char *a=mdb_prop(json,end,show?"episodes":"movies");if(!a||*a!='[')continue;
 diff --git a/src/mdblistlibrary.c b/src/mdblistlibrary.c
-index 621fd1bec6ee539ab94bff64ad2ce676462324c9..aae4c3042e11ec9b05c3935dbffaab5d2919357e 100644
+index 621fd1b..aae4c30 100644
 --- a/src/mdblistlibrary.c
 +++ b/src/mdblistlibrary.c
 @@ -4,6 +4,10 @@
@@ -998,7 +998,7 @@ index 621fd1bec6ee539ab94bff64ad2ce676462324c9..aae4c3042e11ec9b05c3935dbffaab5d
 +}
 diff --git a/src/mdbresume.c b/src/mdbresume.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..969c04dd2ef7774e2b1e6a761590bfd00fda0abb
+index 0000000..969c04d
 --- /dev/null
 +++ b/src/mdbresume.c
 @@ -0,0 +1,10 @@
@@ -1014,7 +1014,7 @@ index 0000000000000000000000000000000000000000..969c04dd2ef7774e2b1e6a761590bfd0
 +}
 diff --git a/src/mdbresume.h b/src/mdbresume.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..4c277acac005abb9f23410084e31c160ab4749e6
+index 0000000..4c277ac
 --- /dev/null
 +++ b/src/mdbresume.h
 @@ -0,0 +1,6 @@
@@ -1025,7 +1025,7 @@ index 0000000000000000000000000000000000000000..4c277acac005abb9f23410084e31c160
 +int mdb_resume_apply(MdbItem *item,double pos,double duration,long long updated,int completed);
 +#endif
 diff --git a/src/streams.c b/src/streams.c
-index b49d0fdfe37d7d3b5b48d75fc182513df7b5b799..a649db19df59bd2795fc6ad6954d1e3fd07ef1d0 100644
+index b49d0fd..a649db1 100644
 --- a/src/streams.c
 +++ b/src/streams.c
 @@ -1045,6 +1045,7 @@ static int verificarUma(int i, Conferencia *c) {
@@ -1037,7 +1037,7 @@ index b49d0fdfe37d7d3b5b48d75fc182513df7b5b799..a649db19df59bd2795fc6ad6954d1e3f
        } else c->abortou = 1;
        pthread_mutex_unlock(&verTrava);
 diff --git a/tests/mdbformat.c b/tests/mdbformat.c
-index 9cddf13a7f82b6d91494185d1f10f949e76c2eae..7a3c417a9df629accd44ae0e483c8f56c0be1d69 100644
+index 9cddf13..7a3c417 100644
 --- a/tests/mdbformat.c
 +++ b/tests/mdbformat.c
 @@ -4,7 +4,7 @@
@@ -1060,10 +1060,10 @@ index 9cddf13a7f82b6d91494185d1f10f949e76c2eae..7a3c417a9df629accd44ae0e483c8f56
   assert(n==2&&items[0].progress==35.5&&items[0].runtime==100&&items[0].updated>0&&items[1].season==0&&items[1].episode==2&&items[1].runtime==0);
 diff --git a/tests/mdblistlibrary.c b/tests/mdblistlibrary.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..9695580dc3585fc2d715b4e422c59d0709580a13
+index 0000000..fda881d
 --- /dev/null
 +++ b/tests/mdblistlibrary.c
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,76 @@
 +/* Controlled transport, clock, credentials, progress and scheduler. No real
 +   account, network or graphics. Checks complete snapshots and local safety. */
 +#include <assert.h>
@@ -1071,6 +1071,10 @@ index 0000000000000000000000000000000000000000..9695580dc3585fc2d715b4e422c59d07
 +#include <stdlib.h>
 +#include <string.h>
 +#include <time.h>
++/* glibc exposes real pthread typedefs through stdlib in GNU mode. Keep the
++   deterministic scheduler's types distinct from those platform typedefs. */
++#define pthread_mutex_t MdbTestMutex
++#define pthread_t MdbTestThread
 +#include "pthread.h"
 +static void *(*scheduled)(void *);
 +static int calls,http=200,retry=0,changeKey,postCalls;
@@ -1138,7 +1142,7 @@ index 0000000000000000000000000000000000000000..9695580dc3585fc2d715b4e422c59d07
 +}
 diff --git a/tests/mdbresume.c b/tests/mdbresume.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..6edefb000079570c2d936ecb99c368d4066ae1ac
+index 0000000..6edefb0
 --- /dev/null
 +++ b/tests/mdbresume.c
 @@ -0,0 +1,15 @@
@@ -1159,7 +1163,7 @@ index 0000000000000000000000000000000000000000..6edefb000079570c2d936ecb99c368d4
 +}
 diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
 new file mode 100644
-index 0000000000000000000000000000000000000000..b64fc40c8780aa7d19bbcacd40d9495ed88db29f
+index 0000000..b64fc40
 --- /dev/null
 +++ b/tests/tizen_improvements.sh
 @@ -0,0 +1,20 @@
