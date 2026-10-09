@@ -1,4 +1,4 @@
-import hashlib, json, subprocess, tempfile, unittest, urllib.error
+import hashlib, io, json, subprocess, tempfile, unittest, urllib.error
 from pathlib import Path
 from unittest.mock import patch
 import integration, update_guard
@@ -44,10 +44,18 @@ class Retries(unittest.TestCase):
         for text in ['fatal: unable to access URL: The requested URL returned error: 503','Could not resolve host: github.com','net/http: TLS handshake timeout']:
             self.assertTrue(update_guard.network_log(text))
     def test_source_failure_is_run_once(self):
-        result=subprocess.CompletedProcess(['git'],1,'CONFLICT Settings')
-        with patch('update_guard.subprocess.run',return_value=result) as run:
+        with patch('update_guard.subprocess.Popen') as run:
+            process=run.return_value.__enter__.return_value
+            process.stdout=io.StringIO('CONFLICT Settings\n');process.wait.return_value=1
             with self.assertRaises(subprocess.CalledProcessError):update_guard.network_command(['git'],sleep=lambda _:None)
             self.assertEqual(run.call_count,1)
+    def test_transient_command_can_recover_and_keeps_complete_output(self):
+        from unittest.mock import MagicMock
+        first=MagicMock();first.__enter__.return_value.stdout=io.StringIO('Could not resolve host: github.com\n');first.__enter__.return_value.wait.return_value=1
+        second=MagicMock();second.__enter__.return_value.stdout=io.StringIO('download completed\n');second.__enter__.return_value.wait.return_value=0
+        with patch('update_guard.subprocess.Popen',side_effect=[first,second]) as run:
+            update_guard.network_command(['download'],sleep=lambda _:None)
+            self.assertEqual(run.call_count,2)
 
 class ComponentMerge(unittest.TestCase):
     def fixture(self,root):

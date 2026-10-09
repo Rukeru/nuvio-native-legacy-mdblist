@@ -1,11 +1,13 @@
 """Bounded retries for transport failures; deterministic errors fail once."""
-import errno, socket, time, urllib.error
+import errno, http.client, socket, ssl, time, urllib.error
 
 def transient(error):
     if isinstance(error, urllib.error.HTTPError):
         return error.code in (408, 429, 500, 502, 503, 504)
     if isinstance(error, urllib.error.URLError):
         return transient(error.reason)
+    if isinstance(error, socket.gaierror):return error.errno==socket.EAI_AGAIN
+    if isinstance(error, (http.client.IncompleteRead, ssl.SSLEOFError)):return True
     return isinstance(error, (TimeoutError, ConnectionError, socket.timeout)) or (
         isinstance(error, OSError) and error.errno in (errno.ECONNRESET, errno.ETIMEDOUT, errno.ECONNABORTED))
 

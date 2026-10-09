@@ -58,11 +58,16 @@ def network_log(text):
 
 def network_command(command, attempts=3, sleep=time.sleep):
     for n in range(attempts):
-        result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace')
-        print(result.stdout,flush=True)
-        if result.returncode==0:return
-        if not network_log(result.stdout) or n+1==attempts:
-            raise subprocess.CalledProcessError(result.returncode,command,output=result.stdout)
+        lines=[]
+        # Keep Actions diagnostics live during lengthy native builds.
+        with subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',bufsize=1) as process:
+            for line in process.stdout:
+                print(line,end='',flush=True);lines.append(line)
+            code=process.wait()
+        output=''.join(lines)
+        if code==0:return
+        if not network_log(output) or n+1==attempts:
+            raise subprocess.CalledProcessError(code,command,output=output)
         print(f'Transient download failure; retry {n+2}/{attempts}',flush=True);sleep(5*2**n)
 
 def run(platform,state_file,stage,command):

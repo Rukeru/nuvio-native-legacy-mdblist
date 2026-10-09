@@ -1,9 +1,10 @@
-import hashlib, json, tempfile, unittest, zipfile
+import hashlib, http.client, json, socket, ssl, subprocess, tempfile, unittest, zipfile
 from pathlib import Path
 from unittest.mock import patch, Mock
 from urllib.error import HTTPError
 
 import integration, release_http, update_guard
+from resilience import transient
 
 
 class BundleSafety(unittest.TestCase):
@@ -43,6 +44,11 @@ class BundleSafety(unittest.TestCase):
 
 
 class PublicationRecovery(unittest.TestCase):
+    def test_connection_loss_is_retryable_but_certificate_and_source_errors_are_not(self):
+        for error in (http.client.IncompleteRead(b'partial'),ssl.SSLEOFError('connection lost'),socket.gaierror(socket.EAI_AGAIN,'temporary DNS')):
+            self.assertTrue(transient(error))
+        for error in (ssl.SSLCertVerificationError('certificate invalid'),socket.gaierror(socket.EAI_NONAME,'invalid host'),ValueError('checksum mismatch')):
+            self.assertFalse(transient(error))
     def response_loss(self):return HTTPError('fixture',503,'response lost',{},None)
     def test_completed_upload_is_recovered_without_reposting(self):
         data=b'checked package';asset={'id':7,'name':'app.ipk','digest':'sha256:'+hashlib.sha256(data).hexdigest()}
@@ -61,6 +67,15 @@ class PublicationRecovery(unittest.TestCase):
 
 
 class IssueRecovery(unittest.TestCase):
+    def test_component_and_affected_files_survive_a_failed_check(self):
+        with tempfile.TemporaryDirectory() as folder:
+            state=Path(folder)/'state.json';state.write_text('{}')
+            output='src/contalib.c:44: error: changed interface\n::integration-component::account-history-tests\n'
+            error=subprocess.CalledProcessError(1,['check'],output=output)
+            with patch('update_guard.network_command',side_effect=error),patch('integration.report') as report:
+                with self.assertRaises(subprocess.CalledProcessError):update_guard.run('webos',state,'preflight',['check'])
+                self.assertEqual(report.call_args.args[2:4],('account-history-tests','check-failure'))
+                self.assertEqual(report.call_args.args[-1],['src/contalib.c'])
     def test_known_failure_is_not_reported_twice_and_recovery_closes_it(self):
         state={'upstream':{'id':5,'tag_name':'v2.0.3'}}
         issue={'number':7,'html_url':'fixture','body':'<!-- update-block: tizen:5:aaa -->'}
