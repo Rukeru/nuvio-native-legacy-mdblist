@@ -156,3 +156,23 @@ Native map limits remain 8000 episode states / 8192 title states. MDBList snapsh
 is bounded at 16000 records / 32 pages; Nuvio retains its existing 2700-row bound.
 These are positive-history imports, not a full remote-deletion journal mirror.
 Real account acceptance of this follow-up still needs physical-TV verification.
+
+### Installed update changelog (shared follow-up)
+
+The MDBList channel embeds bounded public release highlights in the native core.
+Use the compiler's NV_VERSAO for the installed version, never GitHub latest or
+an unchanged Samsung shell version. The builder records the generated header's
+SHA-256 in SOURCE.json. Keep this content public and free of credentials.
+
+Only offer the changelog after Home is ready, login/profile selection is complete,
+playback (including the mini player) is closed and other overlays have finished.
+Consume modal input, suppress Home/trailers beneath the opaque card, and preserve
+interface scaling. Text uses existing cached rendering, three bounded cards per
+page, remote arrows and OK/Back dismissal. No blur, new assets or UI networking.
+
+A single atomic app-private version marker is written on dismissal. Check it once
+per process; failed persistence may show notes again next launch but must never
+reopen repeatedly in the same session. About & help can reopen notes at any time.
+Tests cover version changes, relaunch, failed writes, held-key repeats, page bounds,
+10,000 idle checks and geometry at multiple UI sizes. The GLES fixture captures
+all three pages from the actual generated notes; runner performance is not TV FPS.

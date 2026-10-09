@@ -1,0 +1,435 @@
+diff --git a/DEVELOPMENT_LESSONS.md b/DEVELOPMENT_LESSONS.md
+index bd6d10e46fb921a8faa470776acbf588870ab39c..8e4b6af79b12cba26e72e29899de2ded871d384b 100644
+--- a/DEVELOPMENT_LESSONS.md
++++ b/DEVELOPMENT_LESSONS.md
+@@ -156,3 +156,23 @@ Native map limits remain 8000 episode states / 8192 title states. MDBList snapsh
+ is bounded at 16000 records / 32 pages; Nuvio retains its existing 2700-row bound.
+ These are positive-history imports, not a full remote-deletion journal mirror.
+ Real account acceptance of this follow-up still needs physical-TV verification.
++
++### Installed update changelog (shared follow-up)
++
++The MDBList channel embeds bounded public release highlights in the native core.
++Use the compiler's NV_VERSAO for the installed version, never GitHub latest or
++an unchanged Samsung shell version. The builder records the generated header's
++SHA-256 in SOURCE.json. Keep this content public and free of credentials.
++
++Only offer the changelog after Home is ready, login/profile selection is complete,
++playback (including the mini player) is closed and other overlays have finished.
++Consume modal input, suppress Home/trailers beneath the opaque card, and preserve
++interface scaling. Text uses existing cached rendering, three bounded cards per
++page, remote arrows and OK/Back dismissal. No blur, new assets or UI networking.
++
++A single atomic app-private version marker is written on dismissal. Check it once
++per process; failed persistence may show notes again next launch but must never
++reopen repeatedly in the same session. About & help can reopen notes at any time.
++Tests cover version changes, relaunch, failed writes, held-key repeats, page bounds,
++10,000 idle checks and geometry at multiple UI sizes. The GLES fixture captures
++all three pages from the actual generated notes; runner performance is not TV FPS.
+diff --git a/src/ajustes.c b/src/ajustes.c
+index a7005518f710bca4482143e3c8fd97dfc78c91e9..82248d6139b226b761e00725a6dd14c1bc074a1f 100644
+--- a/src/ajustes.c
++++ b/src/ajustes.c
+@@ -1264,7 +1264,7 @@ static const Opcao OPCOES[AJ_N] = {
+   ESC("Buscar no Cinemeta",              V_LIGA, 2),             // local: buscaCinemetaLocal
+   ESC("Tela de descanso",                V_ESMAECER, 6),         // local: esmaecerLocal
+   ESC("Brilho da interface no player",   V_BRILHO_PLAYER, 4),    // local: brilhoPlayerLocal
+-  ACAO("Novidades 2.0"),
++  ACAO("What's new"),
+   ESC("Manter o vídeo pronto ao sair",   V_LIGA, 2),             // local: manterVideoLocal
+   ESC("Estilo do descanso",              V_DESCANSO_ESTILO, 3),  // local: descansoEstiloLocal
+   ESC("Títulos da vitrine",              V_DESCANSO_FONTE, 2),   // local: descansoFonteLocal
+@@ -5205,7 +5205,7 @@ static const char *ajudaOpcao(int op) {
+     case AJ_VER_REGISTRO: return "Abre o registro do app por cima desta tela, ao vivo: o mesmo painel do botão vermelho do controle, para quem não tem esse botão.";
+     case AJ_MEDIDOR: return "Mostra quadros por segundo, o pior quadro e a memória dentro da ilha do relógio, atualizados a cada 3 s. Mínimo fica na linha da hora, Menor ganha uma segunda linha e Grande abre o painel completo. Quando a ilha mostra um aviso, o medidor se recolhe e volta depois.";
+     case AJ_GUIA: return "O que o Nuvio faz, em 12 capítulos. Cada recurso diz onde fica e tem um atalho para ele.";
+-    case AJ_NOVIDADES20: return "O tour do que mudou na 2.0, capítulo por capítulo, com o que vale neste aparelho. Abre do começo.";
++    case AJ_NOVIDADES20: return "Read the highlights of your installed update. Opens again whenever you want.";
+     case AJ_APOIAR: return "Se o Nuvio te ajuda e você quiser apoiar quem faz o app, aponte a câmera do celular para um dos códigos. É opcional: nada muda no app.";
+     case AJ_ENVIAR_LOG: return "Manda os últimos 200 KB do registro desta sessão (sem senhas nem chaves) para quem faz o app. Use quando algo estiver errado agora.";
+     case AJ_ENVIO_AUTO: return "Ligado, o app manda o registro sozinho: o da sessão anterior ao abrir e o desta a cada minuto. Sem senhas nem chaves; serve para achar o que trava a Samsung. Desligue quando quiser.";
+diff --git a/src/ajustes.h b/src/ajustes.h
+index 8025173ad448fe3076786885e17996aca3e107ce..6863dc580cd0a685561205138ae9311484fb56c4 100644
+--- a/src/ajustes.h
++++ b/src/ajustes.h
+@@ -24,7 +24,7 @@ void ajustes_desenhar(Uint32 agora);
+ int  ajustes_quer_sair(void);
+ // 1 quando a linha "Addons" foi acionada. Lido e zerado na chamada.
+ int  ajustes_pediu_addons(void);
+-int  ajustes_pediu_novidades20(void);   // OK em Sobre e ajuda › Novidades 2.0: o app.c abre o guia
++int  ajustes_pediu_novidades20(void);   // About & help > What's new: app.c opens installed release notes
+ int  ajustes_pediu_plugins(void);   // OK em Plugins (F09): o app.c abre a tela   // 1 quando o Back deve fechar a tela
+ int  ajustes_pediu_diagnostico(void);
+ // OK em "Teste de velocidade" (Ajustes › Diagnóstico). Lido e zerado pelo app.c.
+diff --git a/src/ajustes_ux_dados.inc b/src/ajustes_ux_dados.inc
+index 660694462c4de72ec19148a18a3f6e82c638eca1..845888332f7448908288556231e2bfe0c42743f9 100644
+--- a/src/ajustes_ux_dados.inc
++++ b/src/ajustes_ux_dados.inc
+@@ -162,7 +162,7 @@ static const char *uxSinonimos(int op) {
+     case AJ_DESCANSO_FONTE: return "descanso vitrine titulos lista continuar catalogo filmes series";
+     case AJ_PROPORCAO_PADRAO: return "proporcao padrao aspecto aspect ratio zoom original recortar esticar preencher cinema tarja barras pretas formato tela tamanho imagem player";
+     case AJ_BRILHO_PLAYER: return "brilho interface player controles barra escurecer forte claro oled hdr osd luz";
+-    case AJ_NOVIDADES20: return "novidades novo versao 2.0 tour guia o que mudou mudancas whats new";
++    case AJ_NOVIDADES20: return "novidades novo versao o que mudou mudancas whats new changelog update";
+     case AJ_DTS_AC3: return "dts convertido ac3 aac dolby digital 5.1 surround estereo audio som barra de som receiver arc earc conversao lg converted stereo";
+     case AJ_PS_CONTINUAR: return "continuar escolha perfil cartao card tela abertura inicial assistindo retomar remover esconder desligar quem esta assistindo continue watching profile picker";
+     case AJ_DV_MKV: return "dolby vision dv dovi mkv matroska perfil 8 5 hdr hdr10 experimental imagem cores";
+diff --git a/src/app.c b/src/app.c
+index 9b8c0ae094f7b674ce17c74d942f41a54d1da1e3..e9e6e81e1456fb74dd9cd064fc70e131a4e44e5c 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -95,6 +95,7 @@
+ #include "novidades20.h"
+ #include "novidades201.h"
+ #include "novidades202.h"
++#include "mdbchangelog.h"
+ #include "apoio.h"
+ #include "telemetria.h"
+ #include "avisos.h"
+@@ -2237,6 +2238,7 @@ void app_evento(const SDL_Event *e) {
+   // O CARTAO DA 2.0.1 (novidades201.h): come o teclado todo; "Abrir a
+   // Central" fecha o cartao e abre a Central de controle no lugar.
+   // O DA 2.0.2 (novidades202.h) e igual, sem a Central.
++  if (mdbchangelog_aberto()) { mdbchangelog_evento(e); return; }
+   if (novidades202_aberto()) {
+     novidades202_evento(e);
+     return;
+@@ -2681,7 +2683,8 @@ static const char *homeTrailerBloqueio(void) {
+       novidades13_aberto() || novidades131_aberto() || novidades132_aberto() ||
+       novidades133_aberto() || novidades134_aberto() || novidades139_aberto() || novidades1312_aberto() ||
+       novidades142_aberto() || novidades148_aberto() || novidades170_aberto() || novidades180_aberto() ||
+-      novidades20_aberto()) return "whats-new";
++      novidades20_aberto() || novidades201_aberto() || novidades202_aberto() ||
++      mdbchangelog_aberto()) return "whats-new";
+   if (atualizacao_aberta() || agendaviso_aberto()) return "update-notice";
+   if (recomenda_aberta() || recenviar_aberto() || pessoas_aberto()) return "recommend";
+   if (faixas_aberta() || episodios_aberto() || stream_folha_aberta()) return "sheet";
+@@ -3008,13 +3011,13 @@ void app_atualizar(float dt, Uint32 agora) {
+   // e mais chamada: o cartao da 1.8.0 so vive como cena do Guia de uso.
+   // A 2.0.1 decide ANTES do guia da 2.0, no mesmo quadro: ela olha se o guia
+   // ja foi visto antes de ele gravar a marca (novidades201.h).
+-  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto()) {
++  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto() && !mdbchangelog_aberto()) {
+     // A 2.0.2 antes da 2.0.1: ela substitui o cartao da 2.0.1.
+     novidades202_primeira_vez();
+     novidades201_primeira_vez();
+     novidades20_primeira_vez();
+   }
+-  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !novidades201_aberto() && !novidades202_aberto()) {
++  if (tela == TELA_HOME && homePronta && !player_aberto() && !detail_aberto() && !novidades170_aberto() && !novidades180_aberto() && !novidades20_aberto() && !novidades201_aberto() && !novidades202_aberto() && !mdbchangelog_aberto()) {
+     // Esta e a primeira explicacao da versao: aparece antes dos demais
+     // cartoes de onboarding. Depois de OK, o bloco abaixo continua a fila
+     // antiga no quadro seguinte.
+@@ -3362,7 +3365,7 @@ void app_atualizar(float dt, Uint32 agora) {
+   // e o cartao de novo, com o foco no guia.
+   // Ajustes › Sobre e ajuda › Novidades 2.0: o guia por cima de Ajustes, do
+   // comeco; ao fechar, Ajustes continua onde estava.
+-  if (tela == TELA_AJUSTES && ajustes_pediu_novidades20()) novidades20_abrir(0);
++  if (tela == TELA_AJUSTES && ajustes_pediu_novidades20()) mdbchangelog_abrir();
+   if (tela == TELA_AJUSTES && ajustes_pediu_novidades()) {
+     trocarTela(TELA_HOME);
+     menu_definir_destino(MENU_INICIO);
+@@ -4571,6 +4574,10 @@ void app_atualizar(float dt, Uint32 agora) {
+   novidades20_atualizar(dt, agora);
+   novidades201_atualizar(dt, agora);
+   novidades202_atualizar(dt, agora);
++  /* Wait for Home, login, profile selection, onboarding and all visible layers. */
++  if (!homeTrailerBloqueio() && !diagnostico_intro_aberto() && !registro_envio_aberto() &&
++      !central_aberta() && !ilha_modal_aberto() && !celb_aberto())
++    mdbchangelog_primeira_vez();
+   telemetria_atualizar(dt, agora);
+   recintro_atualizar(dt, agora);
+   atualizacao_atualizar(dt, agora);
+@@ -4812,6 +4819,9 @@ static int relogioCabe(void) {
+ }
+ 
+ void app_desenhar(Uint32 agora) {
++  if (mdbchangelog_aberto() && !registro_aberto() && !player_aberto()) {
++    gfx_sem_recorte(); ponteiro_camada(); mdbchangelog_desenhar(); return;
++  }
+   // O GUIA DA 2.0 e tela inteira e opaco: nada do app por baixo (uma camada
+   // de tela cheia a menos; o fundo dele e o assado do Borrada).
+   if (novidades20_aberto() && !registro_aberto() && !player_aberto()) {
+@@ -5066,7 +5076,7 @@ int app_central_pode(void) {
+   return tela != TELA_LOGIN && tela != TELA_ESCOLHA_PERFIL && login_concluido() &&
+          perfilsel_concluido() && !registro_aberto() && !spot_aberto() &&
+          !teclado_aberto() && !diagnostico_intro_aberto() && !novidades20_aberto() &&
+-         !novidades201_aberto() && !novidades202_aberto();
++         !novidades201_aberto() && !novidades202_aberto() && !mdbchangelog_aberto();
+ }
+ 
+ void app_encerrar(void) {
+diff --git a/src/mdbchangelog.c b/src/mdbchangelog.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..0a16769a1f8504748236243bc3b38ed39e1371d0
+--- /dev/null
++++ b/src/mdbchangelog.c
+@@ -0,0 +1,86 @@
++#include "mdbchangelog.h"
++#include "mdbchangelog_notes.h"
++#include "ajustes.h"
++#include "dados.h"
++#include "gfx.h"
++#include "idioma.h"
++#include "layout.h"
++#include "plrui.h"
++#include "text.h"
++#define NV_ESCALA_TELA_ATIVA
++#include "escala.h"
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#ifndef NV_VERSAO
++#define NV_VERSAO "dev"
++#endif
++#define SEEN "mdblist-changelog-seen.txt"
++#define COUNT ((int)(sizeof MDB_CHANGES / sizeof *MDB_CHANGES))
++#define PAGES ((COUNT + 2) / 3)
++static int checked, opened, page;
++
++int mdbchangelog_aberto(void) { return opened; }
++void mdbchangelog_abrir(void) { opened = 1; page = 0; }
++void mdbchangelog_primeira_vez(void) {
++  char *seen;
++  if (checked) return;
++  checked = 1;
++  if (!strcmp(NV_VERSAO, "dev")) return;
++  seen = dados_ler(SEEN);
++  if (!seen || strcmp(seen, NV_VERSAO)) mdbchangelog_abrir();
++  free(seen);
++}
++static void close_notes(void) {
++  opened = 0;
++  /* A failed save retries next launch; it never interrupts the current session. */
++  dados_gravar(SEEN, NV_VERSAO);
++}
++void mdbchangelog_evento(const SDL_Event *e) {
++  SDL_Keycode k;
++  if (!opened || e->type != SDL_KEYDOWN || e->key.repeat) return;
++  k = e->key.keysym.sym;
++  if (k == SDLK_RIGHT || k == SDLK_DOWN) { if (page + 1 < PAGES) page++; }
++  else if (k == SDLK_LEFT || k == SDLK_UP) { if (page > 0) page--; }
++  else if (k == SDLK_RETURN || k == SDLK_KP_ENTER || k == SDLK_SPACE ||
++           k == SDLK_AC_BACK || k == SDLK_ESCAPE || k == SDLK_BACKSPACE ||
++           k == SDLK_DELETE || e->key.keysym.scancode == NV_SCANCODE_BACK) close_notes();
++}
++static void line(TxtEstilo style, const char *s, float x, float y, float width, int muted) {
++  TxtLinha l = txt_linha_corta(style, s, muted ? 180 : 245, muted ? 189 : 246,
++                              muted ? 204 : 250, 255, width);
++  txt_desenhar(l, x, y);
++}
++void mdbchangelog_desenhar(void) {
++  float r, g, b;
++  char version[96], pages[96];
++  if (!opened) return;
++  ESCALA_SE_COUBER_INI(1320, 900);
++  float x = (NV_TELA_W - 1320) * .5f, y = (NV_TELA_H - 900) * .5f;
++  ajustes_acento(&r, &g, &b);
++  gfx_cor((GfxRect){0, 0, NV_TELA_W, NV_TELA_H}, 0, .025f, .035f, .060f, 1);
++  gfx_cor((GfxRect){x, y, 1320, 900}, 32.0f / 900, .065f, .080f, .115f, 1);
++  gfx_anel((GfxRect){x, y, 1320, 900}, 32.0f / 900, 1, 1, 1, 1, .12f);
++  gfx_cor((GfxRect){x + 56, y + 54, 7, 106}, .04f, r, g, b, 1);
++  line(TXT_TITULO1, i18n("What's new"), x + 90, y + 56, 1120, 0);
++  snprintf(version, sizeof version, i18n("Version %s is installed"), NV_VERSAO);
++  line(TXT_CALLOUT, version, x + 92, y + 122, 1100, 1);
++  for (int row = 0; row < 3; row++) {
++    int n = page * 3 + row;
++    if (n >= COUNT) break;
++    float cy = y + 206 + row * 172;
++    gfx_cor((GfxRect){x + 56, cy, 1208, 152}, 20.0f / 152, .105f, .128f, .174f, 1);
++    gfx_cor((GfxRect){x + 80, cy + 26, 10, 10}, .5f, r, g, b, 1);
++    line(TXT_HEADLINE, i18n(MDB_CHANGES[n].title), x + 110, cy + 22, 1110, 0);
++    txt_bloco_corta(TXT_BODY, i18n(MDB_CHANGES[n].body), 192, 201, 218,
++                    x + 110, cy + 64, 1100, 32, 1, 2);
++  }
++  if (PAGES > 1) {
++    snprintf(pages, sizeof pages, i18n("%d / %d   ·   Left / right for more"), page + 1, PAGES);
++    line(TXT_CAPTION, pages, x + 56, y + 772, 800, 1);
++  } else line(TXT_CAPTION, i18n("Reopen from Settings > About & help"), x + 56, y + 772, 800, 1);
++  gfx_cor((GfxRect){x + 1004, y + 762, 260, 72}, .25f, r, g, b, 1);
++  gfx_anel((GfxRect){x + 996, y + 754, 276, 88}, .25f, 3, 1, 1, 1, .9f);
++  line(TXT_HEADLINE, i18n("OK · Got it"), x + 1032, y + 783, 210, 0);
++  ESCALA_SE_COUBER_FIM();
++}
+diff --git a/src/mdbchangelog.h b/src/mdbchangelog.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..b9eadcc9e4f20c6fe06434036ade41c094395e6e
+--- /dev/null
++++ b/src/mdbchangelog.h
+@@ -0,0 +1,10 @@
++#ifndef NV_MDB_CHANGELOG_H
++#define NV_MDB_CHANGELOG_H
++#include <SDL2/SDL.h>
++/* Main-thread only; one private marker per installed version, no network. */
++void mdbchangelog_primeira_vez(void);
++void mdbchangelog_abrir(void);
++int mdbchangelog_aberto(void);
++void mdbchangelog_evento(const SDL_Event *e);
++void mdbchangelog_desenhar(void);
++#endif
+diff --git a/src/mdbchangelog_notes.h b/src/mdbchangelog_notes.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..be7da0d1f70adac00062e70ecfe9a7669f58f4b7
+--- /dev/null
++++ b/src/mdbchangelog_notes.h
+@@ -0,0 +1,7 @@
++/* Local-build fallback. Automatic builds replace this with their release notes. */
++static const struct { const char *title, *body; } MDB_CHANGES[] = {
++  { "Your watched history", "Watched movies and episodes from Nuvio and MDBList now appear on your TV, including older watches." },
++  { "A smoother TV experience", "The recent Home and season-progress performance improvements are included." },
++  { "What changed, at a glance", "A short changelog appears after updates. Reopen it any time from Settings > About & help > What's new." },
++  { "Official Nuvio features", "Includes the features and fixes from the official Nuvio 2.0.2 release." }
++};
+diff --git a/tests/fluidez_perf.c b/tests/fluidez_perf.c
+index fc119ce5e0d264b95be84556ea507612ba0f3d4a..a08da26c5c4e82a32f0f61e8e0edd7f92e1717cd 100644
+--- a/tests/fluidez_perf.c
++++ b/tests/fluidez_perf.c
+@@ -468,6 +468,23 @@ static void cenario(SDL_Window *w, const char *cen) {
+   }
+ }
+ 
++#if __has_include("mdbchangelog.h")
++#include "mdbchangelog.h"
++static void changelogShots(SDL_Window *window) {
++  const char *prefix=getenv("NV_PROGRESS_SHOTS");if(!prefix)return;
++  mdbchangelog_abrir();
++  for(int page=0;page<3;page++) {
++    for(int frame=0;frame<20;frame++) {
++      txt_novo_quadro();gfx_novo_quadro();gfx_sem_recorte();
++      mdbchangelog_desenhar();glFinish();
++      if(frame<19)SDL_GL_SwapWindow(window);
++    }
++    char path[900];snprintf(path,sizeof path,"%s-changelog-%d.bmp",prefix,page+1);guardar(path);
++    SDL_Event e={0};e.type=SDL_KEYDOWN;e.key.keysym.sym=SDLK_RIGHT;mdbchangelog_evento(&e);
++  }
++}
++#endif
++
+ static void progressShots(SDL_Window *window) {
+   const char *prefix=getenv("NV_PROGRESS_SHOTS");if(!prefix)return;
+   int counts[]={6,37,64};static TgEp eps[1200];
+@@ -533,11 +550,18 @@ int main(int argc, char **argv) {
+   tex_iniciar(192);
+   gfx_icones_dir("deploy/app/art");
+   ajusta(so ? so : "moderna");
++#if __has_include("mdbchangelog.h")
++  if (getenv("NV_CHANGELOG_ONLY")) { changelogShots(w); goto profile_end; }
++#endif
+   assert(home_iniciar("deploy/app/art"));
+   povoar();
+   for (i = 0; !getenv("NV_PROGRESS_ONLY") && i < 8; i++)
+     if (!so || !strcmp(so, todos[i])) cenario(w, todos[i]);
+   progressShots(w);
++#if __has_include("mdbchangelog.h")
++  changelogShots(w);
++#endif
++profile_end:
+   SDL_GL_DeleteContext(gl);
+   SDL_DestroyWindow(w);
+   SDL_Quit();
+diff --git a/tests/mdbchangelog.c b/tests/mdbchangelog.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..77df79948ff16e30920e431b00b5e0bbf64c91fd
+--- /dev/null
++++ b/tests/mdbchangelog.c
+@@ -0,0 +1,60 @@
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#define NV_VERSAO "2.0.2.17"
++#include "../src/mdbchangelog.c"
++static char saved[80];
++static int reads, writes, fail_save, drawn, blocks;
++static float scale = 1, configured = 1;
++char *dados_ler(const char *name) {
++  assert(!strcmp(name, SEEN)); reads++;
++  return saved[0] ? strdup(saved) : NULL;
++}
++int dados_gravar(const char *name, const char *s) {
++  assert(!strcmp(name, SEEN)); writes++;
++  if (fail_save) return 0;
++  snprintf(saved, sizeof saved, "%s", s); return 1;
++}
++const char *i18n(const char *s) { return s; }
++void ajustes_acento(float *r,float *g,float *b) {*r=.3f;*g=.2f;*b=.8f;}
++float gfx_escala_ui(void) {return configured;}
++float gfx_escala(void) {return scale;}
++void gfx_escala_sair(float s) {scale=s;}
++void gfx_cor(GfxRect rect,float radius,float r,float g,float b,float a) {
++  (void)radius;(void)r;(void)g;(void)b;(void)a;
++  assert(rect.x >= 0 && rect.y >= 0);
++  assert(rect.x + rect.w <= NV_TELA_W + .01f && rect.y + rect.h <= NV_TELA_H + .01f); drawn++;
++}
++void gfx_anel(GfxRect rect,float radius,float width,float r,float g,float b,float a) {
++  (void)width;gfx_cor(rect,radius,r,g,b,a);
++}
++TxtLinha txt_linha_corta(TxtEstilo st,const char *s,int r,int g,int b,int a,float width) {
++  (void)st;(void)r;(void)g;(void)b;(void)a;assert(s && width>0);return (TxtLinha){0};
++}
++void txt_desenhar(TxtLinha l,float x,float y) {(void)l;assert(x>=0 && y>=0);}
++float txt_bloco_corta(TxtEstilo st,const char *s,int r,int g,int b,float x,float y,float width,float leading,float alpha,int lines) {
++  (void)st;(void)r;(void)g;(void)b;(void)x;(void)y;(void)alpha;
++  assert(s && width>0 && leading==32 && lines==2);blocks++;return leading*lines;
++}
++static void key(SDL_Keycode k,int repeat) {
++  SDL_Event e={0};e.type=SDL_KEYDOWN;e.key.keysym.sym=k;e.key.repeat=repeat;mdbchangelog_evento(&e);
++}
++static void restart(void) {checked=opened=page=0;}
++int main(void) {
++  mdbchangelog_primeira_vez();assert(opened && reads==1 && !writes);
++  for(int i=0;i<10000;i++)mdbchangelog_primeira_vez();assert(reads==1);
++  key(SDLK_RIGHT,1);assert(page==0);key(SDLK_RIGHT,0);assert(page==1);
++  for(int i=0;i<PAGES+2;i++)key(SDLK_RIGHT,0);assert(page==PAGES-1);
++  for(int i=0;i<PAGES+2;i++)key(SDLK_LEFT,0);assert(page==0);
++  for(int s=0;s<3;s++) {configured=1+s*.25f;drawn=blocks=0;scale=1;
++    mdbchangelog_desenhar();assert(drawn>0 && blocks==3 && scale==1);}
++  key(SDLK_RETURN,0);assert(!opened && writes==1 && !strcmp(saved,NV_VERSAO));
++  restart();mdbchangelog_primeira_vez();assert(!opened);
++  mdbchangelog_abrir();assert(opened && page==0);key(SDLK_ESCAPE,0);assert(!opened);
++  strcpy(saved,"2.0.2.16");restart();mdbchangelog_primeira_vez();assert(opened);
++  fail_save=1;key(SDLK_AC_BACK,0);assert(!opened);
++  mdbchangelog_primeira_vez();assert(!opened);restart();mdbchangelog_primeira_vez();assert(opened);
++  fail_save=0;key(SDLK_SPACE,0);restart();mdbchangelog_primeira_vez();assert(!opened);
++  puts("changelog: installed-version persistence, idle reads, pagination, remote keys and layout passed");
++}
+diff --git a/tests/tizen_improvements.sh b/tests/tizen_improvements.sh
+index e52d9147272cf0a6c9e84272cf8ed1d676d54385..136ad16734975862b129650c92763ceebd831ecb 100644
+--- a/tests/tizen_improvements.sh
++++ b/tests/tizen_improvements.sh
+@@ -5,6 +5,8 @@ out=$(mktemp -d)
+ trap 'rm -rf "$out"' EXIT
+ flags=(-std=gnu11 -O1 -UNDEBUG -g -Wall -Wextra -Isrc -DSDL_MAIN_HANDLED)
+ read -ra sdl <<< "$(sdl2-config --cflags)"
++cc "${flags[@]}" "${sdl[@]}" tests/mdbchangelog.c -lm -o "$out/changelog"
++"$out/changelog"
+ cc "${flags[@]}" tests/mdbformat.c src/mdbformat.c src/js.c -lm -o "$out/format"
+ cc "${flags[@]}" tests/mdbwatched.c src/mdbwatched.c src/mdbformat.c src/js.c -lm -o "$out/history-format"
+ "$out/history-format"
+diff --git a/tests/ui_profile.sh b/tests/ui_profile.sh
+index fe98d9ba78ecda87ea6e26308c836822542d53b7..b930cb3d53d75d1a652978c02a76cc479c4b8294 100644
+--- a/tests/ui_profile.sh
++++ b/tests/ui_profile.sh
+@@ -13,10 +13,21 @@ sources=()
+ for source in src/*.c src/dts/*.c; do
+   [ "$source" = src/main.c ] || sources+=("$source")
+ done
+-cc "${sources[@]}" "$fixture_root/tests/fluidez_perf.c" -Isrc \
++profile_version="preview"
++if [ -f src/mdbchangelog_notes.h ]; then
++  profile_version=$(sed -n 's/^\/\* Installed-version preview: \(.*\) \*\//\1/p' src/mdbchangelog_notes.h)
++  profile_version="${profile_version:-preview}"
++fi
++cc -DNV_VERSAO="\"$profile_version\"" "${sources[@]}" "$fixture_root/tests/fluidez_perf.c" -Isrc \
+   -DNV_LINUX_DESKTOP -DNV_FLUIDEZ_PERF -DNV_PROGRESS_CACHE_EXPERIMENT -DNV_SHOT_HOOKS -DNV_TRAKT_CLIENT_ID='"fixture-only"' \
+   -O2 -UNDEBUG -g $(pkg-config --cflags sdl2 SDL2_image SDL2_ttf glesv2 egl zlib) \
+   $(pkg-config --libs sdl2 SDL2_image SDL2_ttf glesv2 egl zlib) -pthread -ldl -lm -o "$temp/profile"
++if [ "${NV_CHANGELOG_ONLY:-}" = 1 ]; then
++  mkdir -p "$temp/changelog"
++  LIBGL_ALWAYS_SOFTWARE=1 NUVIO_DADOS="$temp/changelog" \
++    NV_PROGRESS_SHOTS="$out/installed" "$temp/profile" > "$out/changelog.txt" 2>&1
++  exit 0
++fi
+ for scene in moderna dinamica; do
+   mkdir -p "$temp/$scene"
+   LIBGL_ALWAYS_SOFTWARE=1 NV_HOME_ONLY=1 NV_PROGRESS_DIRECT=1 NV_CENARIO="$scene" \

@@ -96,7 +96,7 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
 [Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
-integration and eight reviewed shared patches are applied and tested on every
+integration and nine reviewed shared patches are applied and tested on every
 Samsung and LG rebuild, followed by the platform-specific updater. Read
 [DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
@@ -117,3 +117,24 @@ history alongside Trakt. Background reads are independent of Continue Watching
 and playback-reporting consent; small indexed batches preserve the successful
 performance renderer. TV unwatch intent is protected from older snapshots.
 See DEVELOPMENT_LESSONS.md for verification, identity and history-size limits.
+
+
+## Installed update changelog
+
+After an update, a compact **What's new** card appears once when Home is ready.
+It shows the installed version and short release highlights, with three cards
+per page. Use Left/Right to change pages and OK or Back to dismiss. Reopen it
+from **Settings > About & help > What's new** at any time.
+
+The notes are embedded in the native build, including bounded highlights from
+the exact official release used by that build. A local dismissal marker survives
+restarts and later updates. The card waits for login, profile selection, playback
+and other overlays to finish. It makes no network requests and performs no file
+reads after the once-per-process check; closed Home rendering remains unchanged.
+
+Both Samsung core updates and LG package updates include this ninth shared patch.
+SOURCE.json records its digest and the generated notes digest. Remote controls,
+pagination, relaunches, failed persistence and scaled layout are regression-tested.
+The real GLES fixture captures the generated cards. The existing Home/progress
+comparison may be reused only when the official source and all eight earlier
+patch digests are identical; other source changes run the full comparison again.
