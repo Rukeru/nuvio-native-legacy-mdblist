@@ -1,0 +1,37 @@
+name: Diagnose unmodified upstream 2.0.4 assertions
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: macos-15
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fetch immutable upstream source without integration
+        run: |
+          git clone --no-checkout https://github.com/iqui27/nuvio-native-legacy.git baseline
+          git -C baseline checkout --detach db6ae4ee0dd2fa158c46ba375c1fe8c08de70504
+      - name: Install original host dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash ripgrep
+      - name: Execute the unmodified upstream assertion fixture
+        run: |
+          mkdir -p baseline-evidence
+          export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
+          set -o pipefail
+          bash baseline/tests/${{ matrix.fixture }}.sh 2>&1 | tee baseline-evidence/result.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: unmodified-204-${{ matrix.fixture }}
+          path: baseline-evidence/**/*.log
+          retention-days: 14
