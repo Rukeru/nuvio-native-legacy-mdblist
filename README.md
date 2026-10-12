@@ -127,6 +127,25 @@ See DEVELOPMENT_LESSONS.md for verification, identity and history-size limits.
 
 ## Installed update changelog
 
+The development branch adds **Settings > Account & services > Sync Now**.
+It refreshes the active profile through the existing account worker, preserves
+pending local edits, and refreshes addon manifests even when their URL has not
+changed. Manual requests are limited to once per minute and respect the cloud
+circuit breaker. Status distinguishes fresh, cached, incomplete and cooldown
+results. The last fresh timestamp is per account/profile for this app session;
+it does not pretend that an offline fallback was a successful fresh pull.
+
+Private diagnostics use a separate, paired connection to Rukeru's existing
+Cloudflare Worker. Opening a report shows the exact structured preview; **Send**
+is a separate action. Automatic reports are off until a new recipient-specific
+opt-in. Each television must be paired independently. See
+[private diagnostics setup and viewing](private-diagnostics/README.md).
+The donation Settings entry and panel are removed, with saved settings IDs,
+the guide, licence attribution and update information preserved.
+
+These development changes require the final complete two-platform release gate;
+the existing published 2.0.4 baseline remains the working release meanwhile.
+
 After an update, a compact **What's new** card appears once when Home is ready.
 It shows the installed version and short release highlights, with three cards
 per page, with readable controls even when your accent colour is very pale. Use Left/Right to change pages and OK or Back to dismiss. Reopen it

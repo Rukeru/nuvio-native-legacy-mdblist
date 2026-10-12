@@ -19,9 +19,9 @@ PATCHES = ('tizen-01-source-cache.patch', 'tizen-02-season-charts.patch',
 def changelog(source, state):
     """Embed bounded public release highlights, never fetch from the TV UI."""
     notes = [
-        ("Your watched history", "Watched movies and episodes from Nuvio and MDBList now appear on your TV, including older watches."),
-        ("A smoother TV experience", "The recent Home and season-progress performance improvements are included."),
-        ("What changed, at a glance", "A short changelog appears after updates. Reopen it any time from Settings > About & help > What's new."),
+        ("Sync when you need it", "Use Sync Now in Account & services to refresh Collections and addons. Fresh and cached results are shown separately; pending local changes are protected."),
+        ("Private diagnostics", "Pair this TV to send a sanitized report preview to Rukeru’s private service. Automatic reporting needs a new opt-in and is off by default."),
+        ("Cleaner settings", "The donation section is removed. Help, update information, MDBList tracking and the existing performance improvements are preserved."),
     ]
     upstream = state.get('upstream', {})
     version = re.sub(r'[^A-Za-z0-9. -]', '', upstream.get('tag_name', 'official release'))[:40]

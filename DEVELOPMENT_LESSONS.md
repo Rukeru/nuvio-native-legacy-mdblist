@@ -822,3 +822,19 @@ disabled again (030fd652-6fc1-4564-b25a-fa713ed0baff). Build-time activation now
 requires the reviewed backend/client/consent input hashes and live evidence.
 Changing those inputs fails closed and requires re-verification. Per-device
 pairing and fresh opt-in still apply after activation.
+
+The first broader Settings/account gate caught compile/link errors before any
+full release suite was launched (run 38305387969). Remove the legacy QR preview
+as well as the new modal when retiring donation UI. Screenshot-only hooks are
+behind AJUSTES_TESTE; ordinary interaction fixtures must assert real navigation
+state instead of calling an unavailable capture hook. On Apple hosts, optional
+external symbols require weak_import; ELF weak declarations alone do not allow
+missing fixture providers. Keep the TV declaration unchanged and use the
+portable optional-declaration macro in all adapters. The failed fixture logs
+are preserved in artifact 11771932734; no full release runs were restarted.
+
+Review also found two ways to mislabel a partial pull as fresh: perfis_puxar
+returns its cached count after a failed request, and addon pulls return zero
+for permanent HTTP failures. Add an explicit profile-read freshness signal and
+preserve the previous successful timestamp for these failures. Reset manifest
+failure/fallback status for each discovery refresh so later recovery clears it.
