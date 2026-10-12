@@ -122,7 +122,21 @@ def apply(root, platform, state):
     state['integration']={'fingerprint':fingerprint(),'base_commit':m['base_commit'],'components':applied,'overlay':m['overlay']}
     from tizen_improvements import changelog
     changelog(root,state)
+    diagnostic_build(root,state)
     contracts(root,platform,state)
+
+def diagnostic_build(root,state):
+    """Embed immutable provenance; missing identity fails closed for uploads."""
+    builder=state.get('builder_commit','')
+    if builder and not re.fullmatch(r'[0-9a-f]{40}',builder):
+        raise Incompatible('Invalid private diagnostic builder identity')
+    path=root/'src/nvdiag_build.h'
+    template=(ROOT/'integration/overlay/src/nvdiag_build.h').read_text(encoding='utf8')
+    if template.count('#define NV_DIAG_BUILD ""')!=1:
+        raise Incompatible('Diagnostic provenance template changed')
+    path.write_text(template.replace('#define NV_DIAG_BUILD ""','#define NV_DIAG_BUILD '+json.dumps(builder)),encoding='utf8',newline='\n')
+    state['private_diagnostics']={'builder_commit':builder,'production_enabled':False,
+                                 'header_sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 
 def translations(root,platform,state,m):
     """Merge owned labels by decoded key, independent of line numbers/table offsets."""

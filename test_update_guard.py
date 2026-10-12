@@ -87,7 +87,7 @@ class ComponentMerge(unittest.TestCase):
                 else:(root/'new-upstream.c').write_bytes(b'independent upstream feature\n')
                 self.git(root,'add','.');self.git(root,'commit','-m','upstream')
                 state={'upstream':{'tag_name':'v2.0.4'}}
-                with patch.object(integration,'ROOT',temp),patch.object(integration,'manifest',return_value=m),patch.object(integration,'fingerprint',return_value='fixture'),patch.object(integration,'contracts'),patch('tizen_improvements.changelog'):
+                with patch.object(integration,'ROOT',temp),patch.object(integration,'manifest',return_value=m),patch.object(integration,'fingerprint',return_value='fixture'),patch.object(integration,'contracts'),patch.object(integration,'diagnostic_build'),patch('tizen_improvements.changelog'):
                     if conflict:
                         with self.assertRaises(integration.Incompatible):integration.apply(root,'tizen',state)
                         report=json.loads((temp/'diagnostics/tizen-compatibility.json').read_text())

@@ -723,3 +723,26 @@ migrations and triggers: D1's exec API splits individual lines. The 19 focused
 tests cover real workerd/D1 execution, atomic quotas, enrollment response loss,
 concurrent claims/delivery, token rotation/revocation races, retention and strict
 privacy rejection. These local passes do not attest a production deployment.
+
+## Private diagnostic client development
+
+Keep the private client in owned `nvdiag` modules and a separately diagnosed
+`private-diagnostics` adapter shared by both platforms. Do not globally replace
+`NV_REC_URL`: unrelated social functionality still uses it. Remove legacy raw
+diagnostic transport paths, including startup and optimization-report uploads.
+Local logs and optimization reports remain local; submission requires the
+structured preview and explicit Send action, or fresh recipient-specific opt-in.
+
+Use the existing bounded `rede_pedir` API with authenticated TLS, redirects off,
+4 KiB response/header limits and a 10-second deadline. The older generic POST
+wrapper does not provide these safeguards. Persist only typed numeric events,
+revalidate them before serialization, and cap queue size and retry attempts.
+Generate device secrets with OS entropy, save them owner-only before enrollment,
+and never reuse account credentials. Preview/status getters must not read files.
+
+New diagnostics coverage is added inside the existing custom fixture script,
+preserving the complete upstream script inventory and shard membership. The
+independent Worker schema validates every client event in the fast Python gate.
+At this development checkpoint, 66 updater/protocol tests and fresh source
+integration contracts pass for both platforms. Native client fixtures are still
+pending; production transport remains disabled and no release is authorized.
