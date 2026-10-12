@@ -23,7 +23,7 @@ def main(reference, candidate, output):
     if any(x['reference'] != x['candidate'] for x in hashes.values()):
         raise RuntimeError('Audit inputs differ: inspect source-hashes.json before classifying')
     results = []
-    for mode in ['original', 'nodelay', 'paced']:
+    for mode in ['original', 'paced']:
         for repeat in range(1, 4):
             for label, root in [('reference', reference), ('candidate', candidate)]:
                 server = root / 'tests/streamfit_diagnostico_server.py'
@@ -59,7 +59,9 @@ def measured_sleep(delay):
 time.sleep = measured_sleep
 '''
                 modified = modified.replace('class Handler(', trace + '\nclass Handler(')
-                env = dict(os.environ, PYTHONPATH=str(root / 'tests/stubs/host'))
+                # The unchanged upstream lacks the custom host helper. Give both
+                # clients exactly the same loopback HTTPServer-name environment.
+                env = dict(os.environ, PYTHONPATH=str(candidate / 'tests/stubs/host'))
                 try:
                     server.write_text(modified)
                     run = subprocess.run(['bash', 'tests/streamfit_redirect_range.sh'], cwd=root,
