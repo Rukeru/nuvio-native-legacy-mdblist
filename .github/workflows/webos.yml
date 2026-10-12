@@ -52,7 +52,7 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         run: |
           timeout 180 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -qq
-          timeout 300 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+          timeout 300 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev ffmpeg xvfb xauth ripgrep
       - name: Check interfaces, Settings, watched history and tracking before full build
         id: preflight
         timeout-minutes: 10
@@ -82,6 +82,16 @@ jobs:
           path: ${{ runner.temp }}/webos-cache
           key: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-
+      - name: Compare Home and progress rendering against published baselines
+        if: steps.discover.outputs.build == 'true'
+        run: python3 update_guard.py run --platform webos --state webos-state.json --stage ui-performance-library -- xvfb-run -a python3 profile_ui.py --current upstream --out ui-profile
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && steps.discover.outputs.build == 'true'
+        with:
+          name: webos-ui-profile-evidence
+          path: ui-profile/
+          if-no-files-found: warn
+          retention-days: 30
       - name: Build the native LG app with engine and DTS
         if: steps.discover.outputs.build == 'true'
         env:
@@ -117,9 +127,16 @@ jobs:
       - name: Remove private build settings
         if: always()
         run: rm -f "$RUNNER_TEMP/nuvio-webos.properties"
+  regression:
+    uses: ./.github/workflows/regression.yml
+    permissions:
+      contents: read
+      issues: write
+    with:
+      platform: webos
   publish:
-    needs: build
-    if: needs.build.outputs.build == 'true'
+    needs: [build, regression]
+    if: needs.build.outputs.build == 'true' && needs.regression.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -132,6 +149,10 @@ jobs:
         with:
           name: checked-webos-release
           path: release-webos/
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: webos-full-regression-evidence
+          path: regression-evidence/
       - name: Publish checked LG assets without changing the Samsung Latest release
         env:
           GH_TOKEN: ${{ github.token }}

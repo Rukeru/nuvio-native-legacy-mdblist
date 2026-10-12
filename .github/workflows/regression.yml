@@ -1,0 +1,70 @@
+name: Full upstream regression suite
+on:
+  workflow_call:
+    inputs:
+      platform:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  suite:
+    runs-on: macos-15
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Select the same stable upstream release
+        id: discover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          if [ "$PLATFORM" = tizen ]; then
+            python3 channel.py discover --run "$GITHUB_RUN_NUMBER"
+            cp state.json regression-state.json
+          else
+            python3 webos.py discover --run "$GITHUB_RUN_NUMBER"
+            cp webos-state.json regression-state.json
+          fi
+      - name: Assemble verified integration before testing
+        if: steps.discover.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ inputs.platform }}
+        run: python3 integration.py --platform "$PLATFORM" --state regression-state.json
+      - name: Install native host test libraries
+        if: steps.discover.outputs.build == 'true'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash
+      - name: Execute the complete upstream gatekeeper suite
+        if: steps.discover.outputs.build == 'true'
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/regression-logs"
+          export TMPDIR="$GITHUB_WORKSPACE/regression-logs/"
+          python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- bash -c 'set -o pipefail; bash upstream/tools/testa-tudo.sh | tee regression-logs/SUMMARY.txt'
+          python3 regression_gate.py attest regression-state.json regression-logs/SUMMARY.txt
+      - name: Report actual regression failures
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ inputs.platform }}
+        run: python3 update_guard.py failure --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && steps.discover.outputs.build == 'true'
+        with:
+          name: ${{ inputs.platform }}-full-regression-evidence
+          path: |
+            regression-logs/
+            diagnostics/
+            regression-state.json
+          if-no-files-found: warn
+          retention-days: 30
