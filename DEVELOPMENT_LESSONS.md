@@ -778,3 +778,21 @@ receipt cannot label another report delivered. Opt-out must cancel an active
 automatic request, not merely prevent the next queue insertion. Test lost
 pairing responses with the same persisted secret. Keep optimization reports
 local and route their manual action to the same explicit sanitized preview.
+
+## Account refresh investigation
+
+The manifest cache used only URL and addon-list version, so a server-side
+manifest change at the same URL could remain invisible indefinitely. Refresh
+it after five minutes or an explicit Sync Now, retaining the last response
+only as a labelled failure fallback. Fence writes by cache generation so a
+request started before invalidation cannot repopulate fresh state.
+
+The legacy sync completion tick also advances for interrupted/cached cycles.
+Keep its scheduling contract separate from new per-account/profile freshness
+and last-success state. An initial cycle stopped by the cloud circuit breaker
+must become eligible for periodic retry after recovery. Manual refresh uses
+the existing full worker and pending-local merge rules, never the login/profile
+reset function that clears pending Settings writes. New fixtures exercise real
+production C on both platform definitions; native results remain pending at
+this checkpoint. The prior diagnostic fast gate passed both platforms and the
+backend security job in run 38303162503 on acec078.
