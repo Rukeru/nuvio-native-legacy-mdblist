@@ -135,11 +135,13 @@ circuit breaker. Status distinguishes fresh, cached, incomplete and cooldown
 results. The last fresh timestamp is per account/profile for this app session;
 it does not pretend that an offline fallback was a successful fresh pull.
 
-Private diagnostics use a separate, paired connection to Rukeru's existing
-Cloudflare Worker. Opening a report shows the exact structured preview; **Send**
-is a separate action. Automatic reports are off until a new recipient-specific
-opt-in. Each television must be paired independently. See
-[private diagnostics setup and viewing](private-diagnostics/README.md).
+Private diagnostics are disabled at the user's request. Shipping builds collect
+no private diagnostic events, create no diagnostic worker, and cannot pair or
+upload reports. Upload/pairing controls are removed; their saved option indices
+remain reserved. Cloudflare ingestion stays disabled. The implementation and
+its security tests remain available for maintenance, but historical security
+verification does not activate it in future automatic builds. MDBList and Trakt
+watch tracking are unchanged.
 The donation Settings entry and panel are removed, with saved settings IDs,
 the guide, licence attribution and update information preserved.
 

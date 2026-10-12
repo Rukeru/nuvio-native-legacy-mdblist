@@ -1,5 +1,11 @@
 # Private TV diagnostics
 
+**Release status: disabled at the user's request.** TV builds compile inert
+diagnostic APIs with no worker, event collection, files, pairing or transport.
+Cloudflare ingestion remains disabled. The deployment/pairing instructions
+below are retained as development reference; they do not describe an enabled
+feature in the current release candidate. Existing security tests are retained.
+
 This deploys to the existing `nuvio-diagnostics-api` Worker and
 `nuvio-diagnostics` D1 database, binding `DB`. It does not create either resource.
 Reports can be read or deleted only through your authenticated Cloudflare D1

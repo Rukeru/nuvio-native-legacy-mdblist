@@ -12,8 +12,9 @@ class PrivateClient(unittest.TestCase):
             root=Path(temp);(root/'src').mkdir()
             state={'builder_commit':'0123456789abcdef0123456789abcdef01234567'}
             integration.diagnostic_build(root,state)
-            self.assertTrue(state['private_diagnostics']['production_enabled'])
-            self.assertIn('#define NV_DIAG_VERIFIED 1',(root/'src/nvdiag_build.h').read_text())
+            # Explicit user policy overrides completed historical security proof.
+            self.assertFalse(state['private_diagnostics']['production_enabled'])
+            self.assertIn('#define NV_DIAG_VERIFIED 0',(root/'src/nvdiag_build.h').read_text())
             original=integration.verified
             def changed(path,digest):
                 if path.name=='nvdiag.c':raise integration.Incompatible('Changed client needs reverification')

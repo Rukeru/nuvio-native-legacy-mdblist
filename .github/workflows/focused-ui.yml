@@ -51,16 +51,22 @@ jobs:
               (d/'caller.c').write_text('#include "nvdiag_observe.h"\nvoid exercise(void){NVD_NOTE(NVD_SYNC_FAILED,2,3);}')
               (d/'provider.c').write_text('#include <assert.h>\nstatic int called; void nvdiag_observe(int c,int a,int b){assert(c==2&&a==2&&b==3);called++;} void exercise(void); int main(void){exercise();assert(called==1);}')
               binary=d/'provider-test'
-              subprocess.run(['cc','-O1','-Iupstream/src',str(d/'caller.c'),str(d/'provider.c'),'-o',str(binary)],check=True)
+              subprocess.run(['cc','-O1','-DNV_DIAG_VERIFIED=1','-Iupstream/src',str(d/'caller.c'),str(d/'provider.c'),'-o',str(binary)],check=True)
               subprocess.run([str(binary)],check=True)
           PY
       - name: Execute real Settings navigation and account fixtures
         run: |
           python3 ci_benchmark.py upstream focused-evidence focused-development \
             tests/ajustes_ux_dados.sh tests/ajustes_ux_interacao.sh \
+            tests/ajustes_envio_auto.sh tests/i18n.sh tests/tizen_improvements.sh \
+            tests/streamfit_redirect_range.sh tests/seekr_vivo.sh \
             tests/manifesto_cache.sh tests/manifesto_wait.sh \
             tests/synccolecoes.sh tests/colfileiras_sync.sh tests/syncordem.sh \
             tests/contaoffline.sh tests/contaoffline_limites.sh tests/sync_aplicar_perf.sh
+          for repeat in 2 3; do
+            python3 ci_benchmark.py upstream "focused-evidence/redirect-$repeat" focused-network-repeat \
+              tests/streamfit_redirect_range.sh
+          done
       - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
         if: always()
         with:

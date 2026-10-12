@@ -20,7 +20,7 @@ def changelog(source, state):
     """Embed bounded public release highlights, never fetch from the TV UI."""
     notes = [
         ("Sync when you need it", "Use Sync Now in Account & services to refresh Collections and addons. Fresh and cached results are shown separately; pending local changes are protected."),
-        ("Private diagnostics", "Pair this TV to send a sanitized report preview to Rukeru’s private service. Automatic reporting needs a new opt-in and is off by default."),
+        ("Diagnostic uploads disabled", "Private diagnostic collection, pairing and report uploads are disabled in this build."),
         ("Cleaner settings", "The donation section is removed. Help, update information, MDBList tracking and the existing performance improvements are preserved."),
     ]
     upstream = state.get('upstream', {})

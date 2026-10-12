@@ -11,14 +11,17 @@
     "private-diagnostics/ingestion.mjs": "3b4435e869c88d0eb28244212285701e1e7be16adfa4e1a5c2854c2a6bd04fda",
     "private-diagnostics/migrations/0001_private_diagnostics.sql": "ed5d4431af255a60f6690a6cc839d2ed9b36c5b0720603f854d076e136607fc3",
     "private-diagnostics/wrangler.jsonc": "5ce8141e0bd966f5f0b53092b1f498034daf5d7b32d50da4c83a97ff6964633a",
-    "integration/private-diagnostics.patch": "96b709ce98aa26f30fce6d4d4eed7cb4d5a62c359fd35da69c6be27abb702c60",
-    "integration/overlay/src/nvdiag.c": "1a4a41a90f05e8b309b46671878b76ca5883e597a8c388d8bf9846cdef18c64e",
+    "integration/private-diagnostics.patch": "ff8d2a62930bd0ef4bf11dc178fe4c163d10f90ff2936d273d4b51bd53490b9c",
+    "integration/overlay/src/nvdiag.c": "b17b6abaae1271ca3dfc7b32fa907629b3daf92c5fab7e5cb8d4cd38ed31cce1",
     "integration/overlay/src/nvdiag.h": "d21580353f46578733450c28dffddc82c48863a458613cfb4e47ef823c832580",
     "integration/overlay/src/nvdiag_format.c": "0ce8202ad46bbc9e42942c46212ece7a164c8376a2181a566ca2c71f1c841aca",
-    "integration/overlay/src/nvdiag_observe.h": "a5557fb3d66c779b5c4a1b11aa1eeb08ffb30473b50e611489a82f169952a6f7",
-    "integration/overlay/tests/nvdiag.c": "94487115498551f3c1355503e8aaa5fb6a5d8ed5ef0ddc905ee4cd7a9840f295"
+    "integration/overlay/src/nvdiag_observe.h": "9aa5c5353891825c618d033097d06065bbbeac86d0ccab5d560deb541e7b1227",
+    "integration/overlay/tests/nvdiag.c": "ff601af0a6bb53ad05ffc6095b3285db0b24eee41c25ab18e03df1365a9f677d"
   },
-  "activation": "Build-time capability only; each installation still needs pairing and fresh consent. Backend stays disabled until final app gates pass.",
+  "activation": "Disabled at user request. Shipping builds compile inert diagnostic APIs: no worker, event collection, persistence, pairing or transport. Historical security proof does not enable production. Cloudflare ingestion remains disabled.",
   "portability_review": "Apple isolated host fixtures use weak fallback definitions because Mach-O requires link-time resolution even for missing weak imports. Both TV targets retain the identical ELF weak declaration and runtime. Focused host validation includes a real strong-provider override check; no diagnostic event, consent, transport or storage changes.",
-  "retry_lock_review": "Confirmed race: worker attempt reservation was outside mu while Send read attempts under mu. Reserve the count/deadline under mu, keep IO outside it. The real C fixture asserts mutex ownership at reservation. No protocol, consent, endpoint, storage format or backend behavior changed. Require focused native fixture passes and full release gates for this revision."
+  "retry_lock_review": "Confirmed race: worker attempt reservation was outside mu while Send read attempts under mu. Reserve the count/deadline under mu, keep IO outside it. The real C fixture asserts mutex ownership at reservation. No protocol, consent, endpoint, storage format or backend behavior changed. Require focused native fixture passes and full release gates for this revision.",
+  "regression_portability_review": "Darwin feature declarations restored for mkdtemp. Private UI icon token is unchanged and separated from translated text. Settings persistence fixture now tests fresh-recipient consent (legacy migration/default/off/on isolation, explicit default-decline UI, on/off persistence and real worker restart) instead of wrongly requiring upstream automatic opt-in. No client transport, backend, consent implementation or queue behavior changed; require focused macOS and full release gates.",
+  "production_enabled": false,
+  "disabled_release_review": "NV_DIAG_VERIFIED=0 now compiles inert APIs and observer hooks. TV upload/pairing controls are removed with enum indices retained; manual/consent entry points stay closed. Existing diagnostics regression fixtures explicitly compile the retained implementation separately; a new disabled fixture links without any filesystem/network/thread providers and checks every API remains inert. Both platform full release gates remain mandatory."
 }

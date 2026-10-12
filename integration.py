@@ -160,7 +160,7 @@ def diagnostic_build(root,state):
         evidence=json.loads(live.read_text(encoding='utf8'))
         if evidence.get('passed') is not True or len(evidence.get('checks',[]))!=21:
             raise Incompatible('Private diagnostics live evidence is incomplete')
-        enabled=bool(builder)
+        enabled=bool(builder) and proof.get('production_enabled') is True
     header=template.replace('#define NV_DIAG_BUILD ""','#define NV_DIAG_BUILD '+json.dumps(builder))
     if enabled:
         if header.count('#define NV_DIAG_VERIFIED 0')!=1:
