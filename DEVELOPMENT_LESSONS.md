@@ -531,14 +531,17 @@ and cannot publish or replace the full nine-shard release gate.
 Focused diagnostics revealed that keyboard Up consumes the previous rendered
 skip-intro snapshot, which must be supplied through the existing upstream shot
 hook. Exercise both a visible intro and no intro, retain every focus/audio
-assertion, and cover hide/reveal explicitly. The final movie button now opens
-Related; navigate one place left to Sources before its original request check.
+assertion, and cover hide/reveal explicitly. The final movie button exists only when related metadata is available. Explicitly
+provide zero related titles for the original Sources check, and add a controlled
+related-title case to assert the new panel behavior.
 
 The short-tap/long-hold saved-panel fixture uses fixed 1/60-second animation
 updates. Drive its SDL deadlines with the same atomic fixture clock: two slow
 CI render frames must remain a short tap. Keep the actual hold threshold, every
-frame, all removal/focus/geometry assertions and real rendering. macOS requires
-_DARWIN_C_SOURCE before headers to expose mkdtemp alongside the POSIX level.
+frame, all removal/focus/geometry assertions and real rendering. Darwin declares
+mkdtemp in unistd.h; feature macros alone cannot supply a missing declaration.
+Include the actual platform header alongside the POSIX feature level. See
+https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/mkdtemp.3.html.
 
 Run the complete .NET lifecycle deadline fixture on Linux, as with TS-proxy and
 other portable timing fixtures. The Windows .NET 8.0.425 check passes every
