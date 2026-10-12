@@ -6,7 +6,7 @@ list; Samsung continues following releases/latest without any workflow changes.
 from pathlib import Path
 import argparse, hashlib, io, json, os, re, shutil, struct, subprocess, tarfile
 import urllib.request
-from channel import api, UPSTREAM, CHANNEL, BASE, version
+from channel import api, UPSTREAM, CHANNEL, BASE, version, select_upstream
 from resilience import fetch
 
 SDK_URL = 'https://github.com/openlgtv/buildroot-nc4/releases/download/webos-a38c582/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz'
@@ -66,14 +66,14 @@ def inspect(path, expected_version):
 
 def discover(args):
     from update_guard import pages, stable, blocked
-    upstream=stable(pages('repos/'+UPSTREAM+'/releases'))
-    if upstream is None: raise ValueError('No stable official release')
+    upstream,selection=select_upstream(getattr(args,'reviewed_baseline',False))
     releases=pages('repos/'+CHANNEL+'/releases')
     do_build=needed(upstream,releases,args.force)
     v=package_version(upstream['tag_name'],args.run)
     state={'upstream':upstream,'upstream_version':version(upstream['tag_name']),
            'version':v,'core_version':v,'tag':'webos-v'+v,'build':do_build,'base_commit':BASE,
            'builder_commit':os.environ.get('GITHUB_SHA')}
+    state.update(selection)
     if do_build and blocked('webos',state,args.force): do_build=state['build']=False
     Path('webos-state.json').write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     if os.environ.get('GITHUB_OUTPUT'):
@@ -132,6 +132,6 @@ def package(args):
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(); sub=p.add_subparsers(dest='command',required=True)
-    d=sub.add_parser('discover'); d.add_argument('--run',type=int,required=True); d.add_argument('--force',action='store_true')
+    d=sub.add_parser('discover'); d.add_argument('--run',type=int,required=True); d.add_argument('--force',action='store_true'); d.add_argument('--reviewed-baseline',action='store_true')
     sub.add_parser('prepare'); sub.add_parser('package')
     a=p.parse_args(); globals()[a.command](a)

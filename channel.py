@@ -43,10 +43,29 @@ def needed(upstream, published, force=False):
     marker = '<!-- upstream-release: ' + str(upstream['id']) + ' -->'
     return force or published is None or marker not in (published.get('body') or '')
 
+def select_upstream(reviewed_baseline=False):
+    """Manual feature releases may pin the reviewed tag and immutable commit."""
+    from update_guard import pages, stable
+    if not reviewed_baseline:
+        release = stable(pages('repos/' + UPSTREAM + '/releases'))
+        if release is None: raise ValueError('No stable official release')
+        return release, {}
+    from integration import manifest
+    baseline = manifest()
+    tag, commit = baseline['base_tag'], baseline['base_commit']
+    version(tag)
+    if not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise ValueError('Invalid reviewed upstream commit')
+    release = api('repos/' + UPSTREAM + '/releases/tags/' + tag)
+    if (release.get('tag_name') != tag or release.get('draft')
+            or release.get('prerelease') or not release.get('id')):
+        raise ValueError('Reviewed baseline is not the exact published stable release')
+    return release, {'expected_upstream_commit': commit, 'reviewed_baseline': True}
+
+
 def discover(args):
     from update_guard import pages, stable, blocked
-    upstream = stable(pages('repos/' + UPSTREAM + '/releases'))
-    if upstream is None: raise ValueError('No stable official release')
+    upstream, selection = select_upstream(getattr(args, 'reviewed_baseline', False))
     published = stable(pages('repos/' + CHANNEL + '/releases'))
     do_build = needed(upstream, published, args.force)
     v = version(upstream['tag_name'])
@@ -54,6 +73,7 @@ def discover(args):
     info = {'upstream': upstream, 'version': v, 'core_version': core,
             'tag': 'v' + core, 'build': do_build, 'base_commit': BASE,
             'builder_commit': os.environ.get('GITHUB_SHA')}
+    info.update(selection)
     if do_build and blocked('tizen', info, args.force): do_build = info['build'] = False
     Path(args.state).write_text(json.dumps(info, indent=2) + '\n')
     output = os.environ.get('GITHUB_OUTPUT')
@@ -214,7 +234,7 @@ def package(args):
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(); sub = p.add_subparsers(dest='command', required=True)
-    d = sub.add_parser('discover'); d.add_argument('--run', type=int, required=True); d.add_argument('--force', action='store_true'); d.add_argument('--state', default='state.json')
+    d = sub.add_parser('discover'); d.add_argument('--run', type=int, required=True); d.add_argument('--force', action='store_true'); d.add_argument('--state', default='state.json'); d.add_argument('--reviewed-baseline', action='store_true')
     r = sub.add_parser('prepare'); r.add_argument('--source', default='upstream'); r.add_argument('--engine', default='engine'); r.add_argument('--patch', default='mdblist.patch'); r.add_argument('--state', default='state.json')
     c = sub.add_parser('dependencies'); c.add_argument('--source', default='upstream'); c.add_argument('--cache', required=True)
     b = sub.add_parser('package'); b.add_argument('--source', default='upstream'); b.add_argument('--state', default='state.json'); b.add_argument('--output', default='release')

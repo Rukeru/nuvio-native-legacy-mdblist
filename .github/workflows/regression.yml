@@ -11,6 +11,9 @@ on:
       platform:
         type: string
         required: true
+      reviewed_baseline:
+        type: boolean
+        default: false
       force:
         type: boolean
         default: false
@@ -39,9 +42,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ inputs.platform }}
           FORCE: ${{ inputs.force }}
+          REVIEWED_BASELINE: ${{ inputs.reviewed_baseline }}
         run: |
           args=()
           if [ "$FORCE" = true ]; then args+=(--force); fi
+          if [ "$REVIEWED_BASELINE" = true ]; then args+=(--reviewed-baseline); fi
           if [ "$PLATFORM" = tizen ]; then
             python3 channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
             cp state.json regression-state.json

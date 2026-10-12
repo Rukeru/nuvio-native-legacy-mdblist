@@ -6,6 +6,10 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
+      reviewed_baseline:
+        description: Build the reviewed integration baseline for this feature release
+        type: boolean
+        default: false
       force:
         description: Rebuild the current release even if already published
         type: boolean
@@ -34,9 +38,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FORCE: ${{ inputs.force }}
+          REVIEWED_BASELINE: ${{ inputs.reviewed_baseline }}
         run: |
           args=()
           if [ "$FORCE" = true ]; then args+=(--force); fi
+          if [ "$REVIEWED_BASELINE" = true ]; then args+=(--reviewed-baseline); fi
           python3 channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
       - name: Validate updater regression tests
         run: python3 -m unittest discover -s . -v
@@ -164,6 +170,7 @@ jobs:
     with:
       platform: tizen
       force: ${{ inputs.force == true }}
+      reviewed_baseline: ${{ inputs.reviewed_baseline == true }}
   backend-security:
     needs: build
     if: needs.build.outputs.build == 'true'
