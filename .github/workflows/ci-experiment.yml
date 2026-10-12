@@ -1,0 +1,86 @@
+name: Focused compiler-cache equivalence and timings
+on:
+  push:
+    branches: [codex/fast-ci-diagnostics]
+    paths: [ci_compile.py, ci_benchmark.py, test_ci_compile.py, '.github/workflows/ci-experiment.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - os: macos-15
+            fixtures: tests/ajustes_ux_dados.sh tests/fontepref.sh tests/mdblist.sh
+          - os: ubuntu-24.04
+            fixtures: tests/home_progressiva.sh tests/ui_profile.sh tests/mdblist.sh
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Test compiler parsing and evidence safety
+        run: python3 -m unittest test_ci_compile test_regression_attempts test_full_regression test_regression_gate
+      - name: Assemble the established immutable integration
+        run: |
+          git clone --no-checkout https://github.com/iqui27/nuvio-native-legacy.git upstream
+          git -C upstream checkout --detach db6ae4ee0dd2fa158c46ba375c1fe8c08de70504
+          python3 - <<'PY'
+          from pathlib import Path
+          import integration,os,json
+          state={'upstream':{'tag_name':'v2.0.4','id':0},'upstream_commit':'db6ae4ee0dd2fa158c46ba375c1fe8c08de70504',
+                 'builder_commit':os.environ['GITHUB_SHA'],'diagnostic_only':True}
+          integration.apply(Path('upstream').resolve(),'tizen',state)
+          Path('benchmark-evidence').mkdir()
+          Path('benchmark-evidence/source.json').write_text(json.dumps(state,indent=2)+'\n')
+          PY
+      - name: Install macOS fixture dependencies
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ccache
+      - name: Install Linux fixture dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev zlib1g-dev xvfb xauth ripgrep ccache
+      - name: Prepare isolated measurements
+        run: |
+          echo "CCACHE_DIR=$RUNNER_TEMP/ci-benchmark-cache" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+          echo "NV_COMPILE_TIMINGS=$GITHUB_WORKSPACE/benchmark-evidence/compiler.jsonl" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/upstream/tests/stubs/host" >> "$GITHUB_ENV"
+      - name: Original compiler and complete fixture assertions
+        env:
+          FIXTURES: ${{ matrix.fixtures }}
+        run: |
+          display=(); if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python3 ci_benchmark.py upstream benchmark-evidence/original original $FIXTURES
+      - name: Enable bounded object compilation cache
+        run: python3 ci_compile.py install "$RUNNER_TEMP/nuvio-host-compiler"
+      - name: Cold cache with identical fixture assertions
+        env:
+          FIXTURES: ${{ matrix.fixtures }}
+        run: |
+          display=(); if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python3 ci_benchmark.py upstream benchmark-evidence/cold cold $FIXTURES
+          ccache --show-stats > benchmark-evidence/cache-cold.txt
+      - name: Warm cache with identical fixture assertions
+        env:
+          FIXTURES: ${{ matrix.fixtures }}
+        run: |
+          display=(); if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python3 ci_benchmark.py upstream benchmark-evidence/warm warm $FIXTURES
+          ccache --show-stats > benchmark-evidence/cache-warm.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: compiler-equivalence-${{ matrix.os }}-attempt-${{ github.run_attempt }}
+          path: benchmark-evidence/
+          if-no-files-found: error
+          retention-days: 30
