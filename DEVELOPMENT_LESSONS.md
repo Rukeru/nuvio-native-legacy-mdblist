@@ -549,3 +549,10 @@ original deadline; macOS host scheduling can delay its timer beyond 250 ms.
 Keep all deadlines and fatal/cleanup checks unchanged on the supported Linux
 host, prove inventory assignment exactly once, and require that shard's result.
 The focused diagnostic uses that same host and the same fixture DNS boundary.
+
+The availability fixture must pass dados_dir() to Settings after dados_iniciar:
+NUVIO_DADOS intentionally overrides its fallback directory. Writing through the
+data API and reading a different raw path silently restores cached-only factory
+defaults. Verify the saved file contents and the disabled-filter precondition,
+then retain all original service-row, raw-index and partial-list focus checks.
+The complete player regression at d364d66 passed every original and added check.
