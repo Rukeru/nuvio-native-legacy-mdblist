@@ -134,7 +134,8 @@ def contracts(root,platform,state):
       'settings':{'src/ajustes.c':['#include "mdbsettings.def"','mdblist_rastrear','ajustes_season_numbers'],
                   'src/mdbsettings.def':['"mdblistScrobbleLocal", 1','"cachedOnlyDefaultLocal", 0','"showSeasonNumbersLocal", 0'],
                   'src/ajustes_ux_tela.inc':['#include "mdbsettings_tracking.inc"'],
-                  'src/ajustes_ux_visual.inc':['#include "mdbsettings_icons.inc"']},
+                  'src/ajustes_ux_visual.inc':['#include "mdbsettings_icons.inc"'],
+                  'src/ajustes_ux_secoes.inc':['#include "mdbsettings_scene_cases.inc"','case AJC_MDB_TRACKING:']},
       'settings-regression':{'tests/mdblist_settings_defaults.c':[
                   '#include "ajustes_padroes.c"', 'return upstream_settings_defaults_main();',
                   'assert(!ajustes_mdblist_rastrear());',

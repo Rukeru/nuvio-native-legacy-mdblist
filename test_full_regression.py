@@ -14,6 +14,13 @@ class FullRegression(unittest.TestCase):
         shards=[partition(files,i,8) for i in range(8)]
         self.assertEqual(sorted(sum(shards,[])),sorted(files))
         self.assertEqual(len(set(sum(shards,[]))),len(files))
+        rendering=['tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
+                   'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh']
+        files+=rendering
+        shards=[partition(files,i,9) for i in range(9)]
+        self.assertEqual(sorted(sum(shards,[])),sorted(files))
+        self.assertEqual(shards[8],sorted(rendering))
+        self.assertEqual(len(set(sum(shards,[]))),len(files))
     def test_merge_rejects_missing_execution_or_inconsistent_identity(self):
         files=['tests/a.sh','tests/mdblist_settings_defaults.sh']
         with tempfile.TemporaryDirectory() as d:

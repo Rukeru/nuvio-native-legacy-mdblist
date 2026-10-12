@@ -21,6 +21,12 @@ def provision(root,index,count):
     patterns=excluded.group(1).strip().split('|')
     selected=[path for path in selected if not any(fnmatch.fnmatch(Path(path).name,p) for p in patterns)]
     print('Provisioning toolchains for',len(selected),'assigned scripts',flush=True)
+    dotnet=any(re.search(r'\bdotnet (?:build|run)',(root/path).read_text()) for path in selected)
+    with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf8') as output:output.write('dotnet='+str(dotnet).lower()+'\n')
+    if 'tests/entrada_texto_wgt.sh' in selected:
+        prefix=Path(os.environ['RUNNER_TEMP'])/'regression-playwright'
+        network_command(['npm','install','--prefix',str(prefix),'--no-save','--ignore-scripts','--no-audit','--no-fund','playwright-core@1.55.1'])
+        with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as env:env.write('NODE_PATH='+str(prefix/'node_modules')+'\n')
     if 'tests/android_superficie_solta.sh' in selected:
         for group,name,version,digest in KOTLIN:
             filename=name+'-'+version+'.jar'
@@ -32,16 +38,37 @@ def provision(root,index,count):
                 if hashlib.sha256(data).hexdigest()!=digest:raise ValueError('Kotlin regression tool checksum mismatch: '+name)
                 path.write_bytes(data)
         subprocess.run(['java','-version'],check=True)
-    if any(re.search(r'^(?:EMCC=|emcc |source .*EMSDK)',(root/path).read_text(),re.M) for path in selected):
+    if any(re.search(r'^(?:EMCC=|emcc |source .*EMSDK)|\bemcc\s',(root/path).read_text(),re.M) for path in selected):
         sdk=Path(os.environ['RUNNER_TEMP'])/'regression-emsdk'
         network_command(['git','clone','--depth','1','--branch','4.0.18','https://github.com/emscripten-core/emsdk',str(sdk)])
         actual=subprocess.check_output(['git','-C',str(sdk),'rev-parse','HEAD'],text=True).strip()
-        if actual!='eb5eb4b3b2b792f44ded198bfe615c985da5be2c':raise ValueError('Emscripten regression SDK source checksum changed')
+        if actual!='eb5eb4b3b2b792f44ded198bfe615c985da5be2c':raise ValueError('Emscripten regression SDK source checksum mismatch')
         network_command([str(sdk/'emsdk'),'install','4.0.18'])
         subprocess.run([str(sdk/'emsdk'),'activate','4.0.18'],check=True)
         with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as env:env.write('EMSDK_DIR='+str(sdk)+'\n')
+        with open(os.environ['GITHUB_PATH'],'a',encoding='utf8') as paths:paths.write(str(sdk/'upstream/emscripten')+'\n')
+    if any(path in selected for path in ('tests/dts_engine.sh','tests/dts_subtitles.sh')):
+        prefix=Path(os.environ['RUNNER_TEMP'])/'regression-dts-host'
+        build=Path(os.environ['RUNNER_TEMP'])/'regression-dts-build'
+        os.environ.update(NUVIO_DTS_HOST='1',NUVIO_DTS_ROOT=str(prefix),NUVIO_DTS_BUILD=str(build),CC='cc')
+        # The upstream script verifies its own pinned FFmpeg source archive.
+        coreutils=subprocess.check_output(['brew','--prefix','coreutils'],text=True).strip()
+        os.environ['PATH']=str(Path(coreutils)/'libexec/gnubin')+os.pathsep+os.environ['PATH']
+        network_command(['bash',str(root/'tools/build-dts-ffmpeg.sh')])
+        with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as env:env.write('NUVIO_DTS_ROOT='+str(prefix)+'\n')
+    if any(path in selected for path in ('tests/dts_pipeline.sh','tests/dts_sonda_cache.sh','tests/dts_sonda_repetida.sh')):
+        # The tests deliberately exercise BOTH libstdc++ string ABIs. Apple's
+        # default clang/libc++ ignores the _GLIBCXX_USE_CXX11_ABI switch.
+        network_command(['brew','install','gcc'])
+        prefix=Path(subprocess.check_output(['brew','--prefix','gcc'],text=True).strip())
+        compilers=sorted((prefix/'bin').glob('g++-*'))
+        if not compilers:raise ValueError('GNU C++ compiler required by real dual-ABI fixture')
+        compiler=compilers[-1]
+        subprocess.run([str(compiler),'--version'],check=True)
+        with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as env:env.write('CXX='+str(compiler)+'\n')
     if 'tests/gifbanco-tizen.sh' in selected:
         network_command(['git','-C',str(root),'fetch','origin','refs/tags/v1.4.6:refs/tags/v1.4.6'])
+    if any(path in selected for path in ('tests/gifbanco-tizen.sh','tests/entrada_texto_wgt.sh')):
         chrome=Path('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
         if not chrome.exists():network_command(['brew','install','--cask','google-chrome'])
         subprocess.run([str(chrome),'--version'],check=True)

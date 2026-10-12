@@ -378,3 +378,32 @@ tests, keep it outside uploaded evidence, and remove it even after failures.
 Name dependency/setup failures separately from source compatibility failures.
 Any FALHA result or Darwin undefined-symbol failure suppresses whole-command
 retries even if another line mentions a transient HTTP error.
+
+Compare unexplained graphics/texture failures with the exact unmodified upstream
+commit before changing application behavior. The 2.0.4 baseline diagnostic
+reproduced failures in ilha_voo_cw, spainel_fundo_tempo, texbruto,
+streamfit_sheet and trailer-hero-contract without any MDBList integration.
+Fixed-dt animation fixtures must use the same frame timeline for deadlines:
+software-renderer wall time is not a 16 ms animation step. Preserve every
+frame, geometry tolerance, pixel threshold and reconstruction assertion. Run
+the real GLES renderer fixtures on Linux, and retain the original Darwin path
+for local use. CPU mipmap coverage uses ASan plus UBSan on native SDL2/Linux;
+the original Guard Malloc path remains available on Darwin.
+
+Initialize real SDL timers in stale-texture fixtures before recording a request:
+zero is a reserved "no request" timestamp. Isolated source-selection fixtures
+must explicitly configure their unfiltered setup when the application default
+filters uncached sources. Give new setting categories distinct preview scene
+identities and unique real art mappings, rather than relaxing the existing
+cross-category uniqueness checks. Track shared fixture includes as checksum-
+verified owned modules and keep all native platform adapters in one registry.
+
+Host library/toolchain differences are test setup requirements: GNU C++ is
+required to exercise both libstdc++ string ABIs; Darwin uses DYLD_LIBRARY_PATH
+and its actual pinned FFmpeg pkg-config private dependencies. Provision the
+exact dotnet SDK, mkvmerge, OpenSSL, Playwright, Kotlin and Emscripten required
+by assigned tests. Loopback fixture servers must not depend on reverse DNS for
+their diagnostic server_name; sockets, client requests and TLS assertions stay
+real. Do not upload temporary compilers, binaries or shared app configuration
+as regression evidence. Upload complete logs and provenance, and require every
+assigned script to be accounted for before authorizing either release.

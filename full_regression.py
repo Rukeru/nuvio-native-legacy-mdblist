@@ -8,6 +8,13 @@ import hashlib,json,re,shlex,subprocess,sys
 
 def partition(files,index,count):
     if count < 1 or not 0 <= index < count:raise ValueError('Invalid regression shard')
+    if count == 9:
+        # Run every frame/scenario of the benchmark on the supported GLES host,
+        # including the renderer fixture that is unavailable on macOS.
+        rendering={'tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
+                   'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh'}
+        if index==8:return sorted(set(files)&rendering)
+        return sorted(set(files)-rendering)[index::8]
     return sorted(files)[index::count]
 
 def prepare(script,selected):
