@@ -344,3 +344,29 @@ An upload preserves raw CRLF bytes even when local Git would normalize them;
 `set -euo pipefail` then becomes an invalid option on the runner. Declare
 `*.sh text eol=lf` and verify actual deployed script bytes in updater tests.
 Source assembly passing does not prove the preflight script itself can execute.
+
+The complete upstream suite also compiles isolated discovery and addon fixtures.
+Extend their explicit service interfaces rather than removing cases or linking
+uncontrolled account/network services into them. Disabled MDBList discovery
+fixtures reject unexpected library requests with assertions; header-aware addon
+fixtures delegate to their original controlled downloader and assert that no
+unconfigured proxy headers were supplied. All original assertion counts remain
+unchanged. Install ripgrep/coreutils on the native runner and replace developer
+SSD output paths with unique temporary paths; these are harness adaptations,
+not changes to the tested behavior.
+
+The expanded suite also checks exact enum boundaries and an explicit icon for
+every visible row. Preserve upstream ID adjacency, assert the exact seven-ID
+owned suffix and final boundary, and supply the real icon mappings for those
+rows. Do not replace boundary assertions with inequalities or exempt custom
+rows from the existing visual-map test. Check registry/icon coverage before SDK
+setup so this presentation mismatch cannot hide behind a successful build.
+
+Distribute the full gatekeeper enumeration over isolated native runners to avoid
+one long serial job timing out. Preserve the original test scripts, exclusion
+logic and exit/SKIP rules. Verify each assigned script was visited exactly once,
+every shard used identical source/builder/fingerprint and gatekeeper, every
+summary checksum matches, and all shard totals cover the full inventory before
+attestation. Failed/missing shards cannot be treated as partial success. Only
+allocate native regression runners when the inexpensive Linux release selector
+finds an update; unchanged hourly polls must not consume macOS build minutes.

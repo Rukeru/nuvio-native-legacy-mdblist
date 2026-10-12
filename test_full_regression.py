@@ -1,0 +1,34 @@
+import hashlib,json,tempfile,unittest
+from pathlib import Path
+from full_regression import partition,prepare,merge
+
+class FullRegression(unittest.TestCase):
+    def test_enumeration_preserves_gatekeeper_logic_and_all_assertions(self):
+        script='for f in tests/*.sh; do\n  n=$(basename "$f")\n  bash "$f" || exit 1\ndone\n'
+        adapted=prepare(script,['tests/a.sh','tests/b.sh'])
+        self.assertIn('bash "$f" || exit 1',adapted)
+        self.assertIn('echo "inventory $n"',adapted)
+        with self.assertRaises(ValueError):prepare(script.replace('tests/*.sh','other/*.sh'),[])
+    def test_partitions_cover_each_test_exactly_once(self):
+        files=['tests/'+str(i)+'.sh' for i in range(577)]
+        shards=[partition(files,i,8) for i in range(8)]
+        self.assertEqual(sorted(sum(shards,[])),sorted(files))
+        self.assertEqual(len(set(sum(shards,[]))),len(files))
+    def test_merge_rejects_missing_execution_or_inconsistent_identity(self):
+        files=['tests/a.sh','tests/mdblist_settings_defaults.sh']
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            for index in range(2):
+                p=root/f'shard-{index}';p.mkdir();selected=partition(files,index,2)
+                text='inventory '+Path(selected[0]).name+'\nok    '+Path(selected[0]).name+'\ntestes: 1 passaram, 0 falharam, 0 SKIP sem prova, 0 fora da suite\n'
+                (p/'SUMMARY.txt').write_text(text)
+                meta={'index':index,'count':2,'files':files,'selected':selected,'exit_code':0,
+                      'gatekeeper_sha256':'same','summary_sha256':hashlib.sha256((p/'SUMMARY.txt').read_bytes()).hexdigest(),
+                      'state':{'upstream_commit':'u','builder_commit':'b','integration':{'fingerprint':'f'}}}
+                (p/'execution.json').write_text(json.dumps(meta))
+            merge(root,root/'state',root/'summary',2)
+            self.assertIn('testes: 2 passaram',(root/'summary').read_text())
+            p=root/'shard-1/execution.json';meta=json.loads(p.read_text())
+            for field,value in [('selected',[]),('exit_code',1),('state',{'upstream_commit':'different'})]:
+                bad={**meta,field:value};p.write_text(json.dumps(bad))
+                with self.subTest(field=field),self.assertRaises(ValueError):merge(root,root/'state',root/'summary',2)

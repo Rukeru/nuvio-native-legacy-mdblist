@@ -12,7 +12,7 @@ class RegressionGate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             state=Path(d)/'state.json';summary=Path(d)/'summary.txt'
             state.write_text(json.dumps({'upstream_commit':'source','builder_commit':'builder','integration':{'fingerprint':'reviewed'}}))
-            summary.write_text('ok    mdblist_settings_defaults.sh\ntestes: 500 passaram, 0 falharam, 2 SKIP sem prova, 75 fora da suite; logs: fixture\n')
+            summary.write_text('shard 0: testes: 20 passaram, 0 falharam, 0 SKIP sem prova, 0 fora da suite\nok    mdblist_settings_defaults.sh\ntestes: 500 passaram, 0 falharam, 2 SKIP sem prova, 75 fora da suite; logs: fixture\n')
             attest(state,summary)
             data=json.loads(state.read_text());result=validate(data,state)
             self.assertEqual(result['passed'],500);self.assertEqual(result['unavailable'],2)

@@ -40,6 +40,14 @@ its SHA-256. Preflight verifies and safely extracts it before reading the
 manifest. After editing the extracted integration, repack it and update the
 bundle digest as well as the manifest's individual input digests.
 
+The full upstream gatekeeper runs across eight isolated native regression
+runners per platform. It retains every original test script, assertion,
+exclusion and SKIP rule. The aggregate gate rejects missing/failed shards,
+duplicate or omitted test scripts, changed inventories and provenance drift.
+Both publish jobs require its attestation in addition to the Linux native
+build and real rendering checks. Unchanged polls use only the inexpensive
+release selector and do not start macOS regression jobs.
+
 On Samsung, native cores install automatically only when the existing signed
 shell, resources and engine match. A new full TPK must be TV-signed and installed
 when that identity changes. On LG, automatic package installation requires the

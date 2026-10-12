@@ -37,7 +37,7 @@ def fingerprint():
     # Includes updater/preflight code: a repaired adapter/check immediately unblocks.
     unpack()
     h=hashlib.sha256(REGISTRY.read_bytes())
-    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
+    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','full_regression.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
         p=ROOT/path
         if p.exists(): h.update(path.encode()+p.read_bytes())
     return h.hexdigest()
@@ -133,7 +133,8 @@ def contracts(root,platform,state):
     requirements={
       'settings':{'src/ajustes.c':['#include "mdbsettings.def"','mdblist_rastrear','ajustes_season_numbers'],
                   'src/mdbsettings.def':['"mdblistScrobbleLocal", 1','"cachedOnlyDefaultLocal", 0','"showSeasonNumbersLocal", 0'],
-                  'src/ajustes_ux_tela.inc':['#include "mdbsettings_tracking.inc"']},
+                  'src/ajustes_ux_tela.inc':['#include "mdbsettings_tracking.inc"'],
+                  'src/ajustes_ux_visual.inc':['#include "mdbsettings_icons.inc"']},
       'settings-regression':{'tests/mdblist_settings_defaults.c':[
                   '#include "ajustes_padroes.c"', 'return upstream_settings_defaults_main();',
                   'assert(!ajustes_mdblist_rastrear());',
@@ -160,6 +161,11 @@ def contracts(root,platform,state):
         if p.suffix in ('.c','.h','.inc','.def') and re.search(rb'^<<<<<<< |^=======\s*$|^>>>>>>> ',p.read_bytes(),re.M):
             raise Incompatible('Unresolved conflict markers: '+str(p))
     # A Settings option can exist while its category/preview index is displaced.
+    owned_ids=re.findall(r'^MDB_SETTING\((AJ_[A-Z_0-9]+),',(root/'src/mdbsettings.def').read_text(encoding='utf8'),re.M)
+    icon_ids=re.findall(r'^case (AJ_[A-Z_0-9]+):',(root/'src/mdbsettings_icons.inc').read_text(encoding='utf8'),re.M)
+    if set(icon_ids)!=set(owned_ids) or len(icon_ids)!=len(owned_ids):
+        report(platform,state,'settings-icons','contract-failure','Every owned Settings row needs exactly one explicit visual icon.',['src/mdbsettings.def','src/mdbsettings_icons.inc'])
+        raise Incompatible('Owned Settings icon coverage changed')
     visual=(root/'src/ajustes_ux_visual.inc').read_text(encoding='utf8')
     enum=re.search(r'enum \{\s*(AJS_REPRODUCAO.*?)AJS_N,',visual,re.S)
     arts=re.search(r'AJ_ARTE_SEC\[AJS_N \+ 1\]\[AJ_ARTE_BLOCOS\] = \{(.*?)\n\};',visual,re.S)

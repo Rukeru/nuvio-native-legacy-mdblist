@@ -4,7 +4,7 @@ import hashlib,json,re,sys
 
 def attest(state_path,summary_path):
     text=Path(summary_path).read_text()
-    match=re.search(r'testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',text)
+    match=re.search(r'^testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',text,re.M)
     if not match:raise ValueError('Full regression result missing; a skipped workflow is not validation')
     passed,failed,unavailable,outside=map(int,match.groups())
     if passed<1 or failed:raise ValueError('Full upstream regression suite did not pass')
