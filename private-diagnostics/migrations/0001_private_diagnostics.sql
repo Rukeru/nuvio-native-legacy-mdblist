@@ -42,13 +42,15 @@ CREATE INDEX IF NOT EXISTS reports_category_time ON reports(category,created_at)
 CREATE TRIGGER IF NOT EXISTS installation_cap BEFORE INSERT ON installations
 WHEN NOT EXISTS(SELECT 1 FROM installations WHERE id=NEW.id)
  AND (SELECT count(*) FROM installations)>=20
-BEGIN SELECT RAISE(ABORT,'installation_quota'); END;
+BEGIN
+  SELECT RAISE(ABORT,'installation_quota');
+END;
 CREATE TRIGGER IF NOT EXISTS report_cap BEFORE INSERT ON reports
 BEGIN
-  SELECT CASE WHEN (SELECT count(*) FROM reports)>=1500
-    THEN RAISE(ABORT,'storage_quota') END;
-  SELECT CASE WHEN (SELECT count(*) FROM reports WHERE created_at>NEW.created_at-86400)>=100
-    THEN RAISE(ABORT,'global_quota') END;
-  SELECT CASE WHEN (SELECT count(*) FROM reports WHERE installation_id=NEW.installation_id
-    AND created_at>NEW.created_at-86400)>=20 THEN RAISE(ABORT,'device_quota') END;
+  SELECT (CASE WHEN (SELECT count(*) FROM reports)>=1500
+    THEN RAISE(ABORT,'storage_quota') END);
+  SELECT (CASE WHEN (SELECT count(*) FROM reports WHERE created_at>NEW.created_at-86400)>=100
+    THEN RAISE(ABORT,'global_quota') END);
+  SELECT (CASE WHEN (SELECT count(*) FROM reports WHERE installation_id=NEW.installation_id
+    AND created_at>NEW.created_at-86400)>=20 THEN RAISE(ABORT,'device_quota') END);
 END;

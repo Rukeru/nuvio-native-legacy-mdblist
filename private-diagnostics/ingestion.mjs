@@ -24,7 +24,7 @@ export const EVENTS = Object.freeze({
   playback_init:['playback','error','Playback could not initialize',['error_code']],
   playback_decoder:['playback','error','Decoder reported a failure',['error_code']],
   playback_interrupted:['playback','warning','Playback ended unexpectedly',['error_code']],
-  performance_slow:['performance','warning','Sustained slow rendering detected',['fps','frame_ms','count']],
+  performance_slow:['performance','warning','Slow rendering or a frame-time spike detected',['fps','frame_ms','count']],
   performance_memory:['performance','warning','Memory pressure detected',['memory_mb']],
   sync_slow:['performance','warning','Applying account data was slow',['elapsed_ms']]
 });

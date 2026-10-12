@@ -30,7 +30,11 @@ certificate verification on the TV.
    repository's `private-diagnostics` directory and run `npm ci --ignore-scripts`.
 2. Run `npm test` and `npm run check`. These use temporary local databases and
    a dry-run bundle; neither command deploys to Cloudflare.
-3. Run `npx wrangler login`. Complete Cloudflare's browser login yourself.
+3. Run `npx wrangler login --scopes account:read user:read workers_scripts:write d1:write`.
+   Complete Cloudflare's browser login yourself. If the browser cannot reach
+   the local callback, add `--device` and enter its code in Cloudflare's page.
+   The older general `workers:write` scope did not authorize deployment access
+   in the verified account. These scopes avoid requesting unrelated products.
    Never paste a Cloudflare API token, password, or login code into chat.
 4. In Cloudflare, open **Storage & databases → D1 → nuvio-diagnostics**.
    Copy its **Database ID** (an identifier, not a secret). Copy `wrangler.jsonc`
@@ -130,3 +134,33 @@ runtime through Miniflare. Dry-run validation checks the deployable bundle.
 Backend-only changes select this short gate, not complete TV builds. Both TV
 publication workflows require the backend gate in addition to their native
 package and complete regression evidence. No tests deploy automatically.
+
+## Verified deployment checkpoint (12 October 2026)
+
+The existing Worker and EU D1 database were verified, the schema applied, and
+21 synthetic live checks passed for both platforms. These cover authentication,
+pairing, persistence, deduplication, conflicting retries, privacy and size
+rejection, absent public administrative routes, and token revocation. Both
+synthetic installations were revoked. The endpoint was disabled again after
+the approved temporary test; application uploads remain disabled pending the
+final client consent and release gates. Evidence is in
+`../ci-evidence/2026-10-12-private-live.json`.
+
+Rollback reference before deployment: `b0a56356-c245-4f5f-bb74-885cead644b4`.
+Tested enabled version: `5147dd81-be9f-4d57-b26e-b8de8f02637e`.
+Disabled version after testing: `ca578f8d-585a-4616-b765-58d696671f1b`.
+These identify that checkpoint, not future changes to the Worker source.
+
+Remote D1 migration parsing differs from local prepared-statement execution.
+Keep trigger `BEGIN`/`END` on their own lines, parenthesize `CASE ... END`
+expressions, and retain LF line endings through `.gitattributes`. The original
+format failed remotely with `incomplete input`; the equivalent formatted SQL
+passed all 19 original backend tests and the remote migration. Never remove
+quota triggers to get a deployment through.
+
+After explicit authorization for live synthetic testing, run
+`node tools/live-smoke.mjs --authorized-live-test` with the configured endpoint
+temporarily enabled. This is not a CI command. It saves generated credentials
+only under ignored `.private`, reports sanitized evidence, and revokes test
+credentials in `finally`. Disable ingestion again if the TV release gates are
+not ready. Existing reports are retained for their normal retention period.

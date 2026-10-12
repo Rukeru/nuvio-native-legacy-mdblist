@@ -12,7 +12,7 @@ cd upstream
 flags=(-std=gnu11 -UNDEBUG -Isrc)
 read -ra sdl <<< "$(sdl2-config --cflags)"
 if [ "$platform" = webos ]; then flags+=(-DNV_WEBOS); fi
-for module in ajustes app catalogo contalib contapend visto vistoep vistonao sync player streams descoberta vertudo mdblistlibrary mdblistscrobble nvdiag nvdiag_format avisos registro telemetria; do
+for module in ajustes app catalogo contalib contapend visto vistoep vistonao sync player streams descoberta vertudo mdblistlibrary mdblistscrobble nvdiag nvdiag_format avisos registro telemetria diagnostico trakt sessao main; do
   component="interface-$module"
   echo "Compatibility syntax: $module ($platform)"
   cc "${flags[@]}" "${sdl[@]}" -fsyntax-only "src/$module.c"

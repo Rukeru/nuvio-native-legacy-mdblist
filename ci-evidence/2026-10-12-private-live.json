@@ -1,0 +1,93 @@
+{
+  "started": "2026-10-12T20:10:05.190Z",
+  "endpoint": "https://nuvio-diagnostics-api.rukeru23.workers.dev",
+  "checks": [
+    {
+      "name": "ready",
+      "status": 200
+    },
+    {
+      "name": "unauthenticated rejected",
+      "status": 401
+    },
+    {
+      "name": "public read forbidden",
+      "status": 405
+    },
+    {
+      "name": "public delete forbidden",
+      "status": 405
+    },
+    {
+      "name": "no report index",
+      "status": 404
+    },
+    {
+      "name": "tizen pairing",
+      "status": 200
+    },
+    {
+      "name": "tizen synthetic upload",
+      "status": 201
+    },
+    {
+      "name": "tizen duplicate",
+      "status": 200
+    },
+    {
+      "name": "tizen changed duplicate rejected",
+      "status": 409
+    },
+    {
+      "name": "tizen privacy rejection",
+      "status": 400
+    },
+    {
+      "name": "tizen size limit",
+      "status": 413
+    },
+    {
+      "name": "tizen D1 persistence",
+      "rows": 1
+    },
+    {
+      "name": "tizen revoked credential rejected",
+      "status": 401
+    },
+    {
+      "name": "webos pairing",
+      "status": 200
+    },
+    {
+      "name": "webos synthetic upload",
+      "status": 201
+    },
+    {
+      "name": "webos duplicate",
+      "status": 200
+    },
+    {
+      "name": "webos changed duplicate rejected",
+      "status": 409
+    },
+    {
+      "name": "webos privacy rejection",
+      "status": 400
+    },
+    {
+      "name": "webos size limit",
+      "status": 413
+    },
+    {
+      "name": "webos D1 persistence",
+      "rows": 1
+    },
+    {
+      "name": "webos revoked credential rejected",
+      "status": 401
+    }
+  ],
+  "synthetic": true,
+  "passed": true,
+  "finished": "2026-10-12T20:10:11.759Z"
+}

@@ -745,4 +745,36 @@ preserving the complete upstream script inventory and shard membership. The
 independent Worker schema validates every client event in the fast Python gate.
 At this development checkpoint, 66 updater/protocol tests and fresh source
 integration contracts pass for both platforms. Native client fixtures are still
-pending; production transport remains disabled and no release is authorized.
+pending at that checkpoint; production transport remains disabled.
+
+## Live Cloudflare deployment and diagnostic review
+
+The first native client development gate passed for both platforms on
+`a4dd1afa8f003950df940af7ea216ef478171d8b` (run 38300150826): Tizen 3m48s,
+webOS 4m38s. These are focused development results, not full release proof.
+Subsequent observer and consent-race changes require their own focused gate.
+
+Browser login does not authorize Wrangler. Use the explicit Workers Scripts
+and D1 scopes; general `workers:write` returned no access to deployments.
+Device OAuth avoids inaccessible localhost callbacks. Never expose tokens or
+commit the local authentication/configuration files.
+
+Production D1 rejected trigger SQL that passed SQLite and local workerd.
+Formatting BEGIN/END on separate lines and parenthesizing CASE expressions,
+without changing quota semantics, allowed the remote migration to pass. Add
+LF policy for SQL files and retain the original quota/concurrency assertions.
+See Cloudflare workers-sdk issues #14991 and #4727 for the parser class of
+failure. Local runtime validation cannot stand in for a live migration check.
+
+Twenty-one authorized synthetic live checks passed, including both platforms,
+private D1 persistence, idempotency, schema/size rejection and revoked tokens.
+The test helper revokes in finally and emits no credentials. Ingestion was
+disabled again afterward while app consent and final release gates remain
+pending. Record immutable deployment IDs separately from application proof.
+
+Freeze a copy of the preview at the Send action, not when the worker eventually
+processes it. Track the current manual report ID so an older or automatic
+receipt cannot label another report delivered. Opt-out must cancel an active
+automatic request, not merely prevent the next queue insertion. Test lost
+pairing responses with the same persisted secret. Keep optimization reports
+local and route their manual action to the same explicit sanitized preview.
