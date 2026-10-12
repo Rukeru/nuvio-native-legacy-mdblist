@@ -19,6 +19,8 @@ def attest(state_path,summary_path):
 
 def validate(state,path='regression-evidence/regression-state.json'):
     tested=json.loads(Path(path).read_text())
+    if state.get('diagnostic_only') or tested.get('diagnostic_only'):
+        raise ValueError('Diagnostic execution cannot authorize publication')
     for key in ('upstream_commit','builder_commit'):
         if not state.get(key) or state[key]!=tested.get(key):raise ValueError('Regression provenance mismatch: '+key)
     actual=state.get('integration',{}).get('fingerprint')

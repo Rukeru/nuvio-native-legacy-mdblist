@@ -634,3 +634,50 @@ Preserve the compatibility guard: this transition requires signing/installing
 the new complete TPK rather than hot-loading its core into the older host.
 CI validates integration, account/tracking fixtures and rendering/performance
 contracts; it does not attest physical-TV playback or a private live account.
+
+## Measured CI optimization, 2026-10-12
+
+Profile completed jobs before optimizing. Runs 38254860753/38254860865 took
+201.77/104.30 minutes end-to-end and 337.75/312.93 actual runner minutes.
+The Tizen elapsed figure includes investigation and a delayed same-source
+retry; it is not a pure machine-performance baseline. Deduplicate retained
+successful jobs by name/start/end timestamps when reading later attempts.
+The longest single queue delays were 69.85/53.75 minutes. Homebrew normally
+took 18–49 seconds, whereas Linux regression took 52.85/50.62 minutes and
+the separate UI comparison about 15 minutes. The complete performance fixture
+took 28–30 minutes, preceded by about 20 minutes of unrelated Linux work.
+Move that entire fixture to its own equivalent runner, not to fewer frames,
+weaker deadlines, or a substitute benchmark.
+
+Most host fixtures compile the same full C application repeatedly. ccache does
+not cache a multi-source compile/link invocation directly. The narrow opt-in
+`ci_compile.py` wrapper separates ordinary translation units, bounds compilation
+to two processes, and preserves link order/flags. Unknown commands pass through.
+Use compiler-content checking and preprocessing; do not enable cache sloppiness.
+Validate ccache configuration before a fixture: `CCACHE_DIRECT=false` is invalid;
+its supported disabling variable is `CCACHE_NODIRECT=1`. The initial focused
+experiment exposed that configuration error; no application assertion failed.
+
+Corrected run 38288091744 at 9798b32e2ba3f1a6cba0f2b7750b7f59e10b1be6 passed
+three unchanged fixtures in original/cold/warm modes on each host. macOS sums:
+153.34/122.89/29.41 seconds (19.9% cold, 80.8% warm improvement). Linux sums:
+188.22/125.91/55.49 seconds (33.1% cold, 70.5% warm improvement). Entire comparison
+jobs took 5m54s/6m54s including all three executions and setup. These measurements
+prove a fixture speedup, not the elapsed time of a full release. Uploaded evidence
+SHA-256: macOS b63de908531a9a713baefee3296d851a94df10ac8213486b69eb0a2a8fffe328;
+Linux 1d86648c38f405dda47626eeb1defb4fa416d505f5a0d24ef413ab0faddab31f.
+
+Keep development pushes separate from full release dispatch. Ten-shard scheduling
+retains the eight macOS partitions and splits the original Linux partition into
+the benchmark and all other fixtures. Inventory/attestation must still account
+for every script exactly once and reject every unverified skip. Replayed baseline
+archives test aggregation only: they are not newly executed application tests.
+Validate the new infrastructure once with nonpublishing full-suite evidence,
+then record its actual timing before claiming an end-to-end improvement.
+
+Attempt-specific artifacts prevent immutable-name collisions. Never merge their
+directories blindly or fall back to an older pass when the latest attempt failed.
+Match run, source, integration, gatekeeper, inventory, checksums and per-shard
+compiler/dependency/runner-image identity. Retain failed and setup-incomplete
+archives. Only a later complete attempt may supersede incomplete setup evidence.
+Diagnostic-only CI evidence must never authorize package publication.

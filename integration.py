@@ -40,6 +40,9 @@ def fingerprint():
     for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','full_regression.py','regression_dependencies.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
         p=ROOT/path
         if p.exists(): h.update(path.encode()+p.read_bytes())
+    for path in ('regression_attempts.py','ci_compile.py'):
+        p=ROOT/path
+        if p.exists():h.update(path.encode()+p.read_bytes())
     return h.hexdigest()
 
 def git(root,*args):
@@ -237,6 +240,8 @@ def prepare(platform,state_file,source='upstream'):
     fetch('refs/tags/'+tag)
     git(root,'checkout','--detach','FETCH_HEAD')
     state['upstream_commit']=git(root,'rev-parse','HEAD').strip()
+    if state.get('expected_upstream_commit') and state['upstream_commit']!=state['expected_upstream_commit']:
+        raise Incompatible('Immutable diagnostic baseline tag changed; refusing different source')
     Path(state_file).write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     apply(root,platform,state)
     Path(state_file).write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')

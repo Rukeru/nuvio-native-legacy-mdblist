@@ -34,3 +34,8 @@ class RegressionGate(unittest.TestCase):
             for changed in ({**base,'upstream_commit':'different'}, {**base,'builder_commit':'different'},
                             {**base,'integration':{'fingerprint':'different'}}):
                 with self.subTest(changed=changed),self.assertRaises(ValueError):validate(changed,p)
+
+    def test_diagnostic_results_never_authorize_publication(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'state.json';p.write_text('{"diagnostic_only":true}')
+            with self.assertRaisesRegex(ValueError,'Diagnostic'):validate({},p)

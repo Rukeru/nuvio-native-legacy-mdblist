@@ -40,8 +40,8 @@ its SHA-256. Preflight verifies and safely extracts it before reading the
 manifest. After editing the extracted integration, repack it and update the
 bundle digest as well as the manifest's individual input digests.
 
-The full upstream gatekeeper runs across eight isolated native regression
-runners per platform. It retains every original test script, assertion,
+The full upstream gatekeeper runs across ten isolated native regression
+runners per platform (eight macOS and two Linux). It retains every original test script, assertion,
 exclusion and SKIP rule. The aggregate gate rejects missing/failed shards,
 duplicate or omitted test scripts, changed inventories and provenance drift.
 Both publish jobs require its attestation in addition to the Linux native
@@ -68,3 +68,37 @@ conflict: the repair push or next hourly poll retries from the current branch.
 The tag always targets the tested builder commit; the updater never substitutes
 an untested newer commit to bypass GitHub's workflow permission rule. Public API
 error messages appear in logs without request bodies or authentication headers.
+
+### Development and release validation
+
+Intermediate pushes run `development.yml`: all updater unit tests, followed by
+the conservative `ci_impact.py` map. Integration/bundle/native-builder changes
+also run both platforms' maintained adapters, preflight and platform checks;
+compiler-wrapper changes run original/cold/warm fixtures on macOS and Linux.
+Unknown change categories fail until explicitly classified. These checks never
+authorize publication. Use `python3 -m unittest discover -p 'test_*.py'` locally;
+native focused checks need the dependencies described in their workflow.
+
+The hourly/manual upstream release workflows retain the complete inventory and
+native package gates. Ordinary pushes no longer start full release builds.
+Freeze the candidate after focused checks, then dispatch each platform with
+force when releasing custom changes against the same upstream version.
+
+`ci-validation.yml` is an explicit nonpublishing infrastructure proof, pinned
+to the integration manifest's upstream commit. Its `diagnostic_only` evidence
+is rejected by the publication validator. It runs the complete inventory but
+does not manufacture a new TV package or call an old package a new build.
+
+Compiler caching stores only verified object work, never test results. Unknown
+compiler forms pass unchanged to the real compiler; timed test workloads are
+not parallelized within a runner. The full benchmark retains every frame and
+scenario on its own Linux runner. Platform results remain separate because
+their integration fingerprints/configuration differ; equivalence has not been
+established for sharing test results.
+
+Shard, selection, native package and aggregate artifacts include run attempt.
+Retry only confirmed transient failures on the same commit. The aggregate
+retains all archives, selects the latest attempt, checks source/compiler/image/
+dependency identity, and rejects failed, incomplete or unverified results.
+Successful earlier jobs retain their named output artifacts; never delete
+evidence to resolve a retry upload collision.

@@ -47,3 +47,11 @@ class RetryEvidence(unittest.TestCase):
             root=Path(d)/'input';self.fixture(root,0,1);self.fixture(root,1,1)
             (root/'tizen-regression-shard-0-attempt-2').mkdir()
             with self.assertRaisesRegex(ValueError,'Incomplete'):select(root,Path(d)/'out','tizen',2,'123')
+
+    def test_setup_failure_can_be_superseded_by_complete_retry(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)/'input';self.fixture(root,0,2);self.fixture(root,1,1)
+            failed=root/'tizen-regression-shard-0-attempt-1';failed.mkdir()
+            (failed/'setup-error.log').write_text('transient download failure')
+            select(root,Path(d)/'out','tizen',2,'123')
+            self.assertTrue((failed/'setup-error.log').exists())

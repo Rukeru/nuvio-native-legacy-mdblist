@@ -7,9 +7,21 @@ SKIP classification and upstream exclusions are retained.
 from pathlib import Path
 import hashlib,json,os,re,shlex,subprocess,sys,threading,time,platform
 
+def environment():
+    # Retry reuse is strict about compiler/dependency versions as well as source.
+    compiler=os.environ.get('NV_REAL_CC','cc')
+    commands=[[compiler,'--version']]
+    if sys.platform=='darwin':commands.append(['brew','list','--versions'])
+    elif sys.platform.startswith('linux'):commands.append(['dpkg-query','-W'])
+    if os.environ.get('NUVIO_DOTNET'):commands.append([os.environ['NUVIO_DOTNET'],'--version'])
+    versions=[subprocess.check_output(command,text=True,stderr=subprocess.STDOUT) for command in commands]
+    return {'os':platform.system(),'architecture':platform.machine(),
+            'runner_image':os.environ.get('ImageOS'),'image_version':os.environ.get('ImageVersion'),
+            'python':platform.python_version(),'toolchain_sha256':hashlib.sha256(json.dumps(versions).encode()).hexdigest()}
+
 def partition(files,index,count):
     if count < 1 or not 0 <= index < count:raise ValueError('Invalid regression shard')
-    if count == 9:
+    if count in (9,10):
         # Run every frame/scenario of the benchmark on the supported GLES host,
         # including the renderer fixture that is unavailable on macOS.
         rendering={'tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
@@ -17,7 +29,10 @@ def partition(files,index,count):
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
                    'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh',
                    'tests/tpk_lifecycle.sh','tests/dts_engine.sh'}
-        if index==8:return sorted(set(files)&rendering,key=render_order)
+        if count==10:
+            if index==9:return sorted(set(files)&{'tests/fluidez_perf.sh'})
+            if index==8:return sorted((set(files)&rendering)-{'tests/fluidez_perf.sh'},key=render_order)
+        elif index==8:return sorted(set(files)&rendering,key=render_order)
         return sorted(set(files)-rendering)[index::8]
     return sorted(files)[index::count]
 
@@ -71,13 +86,15 @@ def run(root,state_path,index,count):
     if current:timings.append({'script':current[0],'seconds':time.monotonic()-current[1]})
     stop.set();observer.join()
     state=json.loads(state_path.read_text())
-    metadata={'index':index,'count':count,'files':files,'selected':selected,'exit_code':code,
+    result=re.search(r'testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',summary.read_text())
+    gate_code=code
+    if not result or int(result.group(2)) or int(result.group(3)):code=code or 1
+    metadata={'index':index,'count':count,'files':files,'selected':selected,'exit_code':code,'gatekeeper_exit_code':gate_code,
               'gatekeeper_sha256':hashlib.sha256(original.encode()).hexdigest(),
               'summary_sha256':hashlib.sha256(summary.read_bytes()).hexdigest(),'state':state,
               'run_id':os.environ.get('GITHUB_RUN_ID','local'),
               'attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),
-              'environment':{'os':platform.system(),'architecture':platform.machine(),
-                  'runner_image':os.environ.get('ImageOS'),'image_version':os.environ.get('ImageVersion')},
+              'environment':environment(),
               'seconds':time.monotonic()-started,'timings':timings}
     (evidence/'execution.json').write_text(json.dumps(metadata,indent=2)+'\n',encoding='utf8')
     if code:raise RuntimeError(f'Full regression shard {index} failed; see its complete logs')

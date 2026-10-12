@@ -14,6 +14,13 @@ class FullRegression(unittest.TestCase):
         shards=[partition(files,i,8) for i in range(8)]
         self.assertEqual(sorted(sum(shards,[])),sorted(files))
         self.assertEqual(len(set(sum(shards,[]))),len(files))
+        # The long all-scenario benchmark has its own identical Linux host.
+        # Nothing is omitted, split into fewer frames, or moved off macOS.
+        ten=[partition(files,i,10) for i in range(10)]
+        self.assertEqual(sorted(sum(ten,[])),sorted(files))
+        self.assertEqual(len(set(sum(ten,[]))),len(files))
+        self.assertEqual(ten[9],['tests/fluidez_perf.sh'] if 'tests/fluidez_perf.sh' in files else [])
+        self.assertEqual(ten[:8],[partition(files,i,9) for i in range(8)])
         rendering=['tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
                    'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
@@ -24,6 +31,12 @@ class FullRegression(unittest.TestCase):
         self.assertEqual(sorted(sum(shards,[])),sorted(files))
         self.assertEqual(shards[8],sorted(rendering,key=render_order))
         self.assertEqual(len(set(sum(shards,[]))),len(files))
+        ten=[partition(files,i,10) for i in range(10)]
+        self.assertEqual(ten[:8],shards[:8])
+        self.assertEqual(ten[9],['tests/fluidez_perf.sh'])
+        self.assertEqual(ten[8],sorted(set(rendering)-{'tests/fluidez_perf.sh'},key=render_order))
+        self.assertEqual(sorted(sum(ten,[])),sorted(files))
+        self.assertEqual(len(set(sum(ten,[]))),len(files))
     def test_merge_rejects_missing_execution_or_inconsistent_identity(self):
         files=['tests/a.sh','tests/mdblist_settings_defaults.sh']
         with tempfile.TemporaryDirectory() as d:
