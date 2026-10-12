@@ -1,4 +1,4 @@
-name: Diagnose unmodified upstream 2.0.4 assertions
+name: Diagnose 2.0.4 assertions without publication
 on:
   workflow_dispatch:
     inputs:
@@ -6,13 +6,17 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar]
+        options: [compatibility, player, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar]
+      integrated:
+        description: Apply the verified current integration for focused debugging
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   baseline:
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -21,22 +25,64 @@ jobs:
         run: |
           git clone --no-checkout https://github.com/iqui27/nuvio-native-legacy.git baseline
           git -C baseline checkout --detach db6ae4ee0dd2fa158c46ba375c1fe8c08de70504
+      - name: Apply verified integration only when explicitly selected
+        if: inputs.integrated
+        run: |
+          mkdir -p baseline-evidence
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          import integration
+          source='db6ae4ee0dd2fa158c46ba375c1fe8c08de70504'
+          assert integration.git('baseline','rev-parse','HEAD').strip()==source
+          state={'upstream':{'tag_name':'v2.0.4','id':0},'upstream_commit':source,
+                 'builder_commit':os.environ['GITHUB_SHA'],'diagnostic_only':True}
+          integration.apply(Path('baseline').resolve(),'tizen',state)
+          Path('baseline-evidence/compatibility-state.json').write_text(json.dumps(state,indent=2)+'\n')
+          PY
       - name: Install original host dependencies
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
-        run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash ripgrep
-      - name: Execute the unmodified upstream assertion fixture
+        run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash ripgrep coreutils
+      - name: Provision exact focused fixture dependencies
+        id: tools
+        if: inputs.fixture == 'compatibility'
+        run: |
+          python3 - <<'PY'
+          from regression_dependencies import provision
+          provision('baseline',0,1,selected=['tests/player.sh','tests/streamfit_sheet.sh','tests/dts_engine.sh','tests/tpk_lifecycle.sh'])
+          PY
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: steps.tools.outputs.dotnet == 'true'
+        with:
+          dotnet-version: '8.0.425'
+      - name: Execute original assertions and retain each fixture result
         env:
           FIXTURE: ${{ inputs.fixture }}
         run: |
-          case "$FIXTURE" in home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar) ;; *) exit 2;; esac
+          case "$FIXTURE" in compatibility|player|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           set -o pipefail
-          bash "baseline/tests/$FIXTURE.sh" 2>&1 | tee baseline-evidence/result.log
+          if command -v dotnet >/dev/null 2>&1; then export NUVIO_DOTNET="$(command -v dotnet)"; fi
+          fixtures="$FIXTURE"
+          if [ "$FIXTURE" = compatibility ]; then fixtures='player streamfit_sheet dts_engine tpk_lifecycle'; fi
+          failed=0
+          for test in $fixtures; do
+            if bash "baseline/tests/$test.sh" >"baseline-evidence/$test.log" 2>&1; then
+              echo "PASS $test"
+            else
+              echo "FAIL $test"
+              failed=1
+            fi
+            cat "baseline-evidence/$test.log"
+          done
+          exit "$failed"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: unmodified-204-${{ inputs.fixture }}
-          path: baseline-evidence/**/*.log
+          name: diagnostic-204-${{ inputs.fixture }}-${{ inputs.integrated }}
+          path: |
+            baseline-evidence/**/*.log
+            baseline-evidence/compatibility-state.json
           retention-days: 14
