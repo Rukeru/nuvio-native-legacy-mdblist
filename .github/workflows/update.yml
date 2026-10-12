@@ -164,9 +164,13 @@ jobs:
     with:
       platform: tizen
       force: ${{ inputs.force == true }}
+  backend-security:
+    needs: build
+    if: needs.build.outputs.build == 'true'
+    uses: ./.github/workflows/diagnostics.yml
   publish:
-    needs: [build, regression]
-    if: needs.build.outputs.build == 'true' && needs.regression.result == 'success'
+    needs: [build, regression, backend-security]
+    if: needs.build.outputs.build == 'true' && needs.regression.result == 'success' && needs.backend-security.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write

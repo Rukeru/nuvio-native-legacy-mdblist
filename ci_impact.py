@@ -7,12 +7,14 @@ CI_ONLY={'ci_compile.py','ci_benchmark.py','ci_profile.py','ci_impact.py','regre
 
 
 def classify(paths):
-    native=False;compiler=False;unknown=[]
+    native=False;compiler=False;backend=False;unknown=[]
     for name in paths:
         p=Path(name)
         if p.suffix=='.md' or name in ('LICENSE','.gitignore','.gitattributes','.channel/last-check.txt') or name.startswith('ci-evidence/'):
             continue
         if name.startswith('test_') and p.suffix=='.py':continue
+        if name.startswith('private-diagnostics/') or name=='.github/workflows/diagnostics.yml':
+            backend=True;continue
         if name in CI_ONLY or name.startswith('.github/workflows/'):
             compiler |= name in ('ci_compile.py','ci_benchmark.py','.github/workflows/ci-experiment.yml')
             continue
@@ -23,6 +25,7 @@ def classify(paths):
     return {'release_validation':False,'unit_tests':'all test_*.py',
             'native_platforms':['tizen','webos'] if native else [],
             'compiler_equivalence_required':compiler,
+            'backend_security_required':backend,
             'native_gate':['integration contracts','preflight.sh','platform-checks.sh'] if native else [],
             'full_release_required_before_publication':True}
 
@@ -38,4 +41,5 @@ if __name__=='__main__':
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
             f.write('native='+str(bool(result['native_platforms'])).lower()+'\n')
             f.write('compiler='+str(result['compiler_equivalence_required']).lower()+'\n')
+            f.write('backend='+str(result['backend_security_required']).lower()+'\n')
     print(json.dumps(result,indent=2))

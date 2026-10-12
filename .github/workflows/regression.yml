@@ -83,14 +83,16 @@ jobs:
         include:
           - { shard: 9, os: ubuntu-24.04 }
           - { shard: 8, os: ubuntu-24.04 }
-          - { shard: 0, os: macos-15 }
-          - { shard: 1, os: macos-15 }
-          - { shard: 2, os: macos-15 }
-          - { shard: 3, os: macos-15 }
-          - { shard: 4, os: macos-15 }
-          - { shard: 5, os: macos-15 }
-          - { shard: 6, os: macos-15 }
+          # Measured longest macOS shard first: SDK setup plus 25.6m of tests.
+          # This changes submission order only, never partition or assertions.
           - { shard: 7, os: macos-15 }
+          - { shard: 2, os: macos-15 }
+          - { shard: 6, os: macos-15 }
+          - { shard: 1, os: macos-15 }
+          - { shard: 3, os: macos-15 }
+          - { shard: 0, os: macos-15 }
+          - { shard: 5, os: macos-15 }
+          - { shard: 4, os: macos-15 }
     permissions:
       contents: read
       issues: write

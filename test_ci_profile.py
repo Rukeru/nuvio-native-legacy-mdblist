@@ -18,6 +18,12 @@ class EvidenceProfiling(unittest.TestCase):
     def test_backend_and_unknown_paths_require_explicit_mapping(self):
         with self.assertRaisesRegex(ValueError,'Unclassified'):classify(['backend/worker.js'])
 
+    def test_private_backend_runs_security_checks_without_tv_builds(self):
+        result=classify(['private-diagnostics/ingestion.mjs','private-diagnostics/migrations/0001_private_diagnostics.sql'])
+        self.assertTrue(result['backend_security_required'])
+        self.assertEqual(result['native_platforms'],[])
+        self.assertFalse(result['release_validation'])
+
     def test_application_integration_always_checks_both_platforms(self):
         for path in ('integration/manifest.json','integration-bundle.zip','integration.py','webos-build.sh'):
             result=classify([path]);self.assertEqual(result['native_platforms'],['tizen','webos'])

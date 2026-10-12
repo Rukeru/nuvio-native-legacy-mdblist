@@ -1,0 +1,196 @@
+{
+  "run_id": "38289570135",
+  "artifact_sha256": "c31aa8302b0d6544edcf40303a09e7fa501b667a7ff8192298eda488e2b23722",
+  "builder_commit": "137a05c5eb124b34b5d2d383d5b58cb35c20da56",
+  "upstream_commit": "db6ae4ee0dd2fa158c46ba375c1fe8c08de70504",
+  "integration": "13e71294d5b621d900c859363e4db06ec350353c9498ddec8764f088d872de86",
+  "diagnostic_only": true,
+  "coverage": {
+    "outcome": "passed",
+    "passed": 470,
+    "failed": 0,
+    "unavailable": 0,
+    "outside_upstream_gatekeeper": 107,
+    "summary_sha256": "aa5e20d58bdb90b057812a3395ee9c6886b5f86de1f53d247dfa16b7787846b4"
+  },
+  "before_regression_only": {
+    "elapsed_seconds": 6207.0,
+    "runner_seconds": 17033.0,
+    "sum_job_queue_seconds": 12453.0,
+    "stage_runner_seconds": {
+      "other": 48.0,
+      "checkout": 26.0,
+      "artifacts": 29.0,
+      "integration_preflight": 371.0,
+      "dependencies": 337.0,
+      "sdk_and_toolchains": 1002.0,
+      "regression_execution": 15156.0,
+      "aggregation": 1.0
+    },
+    "critical_last_job": "regression / aggregate",
+    "observed_peak_runners": {
+      "macos-15": 3,
+      "ubuntu-24.04": 1
+    },
+    "note": "Queue sum is per-job waiting, not extra wall time; runner time is measured execution, not billed rounded minutes."
+  },
+  "after_regression_only": {
+    "elapsed_seconds": 3278.0,
+    "runner_seconds": 11725.0,
+    "sum_job_queue_seconds": 4006.0,
+    "stage_runner_seconds": {
+      "other": 86.0,
+      "checkout": 29.0,
+      "publication": 0,
+      "artifacts": 21.0,
+      "integration_preflight": 423.0,
+      "dependencies": 340.0,
+      "sdk_and_toolchains": 947.0,
+      "regression_execution": 9820.0,
+      "aggregation": 0
+    },
+    "critical_last_job": "regression / aggregate",
+    "observed_peak_runners": {
+      "macos-15": 4,
+      "ubuntu-24.04": 2
+    },
+    "note": "Queue sum is per-job waiting, not extra wall time; runner time is measured execution, not billed rounded minutes."
+  },
+  "runner_seconds_reduction_percent": 31.163036458639116,
+  "elapsed_reduction_percent": 47.18865796681166,
+  "shard_test_seconds": {
+    "0": 766.23250275,
+    "1": 832.5984865419999,
+    "2": 990.6808147920001,
+    "3": 820.210707541,
+    "4": 638.162764958,
+    "5": 573.5587560000001,
+    "6": 838.7573265419999,
+    "7": 1538.3745978330003,
+    "8": 1072.444373842,
+    "9": 1732.8657318759997
+  },
+  "slowest_fixtures": [
+    {
+      "script": "fluidez_perf.sh",
+      "seconds": 1732.8492035
+    },
+    {
+      "script": "ponteiro_telas.sh",
+      "seconds": 406.09885095799996
+    },
+    {
+      "script": "tizen-globalthis.sh",
+      "seconds": 373.7354854409999
+    },
+    {
+      "script": "menuep.sh",
+      "seconds": 364.001334292
+    },
+    {
+      "script": "mkvass.sh",
+      "seconds": 227.14805420799996
+    },
+    {
+      "script": "mipcpu.sh",
+      "seconds": 222.18464803400002
+    },
+    {
+      "script": "salvos_segurar.sh",
+      "seconds": 219.08317862499996
+    },
+    {
+      "script": "ctxlista.sh",
+      "seconds": 185.1092369160001
+    },
+    {
+      "script": "ui_profile.sh",
+      "seconds": 165.33578429600004
+    },
+    {
+      "script": "mkvass_alem_teto.sh",
+      "seconds": 154.43090200000006
+    },
+    {
+      "script": "enquete.sh",
+      "seconds": 142.5061186669999
+    },
+    {
+      "script": "texgif-tizen.sh",
+      "seconds": 133.42591229200002
+    },
+    {
+      "script": "fonte_lg_mp4.sh",
+      "seconds": 119.95231962499997
+    },
+    {
+      "script": "gifbanco-tizen.sh",
+      "seconds": 114.2124675
+    },
+    {
+      "script": "salvospainel.sh",
+      "seconds": 111.73174707500004
+    },
+    {
+      "script": "progresso_serie.sh",
+      "seconds": 89.17255350000005
+    },
+    {
+      "script": "perfil_sair_roteador.sh",
+      "seconds": 80.31347812499985
+    },
+    {
+      "script": "dts_playback.sh",
+      "seconds": 80.15356908299998
+    },
+    {
+      "script": "ilha_voo_cw.sh",
+      "seconds": 79.299571934
+    },
+    {
+      "script": "amigoperfil_estados.sh",
+      "seconds": 79.2573385
+    },
+    {
+      "script": "amigostitulo.sh",
+      "seconds": 76.396168209
+    },
+    {
+      "script": "ajustes_escala_migra.sh",
+      "seconds": 71.63325316600003
+    },
+    {
+      "script": "socialvis.sh",
+      "seconds": 71.32972962499991
+    },
+    {
+      "script": "poster_modelo_longo.sh",
+      "seconds": 71.12933112500002
+    },
+    {
+      "script": "avisodisp.sh",
+      "seconds": 69.474754125
+    },
+    {
+      "script": "ajustes_padroes.sh",
+      "seconds": 67.43940000000003
+    },
+    {
+      "script": "ajustes_fonte.sh",
+      "seconds": 67.25297145899998
+    },
+    {
+      "script": "perfil_pilula.sh",
+      "seconds": 65.20670675000008
+    },
+    {
+      "script": "sigterm_despedida.sh",
+      "seconds": 62.30810470799997
+    },
+    {
+      "script": "desmarcarfrente.sh",
+      "seconds": 61.96531062500003
+    }
+  ],
+  "comparison_limit": "Baseline also competed with Tizen release jobs; this single-platform proof changes scheduling and caching together. Wall-clock reduction is observed, not isolated causation. No native package or new release was produced."
+}

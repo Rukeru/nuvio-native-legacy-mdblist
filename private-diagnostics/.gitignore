@@ -1,0 +1,6 @@
+.private/
+.wrangler/
+node_modules/
+wrangler.local.jsonc
+*.local.sql
+evidence/

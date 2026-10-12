@@ -681,3 +681,45 @@ Match run, source, integration, gatekeeper, inventory, checksums and per-shard
 compiler/dependency/runner-image identity. Retain failed and setup-incomplete
 archives. Only a later complete attempt may supersede incomplete setup evidence.
 Diagnostic-only CI evidence must never authorize package publication.
+
+The complete nonpublishing proof (38289570135, commit
+137a05c5eb124b34b5d2d383d5b58cb35c20da56) finished on its first attempt:
+470 passed, zero failed, zero unverified skips, 107 original exclusions,
+577 scripts accounted for exactly once. Archive SHA-256:
+c31aa8302b0d6544edcf40303a09e7fa501b667a7ff8192298eda488e2b23722.
+Regression-only elapsed time was 54m38s versus 103m27s in the prior webOS run;
+actual runner time was 195.42 versus 283.88 minutes (31.16% less).
+Summed test execution fell from 252.60 to 163.67 minutes (35.21% less).
+Summed per-job queue time fell from 207.55 to 66.77 minutes; that is not
+additional elapsed time. The old run competed with the Tizen release, whereas
+the proof ran one platform, so do not attribute its entire 47.19% elapsed
+reduction to caching or extrapolate it to a complete two-platform release.
+Dependencies took 5.67 versus 5.62 runner minutes; toolchain provisioning
+15.78 versus 16.70. These were not the main compilation savings.
+
+The full performance fixture still took 28m53s, with every original workload.
+The longest macOS shard took 25m38s testing plus roughly eight minutes of SDK
+setup and started nineteen minutes late. Submit that measured longest shard
+early without changing its membership or checks. The scheduling reorder's
+additional benefit is not measured yet; validate it in the final feature
+release, not another workflow-only full run. The 30–45 minute complete-release
+target is not yet demonstrated. Native packaging was deliberately not repeated
+in this infrastructure proof. Fast development run 38289570079 passed in 9m22s.
+
+## Private diagnostics development boundary
+
+Keep maintained backend sources under `private-diagnostics/`: `diagnostics/`
+already belongs to the updater's generated compatibility/error evidence.
+Backend-only changes select the Node security/runtime gate and never native
+TV validation. The backend has an independent versioned protocol and does not
+change the application's integration fingerprint on backend-only source edits.
+Both publication workflows nevertheless require its security gate to pass on
+their exact checkout before publication.
+
+Test the actual Workers runtime as well as SQLite behavior. A deployable Worker
+entry point must export its handler, not test-only constants; keep protocol
+helpers in a separate module. Use Wrangler's SQL splitter for multi-line D1
+migrations and triggers: D1's exec API splits individual lines. The 19 focused
+tests cover real workerd/D1 execution, atomic quotas, enrollment response loss,
+concurrent claims/delivery, token rotation/revocation races, retention and strict
+privacy rejection. These local passes do not attest a production deployment.

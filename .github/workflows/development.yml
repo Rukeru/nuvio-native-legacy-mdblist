@@ -12,6 +12,7 @@ jobs:
     outputs:
       native: ${{ steps.impact.outputs.native }}
       compiler: ${{ steps.impact.outputs.compiler }}
+      backend: ${{ steps.impact.outputs.backend }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -38,6 +39,10 @@ jobs:
     needs: impact
     if: needs.impact.outputs.compiler == 'true'
     uses: ./.github/workflows/ci-experiment.yml
+  backend-security:
+    needs: impact
+    if: needs.impact.outputs.backend == 'true'
+    uses: ./.github/workflows/diagnostics.yml
   native-preflight:
     needs: impact
     if: needs.impact.outputs.native == 'true'

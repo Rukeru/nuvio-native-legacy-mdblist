@@ -1,0 +1,41 @@
+name: Private diagnostics security and Workers runtime checks
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: private-diagnostics
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: private-diagnostics/package-lock.json
+      - name: Install pinned test and deployment tooling
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Execute authentication, privacy, quota and real Workers/D1 tests
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          node --version > evidence/runtime.txt
+          npm test 2>&1 | tee evidence/tests.txt
+          npm run check 2>&1 | tee evidence/bundle.txt
+          sha256sum worker.mjs ingestion.mjs migrations/*.sql package-lock.json > evidence/inputs.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: private-diagnostics-security-attempt-${{ github.run_attempt }}
+          path: private-diagnostics/evidence/
+          if-no-files-found: error
+          retention-days: 30

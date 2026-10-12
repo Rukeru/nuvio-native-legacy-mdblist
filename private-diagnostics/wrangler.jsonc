@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nuvio-diagnostics-api",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "vars": { "INGESTION_ENABLED": "false" },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "nuvio-diagnostics",
+    "database_id": "REPLACE_WITH_EXISTING_DATABASE_ID",
+    "migrations_dir": "migrations"
+  }],
+  "ratelimits": [
+    { "name": "PAIR_LIMIT", "namespace_id": "7263101", "simple": { "limit": 5, "period": 60 } },
+    { "name": "UPLOAD_LIMIT", "namespace_id": "7263102", "simple": { "limit": 30, "period": 60 } }
+  ],
+  "triggers": { "crons": ["17 3 * * *"] }
+}
