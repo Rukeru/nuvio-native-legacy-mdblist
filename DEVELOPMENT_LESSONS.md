@@ -444,3 +444,66 @@ unmodified upstream explain failures but never authorize either platform release
 Local adapter replay, native syntax/link checks and individual fixtures are
 intermediate evidence. Establish the baseline only after both full platform
 workflows validate and publish the exact source and integration fingerprint.
+
+An unchanged-catalogue rendering fixture must provide complete local metadata.
+The saved-panel fixture used real IMDb identities with empty synopses: hero
+prefetch successfully filled two descriptions from public services, legitimately
+changed the catalogue revision, and broke five zero-reconstruction assertions.
+Provide local synopses for every fixture item instead of disabling metadata
+fetching in production, ignoring revision changes, or adjusting expected counts.
+The original idle/navigation frames and every cache/pixel assertion stay intact.
+
+Host-engine verification also needs one consistent C++ toolchain. The pinned
+engine uses C++20 stop tokens/jthreads, unavailable in the runner's default
+Apple library. Probe those features with the selected GNU C++ compiler before
+building; give CMake, the engine PoC and the real lifecycle fixture that same
+compiler/linker. Keep the engine source pin, real libtorrent, native lifecycle
+assertions and production platform engine builds unchanged. Setup failures must
+block release, never become a SKIP or be retried as transient network failures.
+
+Check fixture encoder capabilities before executing media cases. Current minimal
+Homebrew FFmpeg lacks libaom-av1, so a successful H.264/VP9 run cannot stand in
+for AV1 byte-equivalence coverage. Select the native FFmpeg 7 CLI encoder set
+(https://formulae.brew.sh/formula/ffmpeg@7), verify every required encoder and
+use its paired ffprobe. Keep the decoder being tested on the upstream-pinned
+minimal FFmpeg source and preserve all codec, downmix, range and sparse-seek
+assertions. A missing codec is a setup failure, never a reason to skip a case.
+
+Preserve the verified Emscripten SDK path across sourcing emsdk_env.sh: its
+construct_env cleanup clears unrecognized EMSDK_* inputs, including EMSDK_DIR.
+Restore the saved path before
+invoking child WASM build scripts so they do not fall back to an absent
+developer HOME installation. Keep the real libass/WebP builds and all original
+Node 10 page/worker and modern-engine controls; do not substitute synthetic glue.
+
+Specify ranking preferences when testing raw autoplay independently of sheet
+ordering. Upstream balanced mode applies measured bandwidth penalties; maximum
+quality preserves the original raw winner. Configure maximum quality for the
+original unchanged-winner assertion and separately assert the exact balanced
+winner with the same real ranking code and measurements. Preserve every source
+identity, stable group, focus, frozen-photo, incremental and duration assertion.
+
+Name sourced setup includes with .inc rather than .sh. The upstream gatekeeper
+enumerates tests/*.sh: a setup-only include would otherwise inflate its passing
+test total without executing assertions. Keep every real test in the inventory;
+exclude helpers by their source-file role rather than changing gatekeeper rules.
+
+When a fixture opens extra menu modes directly, deliver the opening gesture's
+KEYUP before exercising action buttons. ctx_abrir_salvo intentionally consumes
+that release; omitting it leaves the next OK swallowed. Retain the original
+hold/repeat, removal, catalogue-copy, focus and geometry assertions, and test
+both inline production mode and floating legacy mode explicitly.
+
+The incomplete-page fixture deliberately has no local pending journal or legacy
+saved entries. Define that boundary explicitly for sync completion, assert that
+unexpected migration/item reads do not occur, and strictly link every reachable
+interface. Keep real journal/migration modules in their dedicated suites. Declare
+the POSIX feature level before headers when using mkdtemp in the availability
+fixture. Real TS-proxy timing/byte assertions run on the supported Linux host;
+retain their deadline, throttle, header, PAT, redirect and encryption checks.
+
+Tool discovery must recognize quoted SDK executable paths as well as bare emcc
+commands and environment activation. The memory fixture invokes its SDK path
+directly and was missed by the old assignment/command regex. Cover that exact
+form, activated compilers and ordinary native-only fixtures in updater tests.
+Conservative provisioning is preferable to omitting real memory/worker checks.

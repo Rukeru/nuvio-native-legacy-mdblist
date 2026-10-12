@@ -14,7 +14,7 @@ def partition(files,index,count):
         rendering={'tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
                    'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
-                   'tests/montagem_cedo.sh','tests/home_progressiva.sh'}
+                   'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh'}
         if index==8:return sorted(set(files)&rendering,key=render_order)
         return sorted(set(files)-rendering)[index::8]
     return sorted(files)[index::count]
