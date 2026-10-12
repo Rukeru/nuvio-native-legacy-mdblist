@@ -3,6 +3,11 @@ from pathlib import Path
 from regression_gate import attest,validate
 
 class RegressionGate(unittest.TestCase):
+    def test_deployed_bash_scripts_do_not_contain_windows_line_endings(self):
+        scripts=list(Path(__file__).parent.glob('*.sh'))
+        self.assertTrue(scripts)
+        for script in scripts:
+            with self.subTest(script=script.name):self.assertNotIn(b'\r',script.read_bytes())
     def test_complete_execution_records_unavailable_as_untested(self):
         with tempfile.TemporaryDirectory() as d:
             state=Path(d)/'state.json';summary=Path(d)/'summary.txt'

@@ -338,3 +338,9 @@ or different source cannot authorize publication. Linux-only GLES fixtures are
 explicitly unavailable on the macOS host and are mandatory in both Linux
 platform jobs. Select the equivalent Darwin/Linux dead-section linker option
 for portable fixtures without changing their assertions.
+
+Normalize deployed Bash files to LF before browser/API uploads from Windows.
+An upload preserves raw CRLF bytes even when local Git would normalize them;
+`set -euo pipefail` then becomes an invalid option on the runner. Declare
+`*.sh text eol=lf` and verify actual deployed script bytes in updater tests.
+Source assembly passing does not prove the preflight script itself can execute.
