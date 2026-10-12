@@ -56,6 +56,9 @@ jobs:
           PY
       - name: Execute real Settings navigation and account fixtures
         run: |
+          # Same loopback server-name setup as the full regression environment.
+          # Client DNS, real sockets, TLS, deadlines and throughput stay unchanged.
+          export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
           python3 ci_benchmark.py upstream focused-evidence focused-development \
             tests/ajustes_ux_dados.sh tests/ajustes_ux_interacao.sh \
             tests/ajustes_envio_auto.sh tests/i18n.sh tests/tizen_improvements.sh \
