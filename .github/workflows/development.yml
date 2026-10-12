@@ -1,0 +1,85 @@
+name: Fast development checks (not release validation)
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  impact:
+    runs-on: ubuntu-24.04
+    outputs:
+      native: ${{ steps.impact.outputs.native }}
+      compiler: ${{ steps.impact.outputs.compiler }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Execute complete updater unit and safety tests
+        run: python3 -m unittest discover -p 'test_*.py'
+      - name: Select the conservative development gate
+        id: impact
+        env:
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE:-$BEFORE}"
+          if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ]; then base=HEAD^; fi
+          python3 ci_impact.py --base "$base"
+          cat development-impact.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: development-impact-attempt-${{ github.run_attempt }}
+          path: development-impact.json
+          if-no-files-found: error
+  compiler-equivalence:
+    needs: impact
+    if: needs.impact.outputs.compiler == 'true'
+    uses: ./.github/workflows/ci-experiment.yml
+  native-preflight:
+    needs: impact
+    if: needs.impact.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        platform: [tizen, webos]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Prepare exact upstream baseline and maintained adapters
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import integration,json,os
+          m=integration.manifest()
+          Path('development-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},
+              'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],
+              'diagnostic_only':True})+'\n')
+          PY
+          python3 integration.py --platform "$PLATFORM" --state development-state.json
+      - name: Install minimal host headers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev zlib1g-dev
+      - name: Run actual tracking, history, Settings and platform assertions
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          bash preflight.sh "$PLATFORM"
+          bash platform-checks.sh "$PLATFORM"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: development-${{ matrix.platform }}-attempt-${{ github.run_attempt }}
+          path: |
+            development-state.json
+            diagnostics/
+          retention-days: 14

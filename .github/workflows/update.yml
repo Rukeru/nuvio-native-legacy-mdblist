@@ -1,8 +1,5 @@
 name: Rebuild upstream releases with MDBList
 on:
-  push:
-    branches: [main]
-    paths: ['integration/**', 'integration-bundle.*', '*.py', '*.sh', '.github/workflows/**']
   repository_dispatch:
     types: [upstream-release]
   schedule:
@@ -27,6 +24,7 @@ jobs:
     timeout-minutes: 180
     outputs:
       build: ${{ steps.discover.outputs.build }}
+      package-artifact: checked-release-attempt-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -104,7 +102,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
-          name: ui-profile-evidence
+          name: ui-profile-evidence-attempt-${{ github.run_attempt }}
           path: ui-profile/
           if-no-files-found: warn
           retention-days: 7
@@ -137,7 +135,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: steps.discover.outputs.build == 'true'
         with:
-          name: checked-release
+          name: checked-release-attempt-${{ github.run_attempt }}
           path: release/
           if-no-files-found: error
           retention-days: 7
@@ -149,7 +147,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
-          name: tizen-compatibility-diagnostics
+          name: tizen-compatibility-diagnostics-attempt-${{ github.run_attempt }}
           path: diagnostics/
           if-no-files-found: warn
           retention-days: 30
@@ -179,11 +177,11 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: checked-release
+          name: ${{ needs.build.outputs.package-artifact }}
           path: release/
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: tizen-full-regression-evidence
+          name: ${{ needs.regression.outputs.evidence-artifact }}
           path: regression-evidence/
       - name: Publish only after GitHub confirms every asset checksum
         env:
@@ -222,7 +220,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: checked-release
+          name: ${{ needs.build.outputs.package-artifact }}
           path: release/
       - name: Report publication failure; live release remains intact
         env:

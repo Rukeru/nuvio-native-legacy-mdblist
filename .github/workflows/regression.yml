@@ -1,6 +1,9 @@
 name: Full upstream regression suite
 on:
   workflow_call:
+    outputs:
+      evidence-artifact:
+        value: ${{ jobs.aggregate.outputs.evidence-artifact }}
     secrets:
       NUVIO_BUILD_PROPERTIES:
         required: true
@@ -9,6 +12,9 @@ on:
         type: string
         required: true
       force:
+        type: boolean
+        default: false
+      diagnostic_only:
         type: boolean
         default: false
 permissions:
@@ -20,12 +26,14 @@ jobs:
       contents: read
       issues: read
     outputs:
-      build: ${{ steps.discover.outputs.build }}
+      build: ${{ steps.discover.outputs.build || steps.baseline.outputs.build }}
+      selection-artifact: ${{ inputs.platform }}-regression-selection-attempt-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
       - name: Select the same stable upstream release
+        if: inputs.diagnostic_only != true
         id: discover
         env:
           GH_TOKEN: ${{ github.token }}
@@ -41,10 +49,23 @@ jobs:
             python3 webos.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
             cp webos-state.json regression-state.json
           fi
+      - name: Select immutable baseline for nonpublishing CI validation
+        if: inputs.diagnostic_only == true
+        id: baseline
+        run: |
+          python3 - <<'PY'
+          import integration,json,os
+          from pathlib import Path
+          m=integration.manifest()
+          Path('regression-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},
+              'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],
+              'diagnostic_only':True,'build':True})+'\n')
+          PY
+          echo 'build=true' >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: steps.discover.outputs.build == 'true'
+        if: steps.discover.outputs.build == 'true' || steps.baseline.outputs.build == 'true'
         with:
-          name: ${{ inputs.platform }}-regression-selection
+          name: ${{ inputs.platform }}-regression-selection-attempt-${{ github.run_attempt }}
           path: regression-state.json
           if-no-files-found: error
   suite:
@@ -54,9 +75,13 @@ jobs:
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      max-parallel: 4
+      # Two independent Linux workloads plus four macOS jobs. The prior
+      # dual-platform runs already used five concurrent macOS runners overall;
+      # this prevents a 30-minute Linux benchmark consuming a macOS slot.
+      max-parallel: 6
       matrix:
         include:
+          - { shard: 9, os: ubuntu-24.04 }
           - { shard: 8, os: ubuntu-24.04 }
           - { shard: 0, os: macos-15 }
           - { shard: 1, os: macos-15 }
@@ -75,7 +100,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: ${{ inputs.platform }}-regression-selection
+          name: ${{ needs.select.outputs.selection-artifact }}
       - name: Assemble verified integration before testing
         env:
           GH_TOKEN: ${{ github.token }}
@@ -87,17 +112,17 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: '1'
           HOMEBREW_NO_INSTALL_CLEANUP: '1'
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage native-regression-libraries -- brew install sdl2 sdl2_image sdl2_ttf pkg-config libass fribidi ffmpeg mkvtoolnix bash ripgrep coreutils openssl@3
+        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage native-regression-libraries -- brew install sdl2 sdl2_image sdl2_ttf pkg-config libass fribidi ffmpeg mkvtoolnix bash ripgrep coreutils openssl@3 ccache
       - name: Install actual GLES rendering libraries
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev zlib1g-dev xvfb xauth ffmpeg pkg-config ripgrep
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev zlib1g-dev xvfb xauth ffmpeg pkg-config ripgrep ccache
       - name: Provision required cross-platform regression toolchains
         id: tools
         env:
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage regression-toolchain-setup -- python3 regression_dependencies.py upstream ${{ matrix.shard }} 9
+        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage regression-toolchain-setup -- python3 regression_dependencies.py upstream ${{ matrix.shard }} 10
       - name: Install the pinned host SDK for real Tizen routing fixtures
         if: steps.tools.outputs.dotnet == 'true'
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
@@ -117,6 +142,22 @@ jobs:
           umask 077
           printf '%s\n' "$BUILD_PROPERTIES" > "$RUNNER_TEMP/regression.properties"
           python3 -c 'import pathlib,os;[print("::add-mask::"+line.split("=",1)[1].strip().strip(chr(34))) for line in pathlib.Path(os.environ["RUNNER_TEMP"],"regression.properties").read_text().splitlines() if "=" in line and line.split("=",1)[1].strip()]'
+      - name: Define content-checked host object cache
+        id: object-cache-key
+        run: |
+          echo "prefix=host-objects-v1-$RUNNER_OS-$RUNNER_ARCH-${ImageVersion:-unknown}-${{ matrix.shard }}-${{ hashFiles('ci_compile.py') }}" >> "$GITHUB_OUTPUT"
+          echo "CCACHE_DIR=$RUNNER_TEMP/nuvio-host-objects" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        id: object-cache
+        with:
+          path: ${{ runner.temp }}/nuvio-host-objects
+          key: ${{ steps.object-cache-key.outputs.prefix }}-${{ github.sha }}
+          restore-keys: ${{ steps.object-cache-key.outputs.prefix }}-
+      - name: Enable verified host compilation cache
+        run: |
+          python3 ci_compile.py install "$RUNNER_TEMP/nuvio-host-compiler"
+          ccache --version
       - name: Execute the complete upstream gatekeeper suite
         env:
           PLATFORM: ${{ inputs.platform }}
@@ -132,17 +173,27 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
           display=()
           if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
-          "${display[@]}" python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- python3 full_regression.py run upstream regression-state.json ${{ matrix.shard }} 9
+          "${display[@]}" python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- python3 full_regression.py run upstream regression-state.json ${{ matrix.shard }} 10
       - name: Report actual regression failures
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ inputs.platform }}
         run: python3 update_guard.py failure --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests
+      - name: Record compilation cache diagnostics
+        if: always()
+        run: |
+          mkdir -p diagnostics
+          if command -v ccache >/dev/null; then ccache --show-stats > diagnostics/compiler-cache.txt; fi
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: success() && steps.object-cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/nuvio-host-objects
+          key: ${{ steps.object-cache-key.outputs.prefix }}-${{ github.sha }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: ${{ inputs.platform }}-regression-shard-${{ matrix.shard }}
+          name: ${{ inputs.platform }}-regression-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: |
             regression-logs/**/*.log
             regression-logs/**/SUMMARY.txt
@@ -158,6 +209,8 @@ jobs:
     needs: [select, suite]
     if: needs.select.outputs.build == 'true' && needs.suite.result == 'success'
     runs-on: ubuntu-24.04
+    outputs:
+      evidence-artifact: ${{ inputs.platform }}-full-regression-evidence-attempt-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -165,19 +218,21 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: ${{ inputs.platform }}-regression-shard-*
-          path: regression-shards
-          merge-multiple: true
+          path: regression-attempts
+          merge-multiple: false
       - name: Verify every script was executed by its assigned native runner
         run: |
           mkdir -p regression-logs
-          python3 full_regression.py merge regression-shards/regression-logs regression-state.json regression-logs/SUMMARY.txt 9
+          python3 regression_attempts.py regression-attempts regression-selected "${{ inputs.platform }}" 10
+          python3 full_regression.py merge regression-selected regression-state.json regression-logs/SUMMARY.txt 10
           python3 regression_gate.py attest regression-state.json regression-logs/SUMMARY.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ${{ inputs.platform }}-full-regression-evidence
+          name: ${{ inputs.platform }}-full-regression-evidence-attempt-${{ github.run_attempt }}
           path: |
             regression-state.json
             regression-logs/SUMMARY.txt
-            regression-shards/
+            regression-attempts/
+            regression-selected/
           if-no-files-found: error
           retention-days: 30

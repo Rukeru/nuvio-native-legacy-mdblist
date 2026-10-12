@@ -1,8 +1,6 @@
 name: Focused compiler-cache equivalence and timings
 on:
-  push:
-    branches: [codex/fast-ci-diagnostics]
-    paths: [ci_compile.py, ci_benchmark.py, test_ci_compile.py, '.github/workflows/ci-experiment.yml']
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read

@@ -1,0 +1,19 @@
+name: Complete CI infrastructure validation without publication
+on:
+  push:
+    branches: [codex/fast-ci-diagnostics]
+    paths: ['.github/workflows/ci-validation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    uses: ./.github/workflows/regression.yml
+    permissions:
+      contents: read
+      issues: write
+    secrets:
+      NUVIO_BUILD_PROPERTIES: ${{ secrets.NUVIO_BUILD_PROPERTIES }}
+    with:
+      platform: webos
+      diagnostic_only: true

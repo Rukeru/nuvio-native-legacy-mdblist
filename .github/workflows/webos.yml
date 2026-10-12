@@ -1,8 +1,5 @@
 name: Rebuild webOS releases with MDBList
 on:
-  push:
-    branches: [main]
-    paths: ['integration/**', 'integration-bundle.*', '*.py', '*.sh', '.github/workflows/**']
   repository_dispatch:
     types: [upstream-release]
   schedule:
@@ -27,6 +24,7 @@ jobs:
     timeout-minutes: 150
     outputs:
       build: ${{ steps.discover.outputs.build }}
+      package-artifact: checked-webos-release-attempt-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -88,7 +86,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
-          name: webos-ui-profile-evidence
+          name: webos-ui-profile-evidence-attempt-${{ github.run_attempt }}
           path: ui-profile/
           if-no-files-found: warn
           retention-days: 30
@@ -108,7 +106,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: steps.discover.outputs.build == 'true'
         with:
-          name: checked-webos-release
+          name: checked-webos-release-attempt-${{ github.run_attempt }}
           path: release-webos/
           if-no-files-found: error
           retention-days: 7
@@ -120,7 +118,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
-          name: webos-compatibility-diagnostics
+          name: webos-compatibility-diagnostics-attempt-${{ github.run_attempt }}
           path: diagnostics/
           if-no-files-found: warn
           retention-days: 30
@@ -150,11 +148,11 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: checked-webos-release
+          name: ${{ needs.build.outputs.package-artifact }}
           path: release-webos/
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: webos-full-regression-evidence
+          name: ${{ needs.regression.outputs.evidence-artifact }}
           path: regression-evidence/
       - name: Publish checked LG assets without changing the Samsung Latest release
         env:
@@ -171,7 +169,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: checked-webos-release
+          name: ${{ needs.build.outputs.package-artifact }}
           path: release-webos/
       - name: Report publication failure; live release remains intact
         env:
