@@ -26,7 +26,7 @@ def classify(paths):
             'native_platforms':['tizen','webos'] if native else [],
             'compiler_equivalence_required':compiler,
             'backend_security_required':backend,
-            'native_gate':['integration contracts','preflight.sh','platform-checks.sh'] if native else [],
+            'native_gate':['integration contracts','preflight.sh','platform-checks.sh','focused-ui.yml'] if native else [],
             'full_release_required_before_publication':True}
 
 

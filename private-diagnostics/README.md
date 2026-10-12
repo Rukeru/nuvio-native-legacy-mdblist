@@ -164,3 +164,11 @@ temporarily enabled. This is not a CI command. It saves generated credentials
 only under ignored `.private`, reports sanitized evidence, and revokes test
 credentials in `finally`. Disable ingestion again if the TV release gates are
 not ready. Existing reports are retained for their normal retention period.
+
+The final reviewed Worker revision also passed the same 21 live checks on
+deployment `16db59eb-60bd-425e-817e-e0b64adeb921`. Both generated credentials
+were revoked. Ingestion was restored to disabled in deployment
+`030fd652-6fc1-4564-b25a-fa713ed0baff` pending final application gates.
+`verification.json` pins the verified privacy, consent and server inputs;
+changing them blocks client activation until re-verification. The associated
+evidence contains synthetic results only, with no upload credentials.

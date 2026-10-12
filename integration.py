@@ -134,8 +134,41 @@ def diagnostic_build(root,state):
     template=(ROOT/'integration/overlay/src/nvdiag_build.h').read_text(encoding='utf8')
     if template.count('#define NV_DIAG_BUILD ""')!=1:
         raise Incompatible('Diagnostic provenance template changed')
-    path.write_text(template.replace('#define NV_DIAG_BUILD ""','#define NV_DIAG_BUILD '+json.dumps(builder)),encoding='utf8',newline='\n')
-    state['private_diagnostics']={'builder_commit':builder,'production_enabled':False,
+    readiness=ROOT/'private-diagnostics/verification.json'
+    enabled=False
+    if readiness.exists():
+        proof=json.loads(readiness.read_text(encoding='utf8'))
+        if proof.get('version')!=1 or proof.get('security_verified') is not True:
+            raise Incompatible('Private diagnostics verification is incomplete')
+        required={'private-diagnostics/worker.mjs','private-diagnostics/ingestion.mjs',
+                  'private-diagnostics/migrations/0001_private_diagnostics.sql',
+                  'private-diagnostics/wrangler.jsonc','integration/private-diagnostics.patch',
+                  'integration/overlay/src/nvdiag.c','integration/overlay/src/nvdiag.h',
+                  'integration/overlay/src/nvdiag_format.c','integration/overlay/src/nvdiag_observe.h',
+                  'integration/overlay/tests/nvdiag.c'}
+        if set(proof.get('inputs',{}))!=required:
+            raise Incompatible('Private diagnostics verification input inventory changed')
+        for name,digest in proof['inputs'].items():
+            candidate=(ROOT/name).resolve()
+            if not candidate.is_relative_to(ROOT.resolve()):
+                raise Incompatible('Invalid diagnostic verification path')
+            verified(candidate,digest)
+        live=(ROOT/proof['live_evidence']).resolve()
+        if not live.is_relative_to(ROOT.resolve()):
+            raise Incompatible('Invalid diagnostic live evidence path')
+        verified(live,proof['live_sha256'])
+        evidence=json.loads(live.read_text(encoding='utf8'))
+        if evidence.get('passed') is not True or len(evidence.get('checks',[]))!=21:
+            raise Incompatible('Private diagnostics live evidence is incomplete')
+        enabled=bool(builder)
+    header=template.replace('#define NV_DIAG_BUILD ""','#define NV_DIAG_BUILD '+json.dumps(builder))
+    if enabled:
+        if header.count('#define NV_DIAG_VERIFIED 0')!=1:
+            raise Incompatible('Private diagnostics activation template changed')
+        header=header.replace('#define NV_DIAG_VERIFIED 0','#define NV_DIAG_VERIFIED 1')
+    path.write_text(header,encoding='utf8',newline='\n')
+    state['private_diagnostics']={'builder_commit':builder,'production_enabled':enabled,
+                                 'verification_sha256':hashlib.sha256(readiness.read_bytes()).hexdigest() if readiness.exists() else None,
                                  'header_sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 
 def translations(root,platform,state,m):

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "security_verified": true,
+  "tested_deployment": "16db59eb-60bd-425e-817e-e0b64adeb921",
+  "consent_and_security_run": "https://github.com/Rukeru/nuvio-native-legacy-mdblist/actions/runs/38303162503",
+  "client_commit": "acec078a4be4b7e471ece12f4b5a842263f20b4c",
+  "live_evidence": "ci-evidence/2026-10-12-private-final-live.json",
+  "live_sha256": "f300762b998d3c47f985ef0853d018770ece738c2920b2141e35c486dee4ebf2",
+  "inputs": {
+    "private-diagnostics/worker.mjs": "c7706c02a98110ed44b49d22e0baa5429bf0115c4d7f426fb69aed8c97339989",
+    "private-diagnostics/ingestion.mjs": "3b4435e869c88d0eb28244212285701e1e7be16adfa4e1a5c2854c2a6bd04fda",
+    "private-diagnostics/migrations/0001_private_diagnostics.sql": "ed5d4431af255a60f6690a6cc839d2ed9b36c5b0720603f854d076e136607fc3",
+    "private-diagnostics/wrangler.jsonc": "5ce8141e0bd966f5f0b53092b1f498034daf5d7b32d50da4c83a97ff6964633a",
+    "integration/private-diagnostics.patch": "96b709ce98aa26f30fce6d4d4eed7cb4d5a62c359fd35da69c6be27abb702c60",
+    "integration/overlay/src/nvdiag.c": "d3840dde268344ecefdefee297fd62611b263086e8ff1c5cd03ca1dc18d92dd4",
+    "integration/overlay/src/nvdiag.h": "d21580353f46578733450c28dffddc82c48863a458613cfb4e47ef823c832580",
+    "integration/overlay/src/nvdiag_format.c": "0ce8202ad46bbc9e42942c46212ece7a164c8376a2181a566ca2c71f1c841aca",
+    "integration/overlay/src/nvdiag_observe.h": "b2fd0f10b8a7771740168ea86093d306fbd18c3d36dea5a568f2f89bbbcd244f",
+    "integration/overlay/tests/nvdiag.c": "ddda74d5d97c137e11ffb4107ad3a9fe3b6fb67ac212e7203c7cbcc58edbfbc4"
+  },
+  "activation": "Build-time capability only; each installation still needs pairing and fresh consent. Backend stays disabled until final app gates pass."
+}

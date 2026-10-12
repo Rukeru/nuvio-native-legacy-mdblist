@@ -43,6 +43,10 @@ jobs:
     needs: impact
     if: needs.impact.outputs.backend == 'true'
     uses: ./.github/workflows/diagnostics.yml
+  settings-account:
+    needs: impact
+    if: needs.impact.outputs.native == 'true'
+    uses: ./.github/workflows/focused-ui.yml
   native-preflight:
     needs: impact
     if: needs.impact.outputs.native == 'true'

@@ -796,3 +796,29 @@ reset function that clears pending Settings writes. New fixtures exercise real
 production C on both platform definitions; native results remain pending at
 this checkpoint. The prior diagnostic fast gate passed both platforms and the
 backend security job in run 38303162503 on acec078.
+
+The account/manifest focused gate then passed on both platforms at 9930ac5
+(run 38304378573). The new fixtures compile and execute the real sync and
+discovery cache C for both NV_TPK and NV_WEBOS. They preserve the unchanged
+upstream addon-sync harness and add initial-breaker recovery, fresh/cache state,
+one-minute manual throttling, failed local-setting pushes, profile isolation,
+five-minute manifest expiry and stale-request generation checks.
+
+When removing Support the Project, retain its enum/default/persisted-key slot
+as an inaccessible tombstone. Remove the navigation row, panel implementation,
+search keywords and exclusive automation route. Replace assertions for the
+removed product behavior with absence/route/focus assertions; retain all
+surrounding persistence and navigation coverage. The historical standalone
+release-card fixtures stay intact; custom app startup must not open their old
+donation onboarding after its installed-version changelog. Copyright, licences,
+the user guide and unrelated help stay available.
+
+Add a focused macOS Settings/account gate for real interaction, offline,
+Collections and manifest-wait fixtures. Cache compiler objects by checked source
+content; these results remain development evidence, not release attestation.
+The final live Worker source passed 21 synthetic checks on deployment
+16db59eb-60bd-425e-817e-e0b64adeb921; credentials were revoked and ingestion was
+disabled again (030fd652-6fc1-4564-b25a-fa713ed0baff). Build-time activation now
+requires the reviewed backend/client/consent input hashes and live evidence.
+Changing those inputs fails closed and requires re-verification. Per-device
+pairing and fresh opt-in still apply after activation.
