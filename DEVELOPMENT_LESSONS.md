@@ -293,3 +293,48 @@ restore it before production preflight. Otherwise a successful LG/Samsung run
 can display an invented Settings conflict or quarantine notice from a test.
 Verify the existing summary stays unchanged while the complete updater suite
 runs; real compatibility reports and failure notifications remain enabled.
+
+### Upstream 2.0.4: preserve upstream tests and review every adapter
+
+Issues #7/#8 stopped at the first overlapping insertion in
+tests/ajustes_padroes.c. Upstream added factory-default/local-scope/display-order
+checks for automatic subtitle sync at the start of main, where our five MDBList
+assertions had been inserted. This was a source merge conflict, not a failing
+assertion or scheduler failure. Never remove the new assertions or disable that
+test to obtain a green build.
+
+The owned tests/mdblist_settings_defaults.c includes the unchanged upstream test
+with its main renamed, checks all five original MDBList assertions, then executes
+the real upstream main. Its portable runner uses actual application sources and
+keeps assertions enabled. This companion is shared between Tizen and webOS;
+upstream factory-default tests no longer carry our insertion patch.
+
+Resolving the first blocker also exposed native Settings additions and a season
+chart cache edit. Preserve source-order and automatic subtitle-sync declarations,
+defaults, keys, categories and help alongside the owned settings registry.
+Retain both the upstream canonical episode-suffix fix and the custom per-title
+revision/snapshot cache; replacing it with a global watched revision would undo
+the performance fix. Coverage now checks 264 options in 12 categories and 5432
+language keys, and the indexed map retains upstream's forward-unwatch/batch API.
+
+Rebase reviewed adapters on immutable 2.0.4 commit
+db6ae4ee0dd2fa158c46ba375c1fe8c08de70504, regenerate every patch SHA-256 and owned
+file digest, repack the checked integration archive, and reconstruct both
+platforms from clean checkouts. Historical 2.0.3 releases/source archives remain
+available. A clean patch application alone does not establish this new baseline.
+
+Run the upstream tools/testa-tudo.sh gatekeeper suite on its native macOS host,
+plus the existing MDBList/account/history/concurrency and real GLES rendering
+checks. Both publication jobs require the full regression job and the actual
+platform build to succeed. Retain the upstream runner's explicit unavailable/
+non-gating classifications and logs; never count SKIP as tested or reinterpret
+a skipped build as a published release. No Cloudflare, Sync Now or support UI
+work belongs in this compatibility change.
+
+Bind full-suite evidence to the exact upstream commit, builder commit and
+integration fingerprint used by the package. Attest the real upstream summary
+and require the owned defaults test to pass; a missing summary, all-skipped run
+or different source cannot authorize publication. Linux-only GLES fixtures are
+explicitly unavailable on the macOS host and are mandatory in both Linux
+platform jobs. Select the equivalent Darwin/Linux dead-section linker option
+for portable fixtures without changing their assertions.

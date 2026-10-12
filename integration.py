@@ -37,7 +37,7 @@ def fingerprint():
     # Includes updater/preflight code: a repaired adapter/check immediately unblocks.
     unpack()
     h=hashlib.sha256(REGISTRY.read_bytes())
-    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','.github/workflows/update.yml','.github/workflows/webos.yml'):
+    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
         p=ROOT/path
         if p.exists(): h.update(path.encode()+p.read_bytes())
     return h.hexdigest()
@@ -134,6 +134,11 @@ def contracts(root,platform,state):
       'settings':{'src/ajustes.c':['#include "mdbsettings.def"','mdblist_rastrear','ajustes_season_numbers'],
                   'src/mdbsettings.def':['"mdblistScrobbleLocal", 1','"cachedOnlyDefaultLocal", 0','"showSeasonNumbersLocal", 0'],
                   'src/ajustes_ux_tela.inc':['#include "mdbsettings_tracking.inc"']},
+      'settings-regression':{'tests/mdblist_settings_defaults.c':[
+                  '#include "ajustes_padroes.c"', 'return upstream_settings_defaults_main();',
+                  'assert(!ajustes_mdblist_rastrear());',
+                  'assert(somenteDesteAparelho(AJ_MDB_RASTREAR) && dePerfil(AJ_MDB_RASTREAR));'],
+                  'tests/mdblist_settings_defaults.sh':['-UNDEBUG','"$out/defaults"']},
       'account-history':{'src/contalib.c':['contalib_vistos_tick','vistoep_fonte(v->id'],
                          'src/vistoep.c':['pthread_mutex_lock(&mapLock)','lapBarra','vistoep_revisao'],
                          'src/sync.c':['mdb_credentials'],

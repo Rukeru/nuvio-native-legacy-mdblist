@@ -17,6 +17,8 @@ for module in ajustes app catalogo contalib contapend visto vistoep vistonao syn
   echo "Compatibility syntax: $module ($platform)"
   cc "${flags[@]}" "${sdl[@]}" -fsyntax-only "src/$module.c"
 done
+component=settings-defaults-tests
+bash tests/mdblist_settings_defaults.sh
 component=shared-settings-history-performance-tests
 bash tests/tizen_improvements.sh
 component=mdblist-scrobbling-tests

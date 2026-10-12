@@ -1,0 +1,29 @@
+import json,tempfile,unittest
+from pathlib import Path
+from regression_gate import attest,validate
+
+class RegressionGate(unittest.TestCase):
+    def test_complete_execution_records_unavailable_as_untested(self):
+        with tempfile.TemporaryDirectory() as d:
+            state=Path(d)/'state.json';summary=Path(d)/'summary.txt'
+            state.write_text(json.dumps({'upstream_commit':'source','builder_commit':'builder','integration':{'fingerprint':'reviewed'}}))
+            summary.write_text('ok    mdblist_settings_defaults.sh\ntestes: 500 passaram, 0 falharam, 2 SKIP sem prova, 75 fora da suite; logs: fixture\n')
+            attest(state,summary)
+            data=json.loads(state.read_text());result=validate(data,state)
+            self.assertEqual(result['passed'],500);self.assertEqual(result['unavailable'],2)
+    def test_missing_failed_or_skipped_execution_cannot_authorize_release(self):
+        with tempfile.TemporaryDirectory() as d:
+            state=Path(d)/'state.json';summary=Path(d)/'summary.txt';state.write_text('{}')
+            for text in ('Skipped workflow','testes: 0 passaram, 0 falharam, 1 SKIP sem prova, 75 fora da suite',
+                         'testes: 500 passaram, 1 falharam, 0 SKIP sem prova, 75 fora da suite',
+                         'testes: 500 passaram, 0 falharam, 0 SKIP sem prova, 75 fora da suite'):
+                summary.write_text(text)
+                with self.subTest(text=text),self.assertRaises(ValueError):attest(state,summary)
+    def test_different_source_builder_or_integration_cannot_reuse_evidence(self):
+        base={'upstream_commit':'source','builder_commit':'builder','integration':{'fingerprint':'reviewed'},
+              'full_regression':{'outcome':'passed','passed':500,'failed':0}}
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'state.json';p.write_text(json.dumps(base))
+            for changed in ({**base,'upstream_commit':'different'}, {**base,'builder_commit':'different'},
+                            {**base,'integration':{'fingerprint':'different'}}):
+                with self.subTest(changed=changed),self.assertRaises(ValueError):validate(changed,p)

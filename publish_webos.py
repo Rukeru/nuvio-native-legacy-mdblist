@@ -22,6 +22,14 @@ for line in (dest / 'SHA256SUMS.txt').read_text().splitlines():
 expected['SHA256SUMS.txt'] = 'sha256:' + hashlib.sha256((dest / 'SHA256SUMS.txt').read_bytes()).hexdigest()
 
 from release_http import request, delete_asset, publication_target
+from regression_gate import validate
+try: validate(state)
+except Exception as error:
+    from integration import report
+    from update_guard import failure
+    report('webos',state,'upstream-regression-provenance','contract-failure',str(error),['SOURCE.json','regression-state.json'])
+    failure('webos',dest/'SOURCE.json','upstream-regression-provenance')
+    raise
 target=publication_target('webos',state)
 base = 'https://api.github.com/repos/' + repo
 body = ('MDBList-preserving LG webOS build of upstream ' + state['upstream']['tag_name'] + '.\n\n'

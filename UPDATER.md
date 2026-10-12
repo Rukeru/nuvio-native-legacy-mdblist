@@ -11,6 +11,13 @@ registry and translation keys are independent of upstream array positions.
 It checks Settings coverage, language alignment, changed interfaces, C syntax,
 tracking, history, unwatch rules, cache and concurrency regressions.
 
+The reviewed adapter base is now the immutable upstream 2.0.4 commit. Factory
+defaults run through an owned companion that executes the unchanged upstream
+test and preserves all original MDBList consent/key/scope/status assertions.
+Before publication, both platforms also require the complete upstream host
+gatekeeper suite on macOS. Its logs distinguish unavailable tests from passes;
+actual platform builds and GLES rendering checks remain separate requirements.
+
 Compatible source proceeds to platform tests and packaging. Publication verifies
 the package and every uploaded asset digest while the release is still a draft.
 Samsung remains GitHub Latest; LG uses independent `webos-v` package versions.
