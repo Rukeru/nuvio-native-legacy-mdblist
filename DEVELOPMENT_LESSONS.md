@@ -573,3 +573,10 @@ parallel case unchanged on Linux. Build the same source-pinned minimal FFmpeg
 libraries before dependency discovery; never call Homebrew on Linux or replace
 missing codec cases. Cover both the real build selection and missing-encoder
 rejection in updater tests. Publication still requires both complete new suites.
+
+The later full context-list fixture exposed the same fixed-dt/wall-clock mismatch
+as the saved-panel hold fixture. Slow catalog rendering postponed the threshold
+update, so the test seeded menu metadata before the menu existed. Drive quadro
+with the existing atomic fixture clock before reading agora or routing events.
+Keep the actual hold threshold, two-frame tap, all catalog/collection/search
+paths, every geometry/focus/metadata assertion and real render captures.
