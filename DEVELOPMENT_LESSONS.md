@@ -838,3 +838,9 @@ returns its cached count after a failed request, and addon pulls return zero
 for permanent HTTP failures. Add an explicit profile-read freshness signal and
 preserve the previous successful timestamp for these failures. Reset manifest
 failure/fallback status for each discovery refresh so later recovery clears it.
+
+### Focused Settings and host-link boundaries (2026-10-12)
+
+The 5940593 focused run exposed an outdated seven-entry custom Settings count after three appended entries. Keep every upstream-prefix and custom-index assertion, explicitly enumerate the new tail and assert its exact terminal count. `uxSecaoDe` returns category zero when absent; removal tests must exercise `focarOpcao` and assert unchanged focus, alongside zero navigation rows and no search results.
+
+Mach-O still requires absent weak imports to resolve at link time. Isolated Apple fixtures now have weak fallback definitions, overridden by real strong providers when linked; ELF TV behavior is unchanged. Verify the strong override explicitly. The manifest worker cache fallback makes the existing late-refresh branch reachable to the linker, pulling the entire app into a small unit fixture. Inject only that outer refresh callback; retain every original cache/worker assertion and additionally assert one late notification and retained cache. Full app builds retain the real callback. These are focused failures; no full release gate was launched or cancelled.

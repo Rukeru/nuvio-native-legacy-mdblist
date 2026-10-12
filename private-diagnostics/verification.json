@@ -15,9 +15,9 @@
     "integration/overlay/src/nvdiag.c": "d3840dde268344ecefdefee297fd62611b263086e8ff1c5cd03ca1dc18d92dd4",
     "integration/overlay/src/nvdiag.h": "d21580353f46578733450c28dffddc82c48863a458613cfb4e47ef823c832580",
     "integration/overlay/src/nvdiag_format.c": "0ce8202ad46bbc9e42942c46212ece7a164c8376a2181a566ca2c71f1c841aca",
-    "integration/overlay/src/nvdiag_observe.h": "7f968a3ebf8856c075e7f5e0be08980dbcd866448cabd0e353f5ac7267059c0c",
+    "integration/overlay/src/nvdiag_observe.h": "a5557fb3d66c779b5c4a1b11aa1eeb08ffb30473b50e611489a82f169952a6f7",
     "integration/overlay/tests/nvdiag.c": "ddda74d5d97c137e11ffb4107ad3a9fe3b6fb67ac212e7203c7cbcc58edbfbc4"
   },
   "activation": "Build-time capability only; each installation still needs pairing and fresh consent. Backend stays disabled until final app gates pass.",
-  "portability_review": "Apple host fixtures use weak_import; the non-Apple declaration used by both TV platforms remains __attribute__((weak)). No event, authentication, consent, storage or transport behavior changed. Focused macOS link validation is required before publication."
+  "portability_review": "Apple isolated host fixtures use weak fallback definitions because Mach-O requires link-time resolution even for missing weak imports. Both TV targets retain the identical ELF weak declaration and runtime. Focused host validation includes a real strong-provider override check; no diagnostic event, consent, transport or storage changes."
 }

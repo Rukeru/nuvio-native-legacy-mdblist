@@ -41,6 +41,19 @@ jobs:
           restore-keys: ${{ steps.cache-key.outputs.prefix }}-
       - name: Enable verified compilation cache
         run: python3 ci_compile.py install "$RUNNER_TEMP/focused-ui-compiler"
+      - name: Verify optional observers yield to real providers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess,tempfile
+          with tempfile.TemporaryDirectory() as d:
+              d=Path(d)
+              (d/'caller.c').write_text('#include "nvdiag_observe.h"\nvoid exercise(void){NVD_NOTE(NVD_SYNC_FAILED,2,3);}')
+              (d/'provider.c').write_text('#include <assert.h>\nstatic int called; void nvdiag_observe(int c,int a,int b){assert(c==2&&a==2&&b==3);called++;} void exercise(void); int main(void){exercise();assert(called==1);}')
+              binary=d/'provider-test'
+              subprocess.run(['cc','-O1','-Iupstream/src',str(d/'caller.c'),str(d/'provider.c'),'-o',str(binary)],check=True)
+              subprocess.run([str(binary)],check=True)
+          PY
       - name: Execute real Settings navigation and account fixtures
         run: |
           python3 ci_benchmark.py upstream focused-evidence focused-development \
