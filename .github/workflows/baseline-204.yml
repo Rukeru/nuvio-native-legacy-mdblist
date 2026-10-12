@@ -6,7 +6,7 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [compatibility, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar]
+        options: [compatibility, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar]
       integrated:
         description: Apply the verified current integration for focused debugging
         type: boolean
@@ -15,6 +15,7 @@ permissions:
   contents: read
 jobs:
   baseline:
+    if: inputs.fixture != 'dts_engine'
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -50,7 +51,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from regression_dependencies import provision
-          provision('baseline',0,1,selected=['tests/player.sh','tests/streamfit_sheet.sh','tests/dts_engine.sh','tests/ondever_folha.sh','tests/salvos_segurar.sh'])
+          provision('baseline',0,1,selected=['tests/player.sh','tests/streamfit_sheet.sh','tests/hero_vizinhos.sh','tests/ondever_folha.sh','tests/salvos_segurar.sh'])
           PY
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         if: steps.tools.outputs.dotnet == 'true'
@@ -60,14 +61,14 @@ jobs:
         env:
           FIXTURE: ${{ inputs.fixture }}
         run: |
-          case "$FIXTURE" in compatibility|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar) ;; *) exit 2;; esac
+          case "$FIXTURE" in compatibility|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           export PYTHONPATH="$GITHUB_WORKSPACE/baseline/tests/stubs/host:${PYTHONPATH:-}"
           set -o pipefail
           if command -v dotnet >/dev/null 2>&1; then export NUVIO_DOTNET="$(command -v dotnet)"; fi
           fixtures="$FIXTURE"
-          if [ "$FIXTURE" = compatibility ]; then fixtures='player streamfit_sheet dts_engine ondever_folha salvos_segurar'; fi
+          if [ "$FIXTURE" = compatibility ]; then fixtures='player streamfit_sheet hero_vizinhos ondever_folha salvos_segurar'; fi
           failed=0
           for test in $fixtures; do
             if bash "baseline/tests/$test.sh" >"baseline-evidence/$test.log" 2>&1; then
@@ -87,10 +88,14 @@ jobs:
             baseline-evidence/**/*.log
             baseline-evidence/compatibility-state.json
           retention-days: 14
-  lifecycle:
-    if: inputs.fixture == 'compatibility'
+  portable:
+    if: inputs.fixture == 'compatibility' || inputs.fixture == 'dts_engine'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: ${{ fromJSON(inputs.fixture == 'compatibility' && '["tpk_lifecycle","dts_engine"]' || '["dts_engine"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -114,19 +119,35 @@ jobs:
           Path('baseline-evidence/compatibility-state.json').write_text(json.dumps(state,indent=2)+'\n')
           PY
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        if: matrix.fixture == 'tpk_lifecycle'
         with:
           dotnet-version: '8.0.425'
-      - name: Execute every original lifecycle assertion and deadline
+      - name: Install actual transport fixture dependencies
+        if: matrix.fixture == 'dts_engine'
+        run: sudo apt-get update -qq && sudo apt-get install -y build-essential ffmpeg pkg-config curl
+      - name: Build the pinned real decoder for transport assertions
+        if: matrix.fixture == 'dts_engine'
         run: |
-          test "$(dotnet --version)" = 8.0.425
-          export NUVIO_DOTNET="$(command -v dotnet)"
+          python3 - <<'PY'
+          from regression_dependencies import provision
+          provision('baseline',0,1,selected=['tests/dts_engine.sh'])
+          PY
+      - name: Execute every original portable assertion and deadline
+        env:
+          FIXTURE: ${{ matrix.fixture }}
+        run: |
+          if [ "$FIXTURE" = tpk_lifecycle ]; then
+            test "$(dotnet --version)" = 8.0.425
+            export NUVIO_DOTNET="$(command -v dotnet)"
+          fi
           export NUVIO_HOST_TEST_DIR="$GITHUB_WORKSPACE/baseline-evidence"
+          export PYTHONPATH="$GITHUB_WORKSPACE/baseline/tests/stubs/host:${PYTHONPATH:-}"
           set -o pipefail
-          bash baseline/tests/tpk_lifecycle.sh 2>&1 | tee baseline-evidence/tpk_lifecycle.log
+          bash "baseline/tests/$FIXTURE.sh" 2>&1 | tee "baseline-evidence/$FIXTURE.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: diagnostic-204-lifecycle-${{ inputs.integrated }}
+          name: diagnostic-204-${{ matrix.fixture }}-${{ inputs.integrated }}
           path: |
             baseline-evidence/**/*.log
             baseline-evidence/compatibility-state.json
