@@ -407,3 +407,40 @@ their diagnostic server_name; sockets, client requests and TLS assertions stay
 real. Do not upload temporary compilers, binaries or shared app configuration
 as regression evidence. Upload complete logs and provenance, and require every
 assigned script to be accounted for before authorizing either release.
+
+The extended 2.0.4 suite exposed additional fixture preconditions and two
+integration regressions. Preserve source transfer safety (`foraCache`) independently
+of strict cache metadata (`cacheEstado`): a name-based uncached hint must still
+protect transfer limits without admitting unknown sources to cached-only results.
+Assert explicit metadata precedence and both original transfer/quota behaviors.
+The context-menu information-side getter must report the side of the information
+panel, which has opposite sign to the morph menu side. Retain the original
+geometry assertions rather than changing their expected side.
+
+Settings preview ownership needs a semantic contract, not just row counts.
+Validate contiguous scene ownership in basic sections, the dedicated MDBList
+scene, season-number placement, and all advanced references before compiling.
+Restore the existing discovery milestone only when the generation/owner guard
+actually publishes the partial catalogue. The unchanged upstream progressive
+fixture passes on 2.0.4; its integrated failure is not an upstream baseline waiver.
+
+Never use unresolved-symbol dynamic lookup to make a fixture link: it can turn
+a missing boundary into a runtime null call. Link reachable real ranking/parser
+modules and give disabled optional services explicit, asserting interfaces.
+Keep upstream codec-negative coverage using genuinely invalid metadata and add
+exact positive payload assertions when upstream adds AC3/EAC3 support. Preserve
+the original art-lighting checks and separately assert new logo-lighting behavior.
+Real SDL timers, initialized demo-player state, explicit unfiltered source setup,
+and a GOP matching the HLS fixture segment duration are setup contracts; original
+timing, geometry, pixels, throughput, transfer and lifetime thresholds remain.
+
+Provision the actual legacy Node engine, complete Kotlin compiler runtime,
+matching dotnet SDK and real pinned P2P engine rather than recording their absence
+as verification. Full current-source WASM glue includes animated WebP and libass.
+Long renderer measurements retain every scenario, frame and sample. Report
+fixture-log growth and use line-buffered benchmark output; run fast assertions
+before the full WASM build and all-scenario measurement. Diagnostic runs of
+unmodified upstream explain failures but never authorize either platform release.
+Local adapter replay, native syntax/link checks and individual fixtures are
+intermediate evidence. Establish the baseline only after both full platform
+workflows validate and publish the exact source and integration fingerprint.

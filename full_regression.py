@@ -4,7 +4,7 @@ Only its file enumeration is adapted. Test scripts, assertions, exit rules,
 SKIP classification and upstream exclusions remain upstream-owned.
 """
 from pathlib import Path
-import hashlib,json,re,shlex,subprocess,sys
+import hashlib,json,os,re,shlex,subprocess,sys,threading
 
 def partition(files,index,count):
     if count < 1 or not 0 <= index < count:raise ValueError('Invalid regression shard')
@@ -12,10 +12,17 @@ def partition(files,index,count):
         # Run every frame/scenario of the benchmark on the supported GLES host,
         # including the renderer fixture that is unavailable on macOS.
         rendering={'tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
-                   'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh'}
-        if index==8:return sorted(set(files)&rendering)
+                   'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
+                   'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
+                   'tests/montagem_cedo.sh','tests/home_progressiva.sh'}
+        if index==8:return sorted(set(files)&rendering,key=render_order)
         return sorted(set(files)-rendering)[index::8]
     return sorted(files)[index::count]
+
+def render_order(path):
+    # Finish the fast assertions before the full WASM build and all-scenario
+    # performance measurement. Every script and every original frame still runs.
+    return (2 if path=='tests/fluidez_perf.sh' else 1 if path=='tests/tizen-globalthis.sh' else 0,path)
 
 def prepare(script,selected):
     loop='for f in tests/*.sh; do'
@@ -34,11 +41,27 @@ def run(root,state_path,index,count):
     script=root/'tools/.ci-full-regression.sh';script.write_text(prepare(original,selected),encoding='utf8')
     evidence=Path(f'regression-logs/shard-{index}');evidence.mkdir(parents=True,exist_ok=True)
     summary=evidence/'SUMMARY.txt'
+    stop=threading.Event()
+    def progress():
+        # The upstream gatekeeper buffers individual fixture output. Report
+        # growth without changing its assertions, exit rules or coverage.
+        previous={}
+        folder=Path(os.environ.get('TMPDIR','/tmp'))
+        while not stop.wait(30):
+            for path in folder.glob('nuvio-testes.*/*.log'):
+                try:
+                    size=path.stat().st_size
+                    if previous.get(str(path))!=size:
+                        print(f'[fixture progress] {path.name}: {size} log bytes',flush=True)
+                        previous[str(path)]=size
+                except OSError:pass
+    observer=threading.Thread(target=progress,daemon=True);observer.start()
     with summary.open('w',encoding='utf8') as log:
         process=subprocess.Popen(['bash',str(script)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
         for line in process.stdout:
             log.write(line);log.flush();print(line,end='',flush=True)
         code=process.wait()
+    stop.set();observer.join()
     state=json.loads(state_path.read_text())
     metadata={'index':index,'count':count,'files':files,'selected':selected,'exit_code':code,
               'gatekeeper_sha256':hashlib.sha256(original.encode()).hexdigest(),

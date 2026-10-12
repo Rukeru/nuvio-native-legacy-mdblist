@@ -64,6 +64,36 @@ def verified(path, digest):
     if hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
         raise Incompatible('Integration input checksum mismatch: '+path.name)
 
+def settings_scene_contract(root):
+    """Check the upstream one-scene-per-basic-block invariant before SDK setup."""
+    root=Path(root)
+    scenes=(root/'src/ajustes_ux_secoes.inc').read_text(encoding='utf8')
+    scenes=scenes.replace('#include "mdbsettings_scene_cases.inc"',
+        (root/'src/mdbsettings_scene_cases.inc').read_text(encoding='utf8'))
+    scenes=re.sub(r'/\*.*?\*/|//[^\n]*','',scenes,flags=re.S)
+    match=re.search(r'static int ajCenaSecao\(int op\)\s*\{\s*switch \(op\)\s*\{(.*?)default:\s*return -1;',scenes,re.S)
+    if not match:raise Incompatible('Settings preview switch format changed')
+    mapping={}
+    for cases,scene in re.findall(r'((?:\s*case AJ_[A-Z0-9_]+:)+)\s*return (AJC_[A-Z0-9_]+);',match.group(1)):
+        for op in re.findall(r'case (AJ_[A-Z0-9_]+):',cases):
+            if op in mapping:raise Incompatible('Duplicate Settings preview case: '+op)
+            mapping[op]=scene
+    if not mapping:raise Incompatible('Settings preview map is empty')
+    table=(root/'src/ajustes_ux_tela.inc').read_text(encoding='utf8').replace(
+        '#include "mdbsettings_tracking.inc"',(root/'src/mdbsettings_tracking.inc').read_text(encoding='utf8'))
+    table=re.sub(r'/\*.*?\*/|//[^\n]*','',table,flags=re.S)
+    seen=set();last=None;advanced=False
+    for kind,op in re.findall(r'\b(SEC|OPC|MAIS)\(\s*(AJ_[A-Z0-9_]+)?',table):
+        if kind=='SEC':advanced=False
+        elif kind=='MAIS':advanced=True
+        elif not advanced:
+            scene=mapping.get(op)
+            if scene is None or scene==last:continue
+            if scene in seen and op!='AJ_TMDB_IDIOMA':
+                raise Incompatible('Settings preview scene reused across basic blocks: '+op+' / '+scene)
+            seen.add(scene);last=scene
+    return mapping
+
 def apply(root, platform, state):
     m=manifest()
     for entry in m['overlay']:
@@ -183,6 +213,11 @@ def contracts(root,platform,state):
         if result.returncode:
             report(platform,state,name,'contract-failure',result.stdout)
             raise Incompatible('Compatibility coverage failed: '+name)
+    try:settings_scene_contract(root)
+    except Incompatible as error:
+        report(platform,state,'settings-preview-scenes','contract-failure',str(error),
+               ['src/ajustes_ux_secoes.inc','src/ajustes_ux_tela.inc','src/mdbsettings_scene_cases.inc'])
+        raise
     report(platform,state,'all-adapters','source-compatible','Owned modules and component adapters passed. Syntax and behavior checks follow before the SDK build.')
 
 def prepare(platform,state_file,source='upstream'):
