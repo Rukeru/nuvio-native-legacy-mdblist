@@ -590,3 +590,47 @@ quiescent, then assert the catalog type and the frozen player channel flag.
 Retain every original suspension, identity, source-cache, load/stop/seek and
 120-second expiration assertion. Do not mock away catalog publication or alter
 production suspension rules to make a scheduling race pass.
+
+
+## Published 2.0.4 baseline and release freeze
+
+On 2026-10-12 both platforms published immutable upstream source
+`db6ae4ee0dd2fa158c46ba375c1fe8c08de70504`, builder
+`e6ff0b442e9b753c07c3d712eb19cc8cc3c1775f`, and integration fingerprint
+`0ffdd4542d3c3162f2dea23c15b361e993bc8d172256a6b7b0cc17b6552f1b15`.
+Tizen `v2.0.4.63` (run 38254860753, attempt 2) and webOS
+`webos-v2.0.400059` (run 38254860865) each attested 470 passed, zero failed,
+zero unverified skips, and 107 original upstream gatekeeper exclusions.
+The published SOURCE.json identities match the complete nine-shard attestations;
+both 2.0.3 releases remain available. This is the next development baseline.
+
+After a user-requested release freeze, allow both workflows to finish on the
+same commit. Do not push speculative repairs or restart successful validation.
+The final Tizen assertion was `streamfit_redirect_range.c:24`, four-connection
+average >640 kbps; the failed run measured 600 kbps. Its unchanged fixture and
+production source passed three isolated repetitions at 956, 956 and 964 kbps,
+and the complete related diagnostic passed. This supports a timing-dependent
+failure, not a proven production conflict. Do not describe TCP_NODELAY as a
+proven repair: that comparison was not performed and no transport patch was
+merged. A single retry of failed shard 6 then passed all 60 required tests;
+the eight successful shards and native package were retained. Aggregate and
+publication gates ran normally, verifying exact source and complete coverage.
+
+Before retrying a job, inspect artifact naming. This upload-artifact revision
+uses immutable names and defaults overwrite to false. The existing failed
+`tizen-regression-shard-6` artifact would conflict with the retry. Preserve and
+SHA-256-verify its complete archive before requesting explicit permission to
+remove it. Only that backed-up failed artifact was deleted, with user approval;
+job logs and successful artifacts were retained. Future workflow optimization
+must preserve attempt-specific evidence, select results by validated provenance,
+and retain every required test, inventory check and publication gate. Never
+retry a genuine source/assertion conflict without focused evidence, or count a
+cancelled/skipped workflow as successful validation.
+
+Upstream 2.0.4 changed the Samsung host/resource identity from
+`d0b3c621791d8d991ea54a537e98a2f03037c36a184792bfe7dd4842fc392885` to
+`616bc9052b5eac94bd9c1ae8dc1b581f8880ffd0056e28bad7b0bb5ace0af6cf`.
+Preserve the compatibility guard: this transition requires signing/installing
+the new complete TPK rather than hot-loading its core into the older host.
+CI validates integration, account/tracking fixtures and rendering/performance
+contracts; it does not attest physical-TV playback or a private live account.
