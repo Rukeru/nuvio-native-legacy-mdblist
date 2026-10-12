@@ -314,7 +314,7 @@ chart cache edit. Preserve source-order and automatic subtitle-sync declarations
 defaults, keys, categories and help alongside the owned settings registry.
 Retain both the upstream canonical episode-suffix fix and the custom per-title
 revision/snapshot cache; replacing it with a global watched revision would undo
-the performance fix. Coverage now checks 264 options in 12 categories and 5432
+the performance fix. Coverage now checks 264 options in 12 categories and 5437
 language keys, and the indexed map retains upstream's forward-unwatch/batch API.
 
 Rebase reviewed adapters on immutable 2.0.4 commit
@@ -580,3 +580,13 @@ update, so the test seeded menu metadata before the menu existed. Drive quadro
 with the existing atomic fixture clock before reading agora or routing events.
 Keep the actual hold threshold, two-frame tap, all catalog/collection/search
 paths, every geometry/focus/metadata assertion and real render captures.
+
+The bfe422d full shard found an intermittent retained-player fixture race. The
+previous close really rebuilds Continue Watching on a background worker; its
+publication can replace catalog index 0 between the next one-item setup and
+player_abrir. A channel scenario then opens the preceding movie. Before each
+new setup, wait at most two seconds for the real discovery publication to be
+quiescent, then assert the catalog type and the frozen player channel flag.
+Retain every original suspension, identity, source-cache, load/stop/seek and
+120-second expiration assertion. Do not mock away catalog publication or alter
+production suspension rules to make a scheduling race pass.
