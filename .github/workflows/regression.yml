@@ -50,13 +50,22 @@ jobs:
   suite:
     needs: select
     if: needs.select.outputs.build == 'true'
-    runs-on: macos-15
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 150
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+        include:
+          - { shard: 0, os: macos-15 }
+          - { shard: 1, os: macos-15 }
+          - { shard: 2, os: macos-15 }
+          - { shard: 3, os: macos-15 }
+          - { shard: 4, os: macos-15 }
+          - { shard: 5, os: macos-15 }
+          - { shard: 6, os: macos-15 }
+          - { shard: 7, os: macos-15 }
+          - { shard: 8, os: ubuntu-24.04 }
     permissions:
       contents: read
       issues: write
@@ -73,15 +82,28 @@ jobs:
           PLATFORM: ${{ inputs.platform }}
         run: python3 integration.py --platform "$PLATFORM" --state regression-state.json
       - name: Install native host test libraries
+        if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
           HOMEBREW_NO_INSTALL_CLEANUP: '1'
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage native-regression-libraries -- brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash ripgrep coreutils
+        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage native-regression-libraries -- brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg mkvtoolnix bash ripgrep coreutils openssl@3
       - name: Provision required cross-platform regression toolchains
+        id: tools
+        if: runner.os == 'macOS'
         env:
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage regression-toolchain-setup -- python3 regression_dependencies.py upstream ${{ matrix.shard }} 8
+        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage regression-toolchain-setup -- python3 regression_dependencies.py upstream ${{ matrix.shard }} 9
+      - name: Install actual GLES rendering libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev zlib1g-dev xvfb xauth ffmpeg pkg-config ripgrep
+      - name: Install the pinned host SDK for real Tizen routing fixtures
+        if: steps.tools.outputs.dotnet == 'true'
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '8.0.425'
       - name: Prepare shared app configuration for upstream account tests
         env:
           BUILD_PROPERTIES: ${{ secrets.NUVIO_BUILD_PROPERTIES }}
@@ -98,8 +120,13 @@ jobs:
           export TMPDIR="$GITHUB_WORKSPACE/regression-logs/"
           export NV_TMP="$TMPDIR/native-fixtures"
           mkdir -p "$NV_TMP"
-          export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
-          python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- python3 full_regression.py run upstream regression-state.json ${{ matrix.shard }} 8
+          if [ "$RUNNER_OS" = macOS ]; then
+            export PATH="$(brew --prefix coreutils)/libexec/gnubin:$(brew --prefix openssl@3)/bin:$PATH"
+          fi
+          export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
+          display=()
+          if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
+          "${display[@]}" python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- python3 full_regression.py run upstream regression-state.json ${{ matrix.shard }} 9
       - name: Report actual regression failures
         if: failure()
         env:
@@ -111,7 +138,9 @@ jobs:
         with:
           name: ${{ inputs.platform }}-regression-shard-${{ matrix.shard }}
           path: |
-            regression-logs/
+            regression-logs/**/*.log
+            regression-logs/**/SUMMARY.txt
+            regression-logs/**/execution.json
             diagnostics/
             regression-state.json
           if-no-files-found: warn
@@ -135,7 +164,7 @@ jobs:
       - name: Verify every script was executed by its assigned native runner
         run: |
           mkdir -p regression-logs
-          python3 full_regression.py merge regression-shards/regression-logs regression-state.json regression-logs/SUMMARY.txt 8
+          python3 full_regression.py merge regression-shards/regression-logs regression-state.json regression-logs/SUMMARY.txt 9
           python3 regression_gate.py attest regression-state.json regression-logs/SUMMARY.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
