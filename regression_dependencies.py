@@ -19,9 +19,10 @@ def requires_emsdk(script):
     # bare emcc invocations or one particular assignment style.
     return bool(re.search(r'\b(?:EMSDK_DIR|EMCC|emcc)\b',script))
 
-def provision(root,index,count):
+def provision(root,index,count,*,selected=None):
     root=Path(root).resolve();files=[p.relative_to(root).as_posix() for p in (root/'tests').glob('*.sh')]
-    selected=partition(files,index,count)
+    selected=partition(files,index,count) if selected is None else selected
+    if not set(selected)<=set(files):raise ValueError('Unknown regression fixture')
     excluded=re.search(r'case "\$n" in\s*(.*?)\) pulados=',(root/'tools/testa-tudo.sh').read_text(),re.S)
     if not excluded:raise ValueError('Upstream exclusion contract changed; inspect regression tool requirements')
     patterns=excluded.group(1).strip().split('|')

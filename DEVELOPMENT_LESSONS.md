@@ -507,3 +507,23 @@ commands and environment activation. The memory fixture invokes its SDK path
 directly and was missed by the old assignment/command regex. Cover that exact
 form, activated compilers and ordinary native-only fixtures in updater tests.
 Conservative provisioning is preferable to omitting real memory/worker checks.
+
+The 184403e full regression round proved the real GNU P2P engine and the Linux
+proxy, saved-panel and progress fixtures, but exposed later player and timing
+contracts. Upstream #305 hides and reveals controls on repeated Up; model that
+complete sequence and retain the original focus/no-audio assertions, adding
+explicit visibility assertions. In balanced source mode, measured heavy sources
+lose to equal-score adequate/unknown candidates; equal scores retain add-on
+arrival order. Assert scores and the tie winner rather than guessing an index.
+
+Loopback range fixtures should disable Nagle on their HTTP/1.1 origin: explicit
+20/800-ms fixture delays must not silently acquire platform delayed-ACK stalls.
+Retain the original four-second prefetch deadline, serial/parallel lanes, bounded
+queue, byte identity, seek and cancellation assertions. Native lifecycle mocks
+should reserve timer-worker capacity and buffer host stdout away from watchdog
+callbacks. Retain every original fatal/cleanup assertion and timing threshold.
+
+Use the read-only manual compatibility diagnostic to execute complete affected
+fixtures against the immutable upstream source, optionally applying the verified
+current adapter. It records individual pass/fail logs and checksum evidence,
+and cannot publish or replace the full nine-shard release gate.
