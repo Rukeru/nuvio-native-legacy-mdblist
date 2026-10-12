@@ -1,0 +1,39 @@
+name: Focused redirect throughput investigation (no publication)
+on:
+  push:
+    branches: [codex/fast-ci-diagnostics]
+    paths: ['.github/workflows/range-audit.yml', 'ci-evidence/range_audit.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Prepare exact baseline and candidate for paired measurements
+        run: |
+          python3 - <<'PY'
+          import integration,json,os,shutil,subprocess
+          from pathlib import Path
+          m=integration.manifest()
+          subprocess.run(['git','clone','--no-checkout','https://github.com/iqui27/nuvio-native-legacy.git','reference'],check=True)
+          subprocess.run(['git','-C','reference','checkout','--detach',m['base_commit']],check=True)
+          shutil.copytree('reference','candidate',ignore=shutil.ignore_patterns('.git'))
+          state={'upstream':{'tag_name':m['base_tag'],'id':0},'upstream_commit':m['base_commit'],
+                 'builder_commit':os.environ['GITHUB_SHA'],'diagnostic_only':True}
+          integration.apply(Path('candidate').resolve(),'tizen',state)
+          Path('range-evidence').mkdir()
+          Path('range-evidence/source.json').write_text(json.dumps(state,indent=2)+'\n')
+          PY
+      - name: Run unchanged assertions with controlled server experiments
+        run: python3 ci-evidence/range_audit.py reference candidate range-evidence
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: range-audit-attempt-${{ github.run_attempt }}
+          path: range-evidence/
+          if-no-files-found: error
