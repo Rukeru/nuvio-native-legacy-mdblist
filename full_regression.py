@@ -16,7 +16,7 @@ def partition(files,index,count):
                    'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
                    'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh',
-                   'tests/tpk_lifecycle.sh'}
+                   'tests/tpk_lifecycle.sh','tests/dts_engine.sh'}
         if index==8:return sorted(set(files)&rendering,key=render_order)
         return sorted(set(files)-rendering)[index::8]
     return sorted(files)[index::count]

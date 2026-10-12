@@ -1,6 +1,6 @@
 """Provision only the official toolchains required by this regression shard."""
 from pathlib import Path
-import fnmatch,hashlib,os,re,subprocess,sys,tarfile
+import fnmatch,hashlib,os,re,shutil,subprocess,sys,tarfile
 from full_regression import partition
 from resilience import fetch
 from update_guard import network_command
@@ -81,8 +81,13 @@ def provision(root,index,count,*,selected=None):
     if any(path in selected for path in ('tests/dts_engine.sh','tests/dts_subtitles.sh')):
         # The minimal decoder under test stays source-pinned. Fixture media
         # needs the legacy full CLI encoder set, absent from current ffmpeg.
-        network_command(['brew','install','ffmpeg@7'])
-        cli=Path(subprocess.check_output(['brew','--prefix','ffmpeg@7'],text=True).strip())/'bin'
+        if sys.platform=='darwin':
+            network_command(['brew','install','ffmpeg@7'])
+            cli=Path(subprocess.check_output(['brew','--prefix','ffmpeg@7'],text=True).strip())/'bin'
+        else:
+            executable=shutil.which('ffmpeg')
+            if not executable:raise ValueError('Install the real FFmpeg fixture CLI before provisioning DTS')
+            cli=Path(executable).parent
         encoders=subprocess.check_output([str(cli/'ffmpeg'),'-hide_banner','-encoders'],text=True,stderr=subprocess.STDOUT)
         for encoder in ('libx264','libvpx-vp9','libaom-av1','dca','aac'):
             if not re.search(r'\s'+re.escape(encoder)+r'\s',encoders):raise ValueError('Required real fixture encoder missing: '+encoder)
@@ -92,8 +97,9 @@ def provision(root,index,count,*,selected=None):
         build=Path(os.environ['RUNNER_TEMP'])/'regression-dts-build'
         os.environ.update(NUVIO_DTS_HOST='1',NUVIO_DTS_ROOT=str(prefix),NUVIO_DTS_BUILD=str(build),CC='cc')
         # The upstream script verifies its own pinned FFmpeg source archive.
-        coreutils=subprocess.check_output(['brew','--prefix','coreutils'],text=True).strip()
-        os.environ['PATH']=str(Path(coreutils)/'libexec/gnubin')+os.pathsep+os.environ['PATH']
+        if sys.platform=='darwin':
+            coreutils=subprocess.check_output(['brew','--prefix','coreutils'],text=True).strip()
+            os.environ['PATH']=str(Path(coreutils)/'libexec/gnubin')+os.pathsep+os.environ['PATH']
         network_command(['bash',str(root/'tools/build-dts-ffmpeg.sh')])
         with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as env:env.write('NUVIO_DTS_ROOT='+str(prefix)+'\n')
     if any(path in selected for path in ('tests/dts_pipeline.sh','tests/dts_sonda_cache.sh','tests/dts_sonda_repetida.sh','tests/p2pmotor_real.sh')):

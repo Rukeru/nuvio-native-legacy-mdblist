@@ -18,7 +18,7 @@ class FullRegression(unittest.TestCase):
                    'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
                    'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh',
-                   'tests/tpk_lifecycle.sh']
+                   'tests/tpk_lifecycle.sh','tests/dts_engine.sh']
         files+=rendering
         shards=[partition(files,i,9) for i in range(9)]
         self.assertEqual(sorted(sum(shards,[])),sorted(files))

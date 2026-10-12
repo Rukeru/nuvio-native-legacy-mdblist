@@ -556,3 +556,20 @@ data API and reading a different raw path silently restores cached-only factory
 defaults. Verify the saved file contents and the disabled-filter precondition,
 then retain all original service-row, raw-index and partial-list focus checks.
 The complete player regression at d364d66 passed every original and added check.
+
+The 529fd8d full webOS shard exposed two scheduling-dependent preconditions
+that focused checks had not established. hero_vizinhos expected the urgent
+request to finish between two neighbour downloads, but the worker had not
+started either neighbour: urgent-first was correct. Add a bounded condition
+barrier proving that a neighbour is in flight before queuing the urgent request.
+Retain the original download ordering, cache, no-extra-network and subsequent
+neighbour warming assertions; do not change production priority policy.
+
+The complete serial DTS prefetch test intermittently exceeded four seconds on
+macOS despite passing focused runs with TCP_NODELAY. Keep its four-second
+deadline and every byte, bounded-queue, sparse-offset, seek/cancel and serial/
+parallel case unchanged on Linux. Build the same source-pinned minimal FFmpeg
+7.1.5 decoder and verify every real CLI encoder before testing. Provision Linux
+libraries before dependency discovery; never call Homebrew on Linux or replace
+missing codec cases. Cover both the real build selection and missing-encoder
+rejection in updater tests. Publication still requires both complete new suites.
