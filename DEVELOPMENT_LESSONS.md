@@ -527,3 +527,22 @@ Use the read-only manual compatibility diagnostic to execute complete affected
 fixtures against the immutable upstream source, optionally applying the verified
 current adapter. It records individual pass/fail logs and checksum evidence,
 and cannot publish or replace the full nine-shard release gate.
+
+Focused diagnostics revealed that keyboard Up consumes the previous rendered
+skip-intro snapshot, which must be supplied through the existing upstream shot
+hook. Exercise both a visible intro and no intro, retain every focus/audio
+assertion, and cover hide/reveal explicitly. The final movie button now opens
+Related; navigate one place left to Sources before its original request check.
+
+The short-tap/long-hold saved-panel fixture uses fixed 1/60-second animation
+updates. Drive its SDL deadlines with the same atomic fixture clock: two slow
+CI render frames must remain a short tap. Keep the actual hold threshold, every
+frame, all removal/focus/geometry assertions and real rendering. macOS requires
+_DARWIN_C_SOURCE before headers to expose mkdtemp alongside the POSIX level.
+
+Run the complete .NET lifecycle deadline fixture on Linux, as with TS-proxy and
+other portable timing fixtures. The Windows .NET 8.0.425 check passes every
+original deadline; macOS host scheduling can delay its timer beyond 250 ms.
+Keep all deadlines and fatal/cleanup checks unchanged on the supported Linux
+host, prove inventory assignment exactly once, and require that shard's result.
+The focused diagnostic uses that same host and the same fixture DNS boundary.

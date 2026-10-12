@@ -1,7 +1,8 @@
-"""Partition the unchanged upstream gatekeeper across isolated native runners.
+"""Partition the upstream gatekeeper across isolated native runners.
 
-Only its file enumeration is adapted. Test scripts, assertions, exit rules,
-SKIP classification and upstream exclusions remain upstream-owned.
+Only the gatekeeper's file enumeration is adapted. Reviewed fixture preconditions
+are tracked by the integration registry; original assertions, exit rules,
+SKIP classification and upstream exclusions are retained.
 """
 from pathlib import Path
 import hashlib,json,os,re,shlex,subprocess,sys,threading
@@ -14,7 +15,8 @@ def partition(files,index,count):
         rendering={'tests/fluidez_perf.sh','tests/ui_profile.sh','tests/ilha_voo_cw.sh',
                    'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
-                   'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh'}
+                   'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh',
+                   'tests/tpk_lifecycle.sh'}
         if index==8:return sorted(set(files)&rendering,key=render_order)
         return sorted(set(files)-rendering)[index::8]
     return sorted(files)[index::count]
