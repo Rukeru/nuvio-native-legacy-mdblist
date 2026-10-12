@@ -52,8 +52,7 @@ def execute(args):
         if commands is None:return subprocess.call([compiler,*args])
         cache=shutil.which('ccache')
         if not cache:raise RuntimeError('Opt-in compiler cache requested but ccache is unavailable')
-        env={**os.environ,'CCACHE_COMPILERCHECK':'content','CCACHE_SLOPPINESS':'',
-             'CCACHE_DIRECT':'false'}
+        env=cache_environment()
         # Two compilation processes at most; never parallelize timed tests or
         # contend with benchmark rendering in this process.
         workers=min(2,os.cpu_count() or 1)
@@ -79,6 +78,9 @@ def execute(args):
 def install(directory):
     compiler=shutil.which('cc')
     if not compiler:raise RuntimeError('A real native compiler is required')
+    # Validate cache configuration before starting any expensive fixture.
+    subprocess.run(['ccache','--show-config'],env=cache_environment(),check=True,
+                   stdout=subprocess.DEVNULL)
     directory=Path(directory).resolve();directory.mkdir(parents=True,exist_ok=True)
     wrapper=directory/'cc'
     if Path(compiler).resolve()==wrapper:raise RuntimeError('Recursive compiler wrapper')
@@ -88,6 +90,15 @@ def install(directory):
     wrapper.chmod(0o755)
     with open(os.environ['GITHUB_ENV'],'a') as f:f.write('NV_REAL_CC='+compiler+'\n')
     with open(os.environ['GITHUB_PATH'],'a') as f:f.write(str(directory)+'\n')
+
+
+def cache_environment():
+    env={**os.environ,'CCACHE_COMPILERCHECK':'content','CCACHE_SLOPPINESS':'',
+         'CCACHE_NODIRECT':'1'}
+    # ccache boolean environment variables use NO-prefixed names to disable;
+    # setting CCACHE_DIRECT=false is a configuration error, not false.
+    env.pop('CCACHE_DIRECT',None)
+    return env
 
 
 if __name__=='__main__':
