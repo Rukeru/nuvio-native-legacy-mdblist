@@ -1,16 +1,18 @@
 name: Diagnose unmodified upstream 2.0.4 assertions
 on:
   workflow_dispatch:
+    inputs:
+      fixture:
+        description: Original upstream assertion fixture to compare
+        type: choice
+        default: home_progressiva
+        options: [home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar]
 permissions:
   contents: read
 jobs:
   baseline:
     runs-on: macos-15
     timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        fixture: [ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -24,14 +26,17 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: '1'
         run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash ripgrep
       - name: Execute the unmodified upstream assertion fixture
+        env:
+          FIXTURE: ${{ inputs.fixture }}
         run: |
+          case "$FIXTURE" in home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           set -o pipefail
-          bash baseline/tests/${{ matrix.fixture }}.sh 2>&1 | tee baseline-evidence/result.log
+          bash "baseline/tests/$FIXTURE.sh" 2>&1 | tee baseline-evidence/result.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: unmodified-204-${{ matrix.fixture }}
+          name: unmodified-204-${{ inputs.fixture }}
           path: baseline-evidence/**/*.log
           retention-days: 14
