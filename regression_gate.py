@@ -7,7 +7,7 @@ def attest(state_path,summary_path):
     match=re.search(r'^testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',text,re.M)
     if not match:raise ValueError('Full regression result missing; a skipped workflow is not validation')
     passed,failed,unavailable,outside=map(int,match.groups())
-    if passed<1 or failed:raise ValueError('Full upstream regression suite did not pass')
+    if passed<1 or failed or unavailable:raise ValueError('Full upstream regression suite did not pass completely')
     if not re.search(r'^ok\s+mdblist_settings_defaults\.sh\s*$',text,re.M):
         raise ValueError('Upstream and MDBList factory-default assertions were not verified')
     state=json.loads(Path(state_path).read_text())
@@ -25,7 +25,7 @@ def validate(state,path='regression-evidence/regression-state.json'):
     if not actual or actual!=tested.get('integration',{}).get('fingerprint'):
         raise ValueError('Regression provenance mismatch: integration fingerprint')
     result=tested.get('full_regression',{})
-    if result.get('outcome')!='passed' or result.get('passed',0)<1 or result.get('failed')!=0:
+    if result.get('outcome')!='passed' or result.get('passed',0)<1 or result.get('failed')!=0 or result.get('unavailable')!=0:
         raise ValueError('No successful full regression execution attested')
     return result
 

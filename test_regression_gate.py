@@ -8,14 +8,16 @@ class RegressionGate(unittest.TestCase):
         self.assertTrue(scripts)
         for script in scripts:
             with self.subTest(script=script.name):self.assertNotIn(b'\r',script.read_bytes())
-    def test_complete_execution_records_unavailable_as_untested(self):
+    def test_complete_execution_requires_zero_unverified_skips(self):
         with tempfile.TemporaryDirectory() as d:
             state=Path(d)/'state.json';summary=Path(d)/'summary.txt'
             state.write_text(json.dumps({'upstream_commit':'source','builder_commit':'builder','integration':{'fingerprint':'reviewed'}}))
             summary.write_text('shard 0: testes: 20 passaram, 0 falharam, 0 SKIP sem prova, 0 fora da suite\nok    mdblist_settings_defaults.sh\ntestes: 500 passaram, 0 falharam, 2 SKIP sem prova, 75 fora da suite; logs: fixture\n')
+            with self.assertRaisesRegex(ValueError,'completely'):attest(state,summary)
+            summary.write_text(summary.read_text().replace('2 SKIP sem prova','0 SKIP sem prova'))
             attest(state,summary)
             data=json.loads(state.read_text());result=validate(data,state)
-            self.assertEqual(result['passed'],500);self.assertEqual(result['unavailable'],2)
+            self.assertEqual(result['passed'],500);self.assertEqual(result['unavailable'],0)
     def test_missing_failed_or_skipped_execution_cannot_authorize_release(self):
         with tempfile.TemporaryDirectory() as d:
             state=Path(d)/'state.json';summary=Path(d)/'summary.txt';state.write_text('{}')

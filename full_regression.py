@@ -5,7 +5,7 @@ are tracked by the integration registry; original assertions, exit rules,
 SKIP classification and upstream exclusions are retained.
 """
 from pathlib import Path
-import hashlib,json,os,re,shlex,subprocess,sys,threading
+import hashlib,json,os,re,shlex,subprocess,sys,threading,time,platform
 
 def partition(files,index,count):
     if count < 1 or not 0 <= index < count:raise ValueError('Invalid regression shard')
@@ -58,16 +58,27 @@ def run(root,state_path,index,count):
                         previous[str(path)]=size
                 except OSError:pass
     observer=threading.Thread(target=progress,daemon=True);observer.start()
+    timings=[];current=None;started=time.monotonic()
     with summary.open('w',encoding='utf8') as log:
         process=subprocess.Popen(['bash',str(script)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
         for line in process.stdout:
+            if line.startswith('inventory '):
+                now=time.monotonic()
+                if current:timings.append({'script':current[0],'seconds':now-current[1]})
+                current=(line.strip().split(' ',1)[1],now)
             log.write(line);log.flush();print(line,end='',flush=True)
         code=process.wait()
+    if current:timings.append({'script':current[0],'seconds':time.monotonic()-current[1]})
     stop.set();observer.join()
     state=json.loads(state_path.read_text())
     metadata={'index':index,'count':count,'files':files,'selected':selected,'exit_code':code,
               'gatekeeper_sha256':hashlib.sha256(original.encode()).hexdigest(),
-              'summary_sha256':hashlib.sha256(summary.read_bytes()).hexdigest(),'state':state}
+              'summary_sha256':hashlib.sha256(summary.read_bytes()).hexdigest(),'state':state,
+              'run_id':os.environ.get('GITHUB_RUN_ID','local'),
+              'attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),
+              'environment':{'os':platform.system(),'architecture':platform.machine(),
+                  'runner_image':os.environ.get('ImageOS'),'image_version':os.environ.get('ImageVersion')},
+              'seconds':time.monotonic()-started,'timings':timings}
     (evidence/'execution.json').write_text(json.dumps(metadata,indent=2)+'\n',encoding='utf8')
     if code:raise RuntimeError(f'Full regression shard {index} failed; see its complete logs')
 
@@ -90,7 +101,7 @@ def merge(folder,state_out,summary_out,count):
         match=re.search(r'testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',summary)
         if not match:raise ValueError('Regression shard result missing')
         numbers=list(map(int,match.groups()))
-        if numbers[1] or sum(numbers)!=len(expected):raise ValueError('Regression shard result does not cover its entire inventory')
+        if numbers[1] or numbers[2] or sum(numbers)!=len(expected):raise ValueError('Regression shard result does not cover its entire inventory')
         total=[a+b for a,b in zip(total,numbers)];seen+=observed
         # Keep each original result line, with one aggregate result at the end.
         results.append(re.sub(r'^testes: .*$',f'shard {index}: '+match.group(0),summary,flags=re.M))
