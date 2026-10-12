@@ -45,7 +45,9 @@ class Retries(unittest.TestCase):
         with self.assertRaises(integration.Incompatible):retry(operation,sleep=lambda _:None)
         self.assertEqual(operation.call_count,1)
     def test_command_classifier(self):
-        for text in ['CONFLICT Settings','file.c:22:3: error: incompatible interface\nConnection timed out','Assertion failed','checksum mismatch']:
+        for text in ['CONFLICT Settings','file.c:22:3: error: incompatible interface\nConnection timed out','Assertion failed','checksum mismatch',
+                     'HTTP/2 503\nUndefined symbols for architecture arm64',
+                     'HTTP/2 503\nFALHA addonslista.sh']:
             self.assertFalse(update_guard.network_log(text))
         for text in ['fatal: unable to access URL: The requested URL returned error: 503','Could not resolve host: github.com','net/http: TLS handshake timeout']:
             self.assertTrue(update_guard.network_log(text))

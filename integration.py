@@ -37,7 +37,7 @@ def fingerprint():
     # Includes updater/preflight code: a repaired adapter/check immediately unblocks.
     unpack()
     h=hashlib.sha256(REGISTRY.read_bytes())
-    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','full_regression.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
+    for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','full_regression.py','regression_dependencies.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
         p=ROOT/path
         if p.exists(): h.update(path.encode()+p.read_bytes())
     return h.hexdigest()

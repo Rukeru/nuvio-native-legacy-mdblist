@@ -370,3 +370,11 @@ summary checksum matches, and all shard totals cover the full inventory before
 attestation. Failed/missing shards cannot be treated as partial success. Only
 allocate native regression runners when the inexpensive Linux release selector
 finds an update; unchanged hourly polls must not consume macOS build minutes.
+
+Provision the original Kotlin JVM fixture with pinned, checksum-verified Maven
+dependencies and actual WASM fixtures with the pinned official Emscripten SDK.
+Supply only the previously authorized shared app build configuration to account
+tests, keep it outside uploaded evidence, and remove it even after failures.
+Name dependency/setup failures separately from source compatibility failures.
+Any FALHA result or Darwin undefined-symbol failure suppresses whole-command
+retries even if another line mentions a transient HTTP error.
