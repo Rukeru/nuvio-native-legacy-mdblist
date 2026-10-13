@@ -1,6 +1,9 @@
 name: Focused Discover navigation and native preview (no publication)
 on:
   workflow_dispatch:
+  push:
+    branches: ['codex/**']
+    paths: [.github/workflows/discover-ui-preview.yml]
 permissions:
   contents: read
 jobs:
