@@ -939,3 +939,60 @@ history snapshots/provenance (the current merged watched map is not a sole-
 provider source); complete native rendering/profile/restart validation, then
 review and freeze a release candidate. Full TV builds and physical-device
 checks follow separately. This is a partial development checkpoint.
+
+### Provider Discover, statistics and reviewed Appearance results (2026-10-13)
+
+Run 38334984865 passed the real Appearance fixture, including per-profile
+font/glass/layout restoration, restart reload, migration and account-blob
+boundaries. Its failures were an obsolete Glass scope assertion, the Discover
+fixture omitting SDL's parent include directory on macOS, and the i18n scanner
+mistaking a Portuguese storage filename for displayed prose. Scope labels now
+state Profile on this TV for local profile choices; corresponding exact tests
+remain. The storage filename is English and the SDL include path is portable.
+The full failed artifact 11784129482 is retained; do not call the whole run green.
+
+Discover now registers all active movie/series manifest catalogues independently
+of Home quotas. Required unsupported extras/search-only feeds are excluded.
+Genre options and skip capability come from each exact provider/type declaration.
+The official Nuvio manifest is fetched lazily on a worker through the existing
+network/manifest cache; Cinemeta is only a manifest fallback. No AI/anime/editorial
+endpoint is guessed: these appear only if a provider declares them. The existing
+paging worker handles URL encoding, type separation, generation invalidation,
+empty/error state and deduplication; selection/detail and artwork caches are
+retained. Visible copies are bounded and metadata copies follow catalogue revision
+changes, rather than being repeated per frame. Public manifest limits are bounded.
+
+All four statistics settings are now present. Automatic is zero/default and is
+reset for a new profile even when primary-profile settings are inherited. The
+preference stays per profile/device, excluded from account blobs. Existing valid
+explicit modes restore. Nuvio-only and MDBList-only snapshots are separate from
+the merged watched map; local unwatch tombstones filter inputs. Automatic prefers
+Nuvio identities/timestamps, uses MDBList for gaps, and queries bounded Trakt
+history only when preferred snapshots are absent. Manual Trakt retains trakt_perfil.
+A pure tested reducer deduplicates stable movie/episode identities before counting;
+source precedence wins before latest timestamps within a source. Known secondary
+dates can supplement an undated primary identity, with both sources retained in
+provenance. These are observed unique completed items, not exhaustive play events:
+rewatches and watch duration remain unknown. Series/season aggregate markers and
+playback progress never manufacture episode completions. Monthly counts/calendar,
+observed annual counts, cached-metadata genres and title ranking remain partial.
+
+Workers receive immutable history/identity snapshots. Only the main thread reads
+mutable account/profile/settings for publication; tested scope matching includes
+account, profile, source, request generation and relevant credential generations.
+At most two profile workers coexist. Provider snapshot revisions refresh the open
+screen without new per-frame calculations or network calls. Temporary failures
+retain safe same-scope source snapshots; credentials/profile changes invalidate.
+MDBList's current public schema documents /sync/watched (including cursors and
+plays=all), but /user/stats lacks a documented response-body field map. Do not
+invent its watch-time or genre fields. Current implementation intentionally uses
+existing compact item snapshots, so it cannot claim complete rewatch history.
+
+Local strict Discover and statistics/scope fixtures and 71 builder safety tests
+passed. Both exact-baseline adapter chains passed during development; final native
+runtime and real GLES screenshots run in the single development workflow. Renderer
+fixtures contain synthetic content only. Tizen developer preflight reached the
+S95C and confirmed platform 8.0/ARMv7; this is not a candidate installation or
+feature smoke test. LG physical validation has not been provided. No candidate
+is frozen, no full production release is started, and published packages, upstream
+2.0.4, release gates, monitoring and disabled diagnostics remain unchanged.

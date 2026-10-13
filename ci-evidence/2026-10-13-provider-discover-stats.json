@@ -1,0 +1,32 @@
+{
+  "status": "development-implemented-validation-pending",
+  "base_checkpoint": "4e2e143c5bf508f66d50b5eedd82024d7266a067",
+  "upstream": "db6ae4ee0dd2fa158c46ba375c1fe8c08de70504",
+  "previous_appearance_runtime": {
+    "run": 38334984865,
+    "fixture": "tests/ajustes_perfil.sh",
+    "exit_code": 0,
+    "artifact": 11784129482
+  },
+  "local_tests": [
+    "strict native Discover manifest/filter/cache fixture",
+    "strict statistics reducer/provenance/scope fixture",
+    "71 builder safety tests"
+  ],
+  "native_runtime_and_rendering": "pending development CI",
+  "samsung_physical": "developer connection and Tizen 8 ARMv7 preflight only; candidate feature testing pending",
+  "lg_physical": "pending device access/testing",
+  "release_candidate_frozen": false,
+  "full_release_validation": false,
+  "publication": false,
+  "limitations": [
+    "History snapshots count observed unique completed items, not complete rewatches or duration",
+    "Trakt automatic fallback queried only when preferred snapshots are absent",
+    "Unsupported catalogues are hidden unless declared by a provider",
+    "Native rendering and physical feature tests must pass before candidate freeze"
+  ],
+  "final_adapter_assemblies": {
+    "tizen": "passed",
+    "webos": "passed"
+  }
+}
