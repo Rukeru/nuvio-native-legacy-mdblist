@@ -13,6 +13,8 @@ on:
         default: false
 permissions:
   contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   baseline:
     if: inputs.fixture != 'dts_engine'

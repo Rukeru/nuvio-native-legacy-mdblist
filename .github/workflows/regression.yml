@@ -22,6 +22,8 @@ on:
         default: false
 permissions:
   contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   select:
     runs-on: ubuntu-24.04
@@ -48,10 +50,10 @@ jobs:
           if [ "$FORCE" = true ]; then args+=(--force); fi
           if [ "$REVIEWED_BASELINE" = true ]; then args+=(--reviewed-baseline); fi
           if [ "$PLATFORM" = tizen ]; then
-            python3 channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
+            python3 scripts/channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
             cp state.json regression-state.json
           else
-            python3 webos.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
+            python3 scripts/webos.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
             cp webos-state.json regression-state.json
           fi
       - name: Select immutable baseline for nonpublishing CI validation
@@ -112,14 +114,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ inputs.platform }}
-        run: python3 integration.py --platform "$PLATFORM" --state regression-state.json
+        run: python3 scripts/integration.py --platform "$PLATFORM" --state regression-state.json
       - name: Install native host test libraries
         if: runner.os == 'macOS'
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
           HOMEBREW_NO_INSTALL_CLEANUP: '1'
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage native-regression-libraries -- brew install sdl2 sdl2_image sdl2_ttf pkg-config libass fribidi ffmpeg mkvtoolnix bash ripgrep coreutils openssl@3 ccache
+        run: python3 scripts/update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage native-regression-libraries -- brew install sdl2 sdl2_image sdl2_ttf pkg-config libass fribidi ffmpeg mkvtoolnix bash ripgrep coreutils openssl@3 ccache
       - name: Install actual GLES rendering libraries
         if: runner.os == 'Linux'
         run: |
@@ -129,7 +131,7 @@ jobs:
         id: tools
         env:
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage regression-toolchain-setup -- python3 regression_dependencies.py upstream ${{ matrix.shard }} 10
+        run: python3 scripts/update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage regression-toolchain-setup -- python3 scripts/regression_dependencies.py upstream ${{ matrix.shard }} 10
       - name: Install the pinned host SDK for real Tizen routing fixtures
         if: steps.tools.outputs.dotnet == 'true'
         uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
@@ -152,7 +154,7 @@ jobs:
       - name: Define content-checked host object cache
         id: object-cache-key
         run: |
-          echo "prefix=host-objects-v1-$RUNNER_OS-$RUNNER_ARCH-${ImageVersion:-unknown}-${{ matrix.shard }}-${{ hashFiles('ci_compile.py') }}" >> "$GITHUB_OUTPUT"
+          echo "prefix=host-objects-v1-$RUNNER_OS-$RUNNER_ARCH-${ImageVersion:-unknown}-${{ matrix.shard }}-${{ hashFiles('scripts/ci_compile.py') }}" >> "$GITHUB_OUTPUT"
           echo "CCACHE_DIR=$RUNNER_TEMP/nuvio-host-objects" >> "$GITHUB_ENV"
           echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
@@ -163,7 +165,7 @@ jobs:
           restore-keys: ${{ steps.object-cache-key.outputs.prefix }}-
       - name: Enable verified host compilation cache
         run: |
-          python3 ci_compile.py install "$RUNNER_TEMP/nuvio-host-compiler"
+          python3 scripts/ci_compile.py install "$RUNNER_TEMP/nuvio-host-compiler"
           ccache --version
       - name: Execute the complete upstream gatekeeper suite
         env:
@@ -180,13 +182,13 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
           display=()
           if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
-          "${display[@]}" python3 update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- python3 full_regression.py run upstream regression-state.json ${{ matrix.shard }} 10
+          "${display[@]}" python3 scripts/update_guard.py run --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests -- python3 scripts/full_regression.py run upstream regression-state.json ${{ matrix.shard }} 10
       - name: Report actual regression failures
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ inputs.platform }}
-        run: python3 update_guard.py failure --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests
+        run: python3 scripts/update_guard.py failure --platform "$PLATFORM" --state regression-state.json --stage upstream-full-regression-tests
       - name: Record compilation cache diagnostics
         if: always()
         run: |
@@ -230,9 +232,9 @@ jobs:
       - name: Verify every script was executed by its assigned native runner
         run: |
           mkdir -p regression-logs
-          python3 regression_attempts.py regression-attempts regression-selected "${{ inputs.platform }}" 10
-          python3 full_regression.py merge regression-selected regression-state.json regression-logs/SUMMARY.txt 10
-          python3 regression_gate.py attest regression-state.json regression-logs/SUMMARY.txt
+          python3 scripts/regression_attempts.py regression-attempts regression-selected "${{ inputs.platform }}" 10
+          python3 scripts/full_regression.py merge regression-selected regression-state.json regression-logs/SUMMARY.txt 10
+          python3 scripts/regression_gate.py attest regression-state.json regression-logs/SUMMARY.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ inputs.platform }}-full-regression-evidence-attempt-${{ github.run_attempt }}

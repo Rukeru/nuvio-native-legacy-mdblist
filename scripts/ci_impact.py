@@ -9,6 +9,7 @@ CI_ONLY={'ci_compile.py','ci_benchmark.py','ci_profile.py','ci_impact.py','regre
 def classify(paths):
     native=False;compiler=False;backend=False;unknown=[]
     for name in paths:
+        name=name.removeprefix("scripts/")
         p=Path(name)
         if p.suffix=='.md' or name in ('LICENSE','.gitignore','.gitattributes','.channel/last-check.txt') or name.startswith('ci-evidence/'):
             continue
@@ -20,7 +21,7 @@ def classify(paths):
         if name in CI_ONLY or name.startswith('.github/workflows/'):
             compiler |= name in ('ci_compile.py','ci_benchmark.py','.github/workflows/ci-experiment.yml')
             continue
-        if name.startswith('integration/') or name.startswith('integration-bundle.') or p.suffix in ('.patch','.py','.sh') or name=='global.json':
+        if name.startswith('integration/') or name.startswith('integration-bundle.') or name.startswith('build-inputs/integration-bundle.') or p.suffix in ('.patch','.py','.sh') or name=='global.json':
             native=True;continue
         unknown.append(name)
     if unknown:raise ValueError('Unclassified change: extend the reviewed impact map before validation: '+', '.join(unknown))

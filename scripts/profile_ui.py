@@ -9,7 +9,7 @@ def fetch(url):
 
 def historical_baseline(tag, checkout, storage=None):
     # Release retention must not remove the exact inputs of historical comparisons.
-    storage=Path(storage) if storage is not None else Path(__file__).parent/'ci-baselines'
+    storage=Path(storage) if storage is not None else Path(__file__).resolve().parents[1]/'ci-baselines'
     manifest=json.loads((storage/'manifest.json').read_text())
     if manifest['schema']!=1: raise RuntimeError('Unsupported UI baseline manifest')
     source=manifest['baselines'][tag]

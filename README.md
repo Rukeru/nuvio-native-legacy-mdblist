@@ -11,8 +11,9 @@ Only shared settings from the official public app are stored in the encrypted
 Actions build secret; personal login details and MDBList keys are excluded.
 
 Repository files are grouped into `docs/` (guides), `patches/` (maintained
-changes), and `tests/` (builder safety tests). Build entry points remain at the
-root so existing automation and manual commands continue to work.
+changes), and `tests/` (builder safety tests). Build and automation entry points
+are in `scripts/`; immutable integration archives are in `build-inputs/`.
+Workflows use these paths and run from the repository root.
 Run all builder tests from the root with `python -m unittest discover -p 'test_*.py'`.
 
 For 2.0.3 and later, see [automatic update safeguards](docs/UPDATER.md): hourly

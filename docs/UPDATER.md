@@ -35,7 +35,7 @@ update the corresponding SHA-256 in `integration/manifest.json`. Add a regressio
 for the observed behavior. Keep published historical patches immutable. See
 `DEVELOPMENT_LESSONS.md` for preservation requirements and verification limits.
 
-The repository carries these public sources in `integration-bundle.zip` with
+The repository carries these public sources in `build-inputs/integration-bundle.zip` with
 its SHA-256. Preflight verifies and safely extracts it before reading the
 manifest. After editing the extracted integration, repack it and update the
 bundle digest as well as the manifest's individual input digests.
@@ -72,7 +72,7 @@ error messages appear in logs without request bodies or authentication headers.
 ### Development and release validation
 
 Intermediate pushes run `development.yml`: all updater unit tests, followed by
-the conservative `ci_impact.py` map. Integration/bundle/native-builder changes
+the conservative `scripts/ci_impact.py` map. Integration/bundle/native-builder changes
 also run both platforms' maintained adapters, preflight and platform checks;
 compiler-wrapper changes run original/cold/warm fixtures on macOS and Linux.
 Unknown change categories fail until explicitly classified. These checks never

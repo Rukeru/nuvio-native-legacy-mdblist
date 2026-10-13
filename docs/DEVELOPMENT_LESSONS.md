@@ -651,7 +651,7 @@ weaker deadlines, or a substitute benchmark.
 
 Most host fixtures compile the same full C application repeatedly. ccache does
 not cache a multi-source compile/link invocation directly. The narrow opt-in
-`ci_compile.py` wrapper separates ordinary translation units, bounds compilation
+`scripts/ci_compile.py` wrapper separates ordinary translation units, bounds compilation
 to two processes, and preserves link order/flags. Unknown commands pass through.
 Use compiler-content checking and preprocessing; do not enable cache sloppiness.
 Validate ccache configuration before a fixture: `CCACHE_DIRECT=false` is invalid;
@@ -890,7 +890,7 @@ The feature release is complete. Tizen v2.0.4.68 (run 38319700449) and webOS web
 
 Sync Now, per-account/profile freshness, Collections/manifest refresh, pending-local edits, MDBList scrobbling/history and prior UI/performance improvements are enabled. Support the Project is removed with saved indices reserved. Private diagnostic collection/pairing/uploads remain disabled; local troubleshooting and crash recovery are preserved. Successful security checks do not override the user's disabled production policy. The preceding 2.0.4.63/2.0.400059 releases remain published rollback options. Tizen's host shell ID matches 2.0.4.63, preserving compatible core-update eligibility; this is not a physical-TV installation test.
 
-Measured final dual-platform elapsed time was 76m11s for Tizen and 60m09s for webOS, exceeding the 30â€“45-minute target. Tizen's dependency cache missed and the native step rebuilt font/media libraries before compiling the core; the completed cache was saved. The SDK key currently hashes the entire channel.py file, so the unrelated reviewed-release selector invalidated an otherwise unchanged dependency recipe. In a separate CI optimization, isolate dependency-preparation inputs from release-selection code, prove equivalent SDK inputs and preserve integrity checks before reusing cached libraries. Do not alter a running frozen candidate to chase this optimization. Record POSIX CI fingerprints from sealed release evidence: the published value is 26dbeede597d7d6538a4a6aafc6da5edbf1e25779284b3612285bf10f1b46a48; raw Windows working-tree line endings can produce a different local fingerprint.
+Measured final dual-platform elapsed time was 76m11s for Tizen and 60m09s for webOS, exceeding the 30â€“45-minute target. Tizen's dependency cache missed and the native step rebuilt font/media libraries before compiling the core; the completed cache was saved. The SDK key currently hashes the entire scripts/channel.py file, so the unrelated reviewed-release selector invalidated an otherwise unchanged dependency recipe. In a separate CI optimization, isolate dependency-preparation inputs from release-selection code, prove equivalent SDK inputs and preserve integrity checks before reusing cached libraries. Do not alter a running frozen candidate to chase this optimization. Record POSIX CI fingerprints from sealed release evidence: the published value is 26dbeede597d7d6538a4a6aafc6da5edbf1e25779284b3612285bf10f1b46a48; raw Windows working-tree line endings can produce a different local fingerprint.
 
 This published feature baseline is the starting point for the separate upstream 2.0.5 compatibility task. Keep automatic latest-upstream monitoring active. The reviewed-baseline input is an explicit manual feature-release choice, not a permanent pin of scheduled monitoring. Preserve these published assets while adapting 2.0.5 and run focused checks before any new complete release gates.
 

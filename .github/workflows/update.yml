@@ -19,6 +19,8 @@ permissions:
 concurrency:
   group: mdblist-release-channel
   cancel-in-progress: false
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -43,7 +45,7 @@ jobs:
           args=()
           if [ "$FORCE" = true ]; then args+=(--force); fi
           if [ "$REVIEWED_BASELINE" = true ]; then args+=(--reviewed-baseline); fi
-          python3 channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
+          python3 scripts/channel.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
       - name: Validate updater regression tests
         run: python3 -m unittest discover -s . -v
       - name: Check component compatibility before SDK setup
@@ -51,7 +53,7 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 integration.py --platform tizen --state state.json
+        run: python3 scripts/integration.py --platform tizen --state state.json
       - name: Install minimal compatibility test headers
         if: steps.discover.outputs.build == 'true'
         run: |
@@ -61,7 +63,7 @@ jobs:
         id: preflight
         timeout-minutes: 10
         if: steps.discover.outputs.build == 'true'
-        run: python3 update_guard.py run --platform tizen --state state.json --stage compatibility-tests -- bash preflight.sh tizen
+        run: python3 scripts/update_guard.py run --platform tizen --state state.json --stage compatibility-tests -- bash scripts/preflight.sh tizen
       - name: Prepare private build configuration
         if: steps.discover.outputs.build == 'true'
         env:
@@ -76,7 +78,7 @@ jobs:
           NUVIO_PROPERTIES: ${{ runner.temp }}/nuvio.properties
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 update_guard.py run --platform tizen --state state.json --stage tizen-host-engine-recipe -- python3 channel.py prepare
+          python3 scripts/update_guard.py run --platform tizen --state state.json --stage tizen-host-engine-recipe -- python3 scripts/channel.py prepare
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         if: steps.discover.outputs.build == 'true'
         with:
@@ -97,14 +99,14 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         with:
           path: ${{ runner.temp }}/nuvio-tpk-deps
-          key: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk.sh', 'upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile', 'channel.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk.sh', 'upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile', 'channel.py') }}-
+          key: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk.sh', 'upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile', 'scripts/channel.py') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: tizen8-arm-deps-${{ hashFiles('upstream/tools/tpk.sh', 'upstream/tools/tpk/deps.sh', 'upstream/tools/tpk/Dockerfile', 'scripts/channel.py') }}-
       - name: Test tracking and release-selection rules
         if: steps.discover.outputs.build == 'true'
-        run: python3 update_guard.py run --platform tizen --state state.json --stage platform-contracts -- bash platform-checks.sh tizen
+        run: python3 scripts/update_guard.py run --platform tizen --state state.json --stage platform-contracts -- bash scripts/platform-checks.sh tizen
       - name: Compare Home and progress rendering against published baselines
         if: steps.discover.outputs.build == 'true'
-        run: python3 update_guard.py run --platform tizen --state state.json --stage ui-performance-library -- xvfb-run -a python3 profile_ui.py --current upstream --out ui-profile
+        run: python3 scripts/update_guard.py run --platform tizen --state state.json --stage ui-performance-library -- xvfb-run -a python3 scripts/profile_ui.py --current upstream --out ui-profile
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
@@ -120,7 +122,7 @@ jobs:
           NUVIO_TPK_CACHE: ${{ runner.temp }}/nuvio-tpk-deps
           NUVIO_P2P_MOTOR: ${{ github.workspace }}/engine
           NV_TPK_PACOTES: NuvioTpk
-        run: python3 update_guard.py run --platform tizen --state state.json --stage native-build -- bash tizen-build.sh
+        run: python3 scripts/update_guard.py run --platform tizen --state state.json --stage native-build -- bash scripts/tizen-build.sh
       - name: Keep completed dependency libraries after a later build failure
         id: cache-ready
         if: always() && (steps.native.outcome == 'success' || steps.native.outcome == 'failure')
@@ -137,7 +139,7 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         run: |
           dotnet run --project upstream/tests/mdblist_channel/Checks.csproj -c Release -- upstream/build/tpk/libnuvio.so upstream/build/mdblist-shell.sha256
-          python3 channel.py package
+          python3 scripts/channel.py package
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: steps.discover.outputs.build == 'true'
         with:
@@ -149,7 +151,7 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 update_guard.py failure --platform tizen --state state.json --stage full-build
+        run: python3 scripts/update_guard.py failure --platform tizen --state state.json --stage full-build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
@@ -197,7 +199,7 @@ jobs:
       - name: Publish only after GitHub confirms every asset checksum
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 publish.py
+        run: python3 scripts/publish.py
   maintain-schedule:
     needs: build
     if: github.event_name == 'schedule'
@@ -236,4 +238,4 @@ jobs:
       - name: Report publication failure; live release remains intact
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 update_guard.py failure --platform tizen --state release/SOURCE.json --stage publish
+        run: python3 scripts/update_guard.py failure --platform tizen --state release/SOURCE.json --stage publish

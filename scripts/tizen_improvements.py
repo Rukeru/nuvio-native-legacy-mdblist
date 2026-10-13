@@ -55,7 +55,7 @@ def changelog(source, state):
     return notes
 
 def apply(source, state_file):
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[1]
     provenance = []
     for name in PATCHES:
         patch = root / 'patches' / name

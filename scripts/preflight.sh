@@ -6,7 +6,7 @@ trap 'echo "::integration-component::$component"' ERR
 platform="$1"
 if [ "$platform" = tizen ]; then
   component=tizen-sdk
-  python3 tizen_sdk.py --check
+  python3 scripts/tizen_sdk.py --check
 fi
 cd upstream
 flags=(-std=gnu11 -UNDEBUG -Isrc)

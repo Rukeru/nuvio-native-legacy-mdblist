@@ -12,11 +12,11 @@ class BundleSafety(unittest.TestCase):
         for name, corrupt, success in [('manifest.json', False, True), ('../escape', False, False),
                                        ('folder\\escape', False, False), ('manifest.json', True, False)]:
             with self.subTest(name=name, corrupt=corrupt), tempfile.TemporaryDirectory() as folder:
-                root=Path(folder); archive=root/'integration-bundle.zip'
+                root=Path(folder); (root/'build-inputs').mkdir(); archive=root/'build-inputs/integration-bundle.zip'
                 info=zipfile.ZipInfo('fixture');info.filename=name
                 with zipfile.ZipFile(archive,'w') as z:z.writestr(info,'{}')
                 digest='0'*64 if corrupt else hashlib.sha256(archive.read_bytes()).hexdigest()
-                (root/'integration-bundle.sha256').write_text(digest)
+                (root/'build-inputs/integration-bundle.sha256').write_text(digest)
                 with patch.object(integration,'ROOT',root), patch.object(integration,'REGISTRY',root/'integration/manifest.json'):
                     if success:
                         integration.unpack();self.assertEqual(json.loads((root/'integration/manifest.json').read_text()),{})

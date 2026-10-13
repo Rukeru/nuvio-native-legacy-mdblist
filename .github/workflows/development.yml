@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   impact:
     runs-on: ubuntu-24.04
@@ -28,7 +30,7 @@ jobs:
         run: |
           base="${PR_BASE:-$BEFORE}"
           if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ]; then base=HEAD^; fi
-          python3 ci_impact.py --base "$base"
+          python3 scripts/ci_impact.py --base "$base"
           cat development-impact.json >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -73,7 +75,7 @@ jobs:
               'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],
               'diagnostic_only':True})+'\n')
           PY
-          python3 integration.py --platform "$PLATFORM" --state development-state.json
+          python3 scripts/integration.py --platform "$PLATFORM" --state development-state.json
       - name: Install minimal host headers
         run: |
           sudo apt-get update -qq
@@ -82,8 +84,8 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |
-          bash preflight.sh "$PLATFORM"
-          bash platform-checks.sh "$PLATFORM"
+          bash scripts/preflight.sh "$PLATFORM"
+          bash scripts/platform-checks.sh "$PLATFORM"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -114,7 +116,7 @@ jobs:
           m=integration.manifest()
           Path('link-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],'diagnostic_only':True})+'\n')
           PY
-          python3 integration.py --platform tizen --state link-state.json
+          python3 scripts/integration.py --platform tizen --state link-state.json
       - name: Install fixture dependencies
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
@@ -144,7 +146,7 @@ jobs:
             fixtures=(tests/home_progressiva.sh tests/montagem_cedo.sh)
           fi
           test "${#fixtures[@]}" -gt 0
-          python3 ci_benchmark.py upstream linkage-evidence focused-discovery-linkage "${fixtures[@]}"
+          python3 scripts/ci_benchmark.py upstream linkage-evidence focused-discovery-linkage "${fixtures[@]}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -170,7 +172,7 @@ jobs:
           m=integration.manifest()
           Path('render-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],'diagnostic_only':True})+'\n')
           PY
-          python3 integration.py --platform tizen --state render-state.json
+          python3 scripts/integration.py --platform tizen --state render-state.json
       - name: Install native renderer fixture libraries
         run: |
           sudo apt-get update -qq

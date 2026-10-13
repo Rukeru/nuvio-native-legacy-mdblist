@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   settings-account:
     runs-on: macos-15
@@ -22,7 +24,7 @@ jobs:
               'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],
               'diagnostic_only':True})+'\n')
           PY
-          python3 integration.py --platform tizen --state focused-state.json
+          python3 scripts/integration.py --platform tizen --state focused-state.json
       - name: Install native fixture libraries
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
@@ -31,7 +33,7 @@ jobs:
       - name: Set content-checked object cache
         id: cache-key
         run: |
-          echo "prefix=focused-ui-v1-$RUNNER_OS-$RUNNER_ARCH-${ImageVersion:-unknown}-${{ hashFiles('ci_compile.py') }}" >> "$GITHUB_OUTPUT"
+          echo "prefix=focused-ui-v1-$RUNNER_OS-$RUNNER_ARCH-${ImageVersion:-unknown}-${{ hashFiles('scripts/ci_compile.py') }}" >> "$GITHUB_OUTPUT"
           echo "CCACHE_DIR=$RUNNER_TEMP/focused-ui-objects" >> "$GITHUB_ENV"
           echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
@@ -40,7 +42,7 @@ jobs:
           key: ${{ steps.cache-key.outputs.prefix }}-${{ github.sha }}
           restore-keys: ${{ steps.cache-key.outputs.prefix }}-
       - name: Enable verified compilation cache
-        run: python3 ci_compile.py install "$RUNNER_TEMP/focused-ui-compiler"
+        run: python3 scripts/ci_compile.py install "$RUNNER_TEMP/focused-ui-compiler"
       - name: Verify optional observers yield to real providers
         run: |
           python3 - <<'PY'
@@ -61,9 +63,9 @@ jobs:
           export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
           # Diagnose the confirmed assertion/linker failures first. The remaining
           # development fixtures run only after these exact checks succeed.
-          python3 ci_benchmark.py upstream focused-evidence/confirmed-repairs focused-repairs \
+          python3 scripts/ci_benchmark.py upstream focused-evidence/confirmed-repairs focused-repairs \
             tests/ajustes_ux_dados.sh tests/tizen_improvements.sh
-          python3 ci_benchmark.py upstream focused-evidence focused-development \
+          python3 scripts/ci_benchmark.py upstream focused-evidence focused-development \
             tests/ajustes_ux_interacao.sh \
             tests/discover.sh tests/menu_ocultos.sh tests/menu_geometry.sh tests/player.sh tests/profilestats.sh tests/ajustes_perfil.sh \
             tests/ajustes_envio_auto.sh tests/i18n.sh \
@@ -73,7 +75,7 @@ jobs:
             tests/synccolecoes.sh tests/colfileiras_sync.sh tests/syncordem.sh \
             tests/contaoffline.sh tests/contaoffline_limites.sh tests/sync_aplicar_perf.sh
           for repeat in 2 3; do
-            python3 ci_benchmark.py upstream "focused-evidence/redirect-$repeat" focused-network-repeat \
+            python3 scripts/ci_benchmark.py upstream "focused-evidence/redirect-$repeat" focused-network-repeat \
               tests/streamfit_redirect_range.sh
           done
       - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684

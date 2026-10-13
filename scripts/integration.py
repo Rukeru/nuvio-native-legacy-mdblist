@@ -8,7 +8,7 @@ import ast
 import argparse, hashlib, json, os, re, subprocess, sys
 from resilience import retry
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / 'integration/manifest.json'
 
 class Incompatible(RuntimeError): pass
@@ -17,8 +17,8 @@ def unpack():
     """The public source bundle is a transport archive, not an executable input."""
     if REGISTRY.exists():return
     import zipfile
-    archive=ROOT/'integration-bundle.zip'
-    digest=(ROOT/'integration-bundle.sha256').read_text().strip()
+    archive=ROOT/'build-inputs/integration-bundle.zip'
+    digest=(ROOT/'build-inputs/integration-bundle.sha256').read_text().strip()
     verified(archive,digest)
     with zipfile.ZipFile(archive) as z:
         for entry in z.infolist():
@@ -38,10 +38,10 @@ def fingerprint():
     unpack()
     h=hashlib.sha256(REGISTRY.read_bytes())
     for path in ('integration.py','update_guard.py','resilience.py','channel.py','webos.py','preflight.sh','platform-checks.sh', 'tizen-build.sh','tizen_sdk.py','webos-build.sh','profile_ui.py','release_http.py','publish.py','publish_webos.py','regression_gate.py','full_regression.py','regression_dependencies.py','.github/workflows/update.yml','.github/workflows/webos.yml','.github/workflows/regression.yml'):
-        p=ROOT/path
+        p=ROOT/(path if path.startswith('.github/') else 'scripts/'+path)
         if p.exists(): h.update(path.encode()+p.read_bytes())
     for path in ('regression_attempts.py','ci_compile.py'):
-        p=ROOT/path
+        p=ROOT/(path if path.startswith('.github/') else 'scripts/'+path)
         if p.exists():h.update(path.encode()+p.read_bytes())
     return h.hexdigest()
 

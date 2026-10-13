@@ -37,7 +37,7 @@ class PrivateClient(unittest.TestCase):
                 integration.diagnostic_build(root,{'builder_commit':'"; private_token'})
 
     def test_numeric_client_events_match_independent_worker_schema(self):
-        with zipfile.ZipFile(ROOT/'integration-bundle.zip') as bundle:
+        with zipfile.ZipFile(ROOT/'build-inputs/integration-bundle.zip') as bundle:
             source=bundle.read('overlay/src/nvdiag_format.c').decode()
         rows=re.findall(r'\{"([a-z_]+)","([a-z_]+)",(NULL|"[a-z_]+"),(\d+),(\d+),(\d+)\}',source)
         self.assertEqual(len(rows),18)
@@ -60,8 +60,8 @@ class PrivateClient(unittest.TestCase):
         subprocess.run(['node','--input-type=module','-e',program],cwd=ROOT,input=json.dumps(reports),text=True,check=True)
 
     def test_owned_transport_and_adapter_are_in_verified_bundle(self):
-        archive=ROOT/'integration-bundle.zip'
-        self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(),(ROOT/'integration-bundle.sha256').read_text().strip())
+        archive=ROOT/'build-inputs/integration-bundle.zip'
+        self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(),(ROOT/'build-inputs/integration-bundle.sha256').read_text().strip())
         with zipfile.ZipFile(archive) as bundle:
             manifest=json.loads(bundle.read('manifest.json'))
             component=next(c for c in manifest['components'] if c['name']=='private-diagnostics')

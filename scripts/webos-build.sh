@@ -11,4 +11,4 @@ bash upstream/tools/p2p-motor/build-arm.sh "$NUVIO_P2P_MOTOR/arm"
 export NUVIO_ARES_PACKAGE="$RUNNER_TEMP/lg-cli/node_modules/.bin/ares-package"
 bash upstream/tools/env.sh --require-core >/dev/null
 bash upstream/tools/arm.sh --ipk --build
-python3 webos.py package
+python3 scripts/webos.py package

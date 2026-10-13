@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   compare:
     strategy:
@@ -52,28 +54,28 @@ jobs:
           echo "CCACHE_DIR=$RUNNER_TEMP/ci-benchmark-cache" >> "$GITHUB_ENV"
           echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
           echo "NV_COMPILE_TIMINGS=$GITHUB_WORKSPACE/benchmark-evidence/compiler.jsonl" >> "$GITHUB_ENV"
-          echo "PYTHONPATH=$GITHUB_WORKSPACE/upstream/tests/stubs/host" >> "$GITHUB_ENV"
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/upstream/tests/stubs/host:$GITHUB_WORKSPACE/scripts" >> "$GITHUB_ENV"
       - name: Original compiler and complete fixture assertions
         env:
           FIXTURES: ${{ matrix.fixtures }}
         run: |
           display=(); if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
-          "${display[@]}" python3 ci_benchmark.py upstream benchmark-evidence/original original $FIXTURES
+          "${display[@]}" python3 scripts/ci_benchmark.py upstream benchmark-evidence/original original $FIXTURES
       - name: Enable bounded object compilation cache
-        run: python3 ci_compile.py install "$RUNNER_TEMP/nuvio-host-compiler"
+        run: python3 scripts/ci_compile.py install "$RUNNER_TEMP/nuvio-host-compiler"
       - name: Cold cache with identical fixture assertions
         env:
           FIXTURES: ${{ matrix.fixtures }}
         run: |
           display=(); if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
-          "${display[@]}" python3 ci_benchmark.py upstream benchmark-evidence/cold cold $FIXTURES
+          "${display[@]}" python3 scripts/ci_benchmark.py upstream benchmark-evidence/cold cold $FIXTURES
           ccache --show-stats > benchmark-evidence/cache-cold.txt
       - name: Warm cache with identical fixture assertions
         env:
           FIXTURES: ${{ matrix.fixtures }}
         run: |
           display=(); if [ "$RUNNER_OS" = Linux ]; then display=(xvfb-run -a); fi
-          "${display[@]}" python3 ci_benchmark.py upstream benchmark-evidence/warm warm $FIXTURES
+          "${display[@]}" python3 scripts/ci_benchmark.py upstream benchmark-evidence/warm warm $FIXTURES
           ccache --show-stats > benchmark-evidence/cache-warm.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

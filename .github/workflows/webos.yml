@@ -19,6 +19,8 @@ permissions:
 concurrency:
   group: mdblist-webos-release
   cancel-in-progress: false
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -43,7 +45,7 @@ jobs:
           args=()
           if [ "$FORCE" = true ]; then args+=(--force); fi
           if [ "$REVIEWED_BASELINE" = true ]; then args+=(--reviewed-baseline); fi
-          python3 webos.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
+          python3 scripts/webos.py discover --run "$GITHUB_RUN_NUMBER" "${args[@]}"
       - name: Validate updater regression tests
         run: python3 -m unittest discover -s . -v
       - name: Check component compatibility before SDK setup
@@ -51,7 +53,7 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 integration.py --platform webos --state webos-state.json
+        run: python3 scripts/integration.py --platform webos --state webos-state.json
       - name: Install minimal compatibility test headers
         if: steps.discover.outputs.build == 'true'
         run: |
@@ -61,7 +63,7 @@ jobs:
         id: preflight
         timeout-minutes: 10
         if: steps.discover.outputs.build == 'true'
-        run: python3 update_guard.py run --platform webos --state webos-state.json --stage compatibility-tests -- bash preflight.sh webos
+        run: python3 scripts/update_guard.py run --platform webos --state webos-state.json --stage compatibility-tests -- bash scripts/preflight.sh webos
       - name: Prepare the exact source and verified SDK
         if: steps.discover.outputs.build == 'true'
         env:
@@ -72,10 +74,10 @@ jobs:
           if [ -z "$BUILD_PROPERTIES" ]; then echo 'Shared build settings are missing.' >&2; exit 1; fi
           umask 077
           printf '%s\n' "$BUILD_PROPERTIES" > "$NUVIO_PROPERTIES"
-          python3 update_guard.py run --platform webos --state webos-state.json --stage webos-sdk-engine-recipe -- python3 webos.py prepare
+          python3 scripts/update_guard.py run --platform webos --state webos-state.json --stage webos-sdk-engine-recipe -- python3 scripts/webos.py prepare
       - name: Test MDBList and platform isolation
         if: steps.discover.outputs.build == 'true'
-        run: python3 update_guard.py run --platform webos --state webos-state.json --stage platform-contracts -- bash platform-checks.sh webos
+        run: python3 scripts/update_guard.py run --platform webos --state webos-state.json --stage platform-contracts -- bash scripts/platform-checks.sh webos
       - name: Install the pinned LG packaging CLI
         if: steps.discover.outputs.build == 'true'
         run: npm install --fetch-retries=3 --fetch-retry-mintimeout=5000 --prefix "$RUNNER_TEMP/lg-cli" --no-audit --no-fund @webos-tools/cli@3.2.6
@@ -88,7 +90,7 @@ jobs:
           restore-keys: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-
       - name: Compare Home and progress rendering against published baselines
         if: steps.discover.outputs.build == 'true'
-        run: python3 update_guard.py run --platform webos --state webos-state.json --stage ui-performance-library -- xvfb-run -a python3 profile_ui.py --current upstream --out ui-profile
+        run: python3 scripts/update_guard.py run --platform webos --state webos-state.json --stage ui-performance-library -- xvfb-run -a python3 scripts/profile_ui.py --current upstream --out ui-profile
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
@@ -103,7 +105,7 @@ jobs:
           NUVIO_P2P_MOTOR: ${{ runner.temp }}/webos-cache/engine
           NUVIO_BUILD_PLATFORM: linux/amd64
           NV_JOBS: '2'
-        run: python3 update_guard.py run --platform webos --state webos-state.json --stage native-build -- bash webos-build.sh
+        run: python3 scripts/update_guard.py run --platform webos --state webos-state.json --stage native-build -- bash scripts/webos-build.sh
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         if: always() && steps.sdk-cache.outputs.cache-hit != 'true' && steps.discover.outputs.build == 'true'
         with:
@@ -120,7 +122,7 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 update_guard.py failure --platform webos --state webos-state.json --stage full-build
+        run: python3 scripts/update_guard.py failure --platform webos --state webos-state.json --stage full-build
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always() && steps.discover.outputs.build == 'true'
         with:
@@ -168,7 +170,7 @@ jobs:
       - name: Publish checked LG assets without changing the Samsung Latest release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 publish_webos.py
+        run: python3 scripts/publish_webos.py
   notify-publish-failure:
     needs: [build, publish]
     if: always() && needs.publish.result == 'failure'
@@ -185,4 +187,4 @@ jobs:
       - name: Report publication failure; live release remains intact
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 update_guard.py failure --platform webos --state release-webos/SOURCE.json --stage publish
+        run: python3 scripts/update_guard.py failure --platform webos --state release-webos/SOURCE.json --stage publish

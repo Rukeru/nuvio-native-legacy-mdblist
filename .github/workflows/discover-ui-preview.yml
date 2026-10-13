@@ -6,6 +6,8 @@ on:
     paths: [.github/workflows/discover-ui-preview.yml]
 permissions:
   contents: read
+env:
+  PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
   native-rendering:
     runs-on: ubuntu-24.04
@@ -22,7 +24,7 @@ jobs:
           m=integration.manifest()
           Path('render-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],'diagnostic_only':True})+'\n')
           PY
-          python3 integration.py --platform tizen --state render-state.json
+          python3 scripts/integration.py --platform tizen --state render-state.json
       - name: Install native renderer fixture libraries
         run: |
           sudo apt-get update -qq
