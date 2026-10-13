@@ -102,8 +102,15 @@ jobs:
             export NUVIO_P2P_MOTOR="$RUNNER_TEMP/webos-cache/engine"
             bash webos-build.sh
           fi
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+      - name: Preserve completed dependencies after a later package failure
+        id: cache-ready
         if: always() && matrix.platform == 'tizen' && (steps.native.outcome == 'success' || steps.native.outcome == 'failure')
+        run: |
+          if [ -s "$NUVIO_TPK_CACHE/prefix/lib/libSDL2.a" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && steps.cache-ready.outputs.ready == 'true'
         with:
           path: ${{ github.workspace }}/../nuvio-tpk-deps
           key: ${{ steps.tizen-cache.outputs.cache-primary-key }}
