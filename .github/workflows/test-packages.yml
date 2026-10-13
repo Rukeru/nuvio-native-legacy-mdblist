@@ -21,7 +21,7 @@ jobs:
         platform: [tizen, webos]
     env:
       GH_TOKEN: ${{ github.token }}
-      PLATFORM: ${{ matrix.platform }}
+      TEST_PLATFORM: ${{ matrix.platform }}
       NUVIO_PROPERTIES: ${{ github.workspace }}/../nuvio-test.properties
       NUVIO_TPK_CACHE: ${{ github.workspace }}/../nuvio-tpk-deps
       NUVIO_P2P_MOTOR: ${{ github.workspace }}/../webos-cache/engine
@@ -36,10 +36,10 @@ jobs:
         env:
           DEVELOPMENT_RUN: ${{ inputs.development_run }}
         run: |
-          python3 test_packages.py "$PLATFORM" "$DEVELOPMENT_RUN"
+          python3 test_packages.py "$TEST_PLATFORM" "$DEVELOPMENT_RUN"
           state=state.json
-          if [ "$PLATFORM" = webos ]; then state=webos-state.json; fi
-          python3 integration.py --platform "$PLATFORM" --state "$state"
+          if [ "$TEST_PLATFORM" = webos ]; then state=webos-state.json; fi
+          python3 integration.py --platform "$TEST_PLATFORM" --state "$state"
           python3 - "$state" <<'PY'
           import json,sys
           from pathlib import Path
@@ -54,7 +54,7 @@ jobs:
           test -n "$BUILD_PROPERTIES"
           umask 077
           printf '%s\n' "$BUILD_PROPERTIES" > "$NUVIO_PROPERTIES"
-          if [ "$PLATFORM" = tizen ]; then
+          if [ "$TEST_PLATFORM" = tizen ]; then
             python3 channel.py prepare --engine "$NUVIO_P2P_MOTOR"
           else
             python3 webos.py prepare
@@ -67,7 +67,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg zstd
-          if [ "$PLATFORM" = tizen ]; then
+          if [ "$TEST_PLATFORM" = tizen ]; then
             curl --retry 3 --retry-delay 5 --connect-timeout 30 -fsSL https://raw.githubusercontent.com/Samsung/Tizen.NET/6ab8cb41e7ccab90a3ba838e7f6d6b38a9c4ec08/workload/scripts/workload-install.sh -o "$RUNNER_TEMP/tizen-workload.sh"
             bash "$RUNNER_TEMP/tizen-workload.sh" -v 10.0.120 -t 8.0.400 -d "$DOTNET_ROOT"
           else
@@ -92,8 +92,9 @@ jobs:
           key: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-test-${{ github.run_id }}
           restore-keys: webos-native-v1-${{ hashFiles('upstream/tools/Dockerfile', 'upstream/tools/build-ass-arm.sh', 'upstream/tools/build-dts-ffmpeg.sh', 'upstream/tools/p2p-motor/build-arm.sh') }}-
       - name: Build and inspect actual ARM packages
+        id: native
         run: |
-          if [ "$PLATFORM" = tizen ]; then
+          if [ "$TEST_PLATFORM" = tizen ]; then
             bash tizen-build.sh
             dotnet run --project upstream/tests/mdblist_channel/Checks.csproj -c Release -- upstream/build/tpk/libnuvio.so upstream/build/mdblist-shell.sha256
             python3 channel.py package
@@ -102,7 +103,7 @@ jobs:
             bash webos-build.sh
           fi
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        if: success() && matrix.platform == 'tizen'
+        if: always() && matrix.platform == 'tizen' && (steps.native.outcome == 'success' || steps.native.outcome == 'failure')
         with:
           path: ${{ github.workspace }}/../nuvio-tpk-deps
           key: ${{ steps.tizen-cache.outputs.cache-primary-key }}
@@ -114,7 +115,7 @@ jobs:
       - name: Include test status and installation instructions
         run: |
           dest=release
-          if [ "$PLATFORM" = webos ]; then dest=release-webos; fi
+          if [ "$TEST_PLATFORM" = webos ]; then dest=release-webos; fi
           cp TEST_PACKAGES.md "$dest/TEST_PACKAGES.md"
           printf 'Development test only; not frozen; no production publication.\nBuilder: %s\n' "$GITHUB_SHA" > "$dest/DEVELOPMENT-ONLY.txt"
           (cd "$dest" && sha256sum TEST_PACKAGES.md DEVELOPMENT-ONLY.txt >> SHA256SUMS.txt)
