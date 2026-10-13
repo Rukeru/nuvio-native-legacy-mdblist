@@ -6,6 +6,31 @@ from resilience import fetch as transport_fetch
 REPO='https://api.github.com/repos/Rukeru/nuvio-native-legacy-mdblist'
 def fetch(url):
     return transport_fetch(urllib.request.Request(url,headers={'User-Agent':'Nuvio-public-UI-profile'}),timeout=180)
+
+def historical_baseline(tag, checkout, storage=None):
+    # Release retention must not remove the exact inputs of historical comparisons.
+    storage=Path(storage) if storage is not None else Path(__file__).parent/'ci-baselines'
+    manifest=json.loads((storage/'manifest.json').read_text())
+    if manifest['schema']!=1: raise RuntimeError('Unsupported UI baseline manifest')
+    source=manifest['baselines'][tag]
+    checkout=Path(checkout);checkout.mkdir()
+    for spec in (source,manifest['deployment']):
+        archive=storage/spec['file']
+        if hashlib.sha256(archive.read_bytes()).hexdigest()!=spec['sha256']:
+            raise RuntimeError('Historical UI baseline archive digest mismatch')
+        with tarfile.open(archive) as packed:
+            members=packed.getmembers()
+            if any(not (m.isfile() or m.isdir()) for m in members):
+                raise RuntimeError('Unexpected historical baseline link or special file')
+            actual={m.name:hashlib.sha256(packed.extractfile(m).read()).hexdigest()
+                    for m in members if m.isfile()}
+            if actual!=spec['input_files']:
+                raise RuntimeError('Historical UI baseline input inventory mismatch')
+            packed.extractall(checkout,filter='data')
+    if not (checkout/'src/home.c').is_file(): raise RuntimeError('Incomplete historical UI baseline')
+    return {'tag':tag,'source_sha256':source['original_archive_sha256'],
+            'release':source['original_release'],'source_snapshot_sha256':source['sha256'],
+            'deployment_snapshot_sha256':manifest['deployment']['sha256']}
 def changelog_only(current):
     # Reuse the completed rendering comparison only for this exact additive UI
     # patch, with identical upstream and all previous patch digests. An upstream
@@ -45,16 +70,10 @@ def run(current,out):
         subprocess.run(['bash',str(current/'tests/ui_profile.sh'),str(current),str(out/'current')],check=True)
         for tag in ('v2.0.2.3','v2.0.2.11'):
             print('UI-profile: published baseline '+tag,flush=True)
-            release=json.loads(fetch(REPO+'/releases/tags/'+tag))
-            asset=next(a for a in release['assets'] if a['name'].startswith('source-') and a['name'].endswith('.tar.gz'))
-            data=fetch(asset['browser_download_url']);sha=hashlib.sha256(data).hexdigest()
-            if asset.get('digest')!='sha256:'+sha:raise RuntimeError('Public baseline source digest mismatch')
-            archive=temp/(tag+'.tar.gz');archive.write_bytes(data)
-            checkout=temp/tag;checkout.mkdir()
-            with tarfile.open(archive) as packed:packed.extractall(checkout,filter='data')
-            tree=next(p.parent for p in checkout.rglob('src') if p.is_dir() and (p/'home.c').is_file())
+            tree=temp/tag
+            provenance=historical_baseline(tag,tree)
             subprocess.run(['bash',str(current/'tests/ui_profile.sh'),str(tree),str(out/tag)],check=True)
-            evidence['baselines'].append({'tag':tag,'source_sha256':sha,'release':release['html_url']})
+            evidence['baselines'].append(provenance)
     (out/'PROVENANCE.json').write_text(json.dumps(evidence,indent=2)+'\n')
 
 if __name__=='__main__':
