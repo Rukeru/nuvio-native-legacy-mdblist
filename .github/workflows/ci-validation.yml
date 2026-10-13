@@ -4,10 +4,21 @@ on:
     branches: [codex/fast-ci-diagnostics]
     paths: ['.github/workflows/ci-validation.yml']
   workflow_dispatch:
+    inputs:
+      test_packages:
+        description: Build development TV packages only; no publication or full regression
+        type: boolean
+        default: false
+      development_run:
+        description: Successful development.yml run for this exact commit (test packages only)
+        type: string
+        default: ''
 permissions:
   contents: read
+  actions: read
 jobs:
   regression:
+    if: inputs.test_packages != true
     uses: ./.github/workflows/regression.yml
     permissions:
       contents: read
@@ -17,3 +28,13 @@ jobs:
     with:
       platform: webos
       diagnostic_only: true
+  test-packages:
+    if: inputs.test_packages == true
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/test-packages.yml
+    secrets:
+      NUVIO_BUILD_PROPERTIES: ${{ secrets.NUVIO_BUILD_PROPERTIES }}
+    with:
+      development_run: ${{ inputs.development_run }}

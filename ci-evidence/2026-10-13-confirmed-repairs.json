@@ -1,0 +1,32 @@
+{
+  "base_commit": "554c4a9d3a51799c50da023f4f215c8a4e5bba8e",
+  "original_run": 38341365262,
+  "original_failures_inspected": {
+    "discover_catalog": "GCC format-truncation: 96-byte parsed value into 48-byte genre slot despite runtime length guard",
+    "js": "strict C11 glibc feature set hid timegm declaration",
+    "ajustes_ux_dados": "line 650 still counted ten owned settings after the eleventh statistics-source setting was appended",
+    "tizen_improvements": "sync_refresh includes syncaddons Settings mock, missing ajustes_stats_reset symbol"
+  },
+  "repairs": [
+    "Copy genre bytes plus terminator only after explicit measured-length bound; do not truncate",
+    "Request libc extension declarations before headers in js.c",
+    "Retain exact enum-count assertion and adjacent-ID chain; update count to eleven",
+    "Supply reset adapter in existing all-Settings mock; real profile assertions unchanged"
+  ],
+  "local_checks": [
+    "Strict asserted Discover executable passed",
+    "Strict C11 Linux-target js.c compilation passed without forced shim",
+    "Strict asserted Profile Stats reducer/parser executable passed",
+    "Exact upstream 2.0.4 assembly and compatibility contracts passed for Tizen/webOS",
+    "71 builder unit and safety tests passed"
+  ],
+  "reused_original_evidence": [
+    "Native GLES rendering: success",
+    "Discover, Profile Stats, profile-settings, settings interaction: successful original runtime fixtures",
+    "Appearance, renderer and statistics logic unchanged; genre copy and UTC parsing semantics unchanged"
+  ],
+  "next_gate": "Exact-commit development validation, then artifact-only SDK builds and package inspection",
+  "release_frozen": false,
+  "physical_tv_installation_tested": false,
+  "private_diagnostic_uploads_enabled": false
+}

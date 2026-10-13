@@ -59,10 +59,14 @@ jobs:
           # Same loopback server-name setup as the full regression environment.
           # Client DNS, real sockets, TLS, deadlines and throughput stay unchanged.
           export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
+          # Diagnose the confirmed assertion/linker failures first. The remaining
+          # development fixtures run only after these exact checks succeed.
+          python3 ci_benchmark.py upstream focused-evidence/confirmed-repairs focused-repairs \
+            tests/ajustes_ux_dados.sh tests/tizen_improvements.sh
           python3 ci_benchmark.py upstream focused-evidence focused-development \
-            tests/ajustes_ux_dados.sh tests/ajustes_ux_interacao.sh \
+            tests/ajustes_ux_interacao.sh \
             tests/discover.sh tests/profilestats.sh tests/ajustes_perfil.sh \
-            tests/ajustes_envio_auto.sh tests/i18n.sh tests/tizen_improvements.sh \
+            tests/ajustes_envio_auto.sh tests/i18n.sh \
             tests/streamfit_redirect_range.sh tests/streamfit_diagnostico.sh \
             tests/streamfit_paralelo.sh tests/streamfit.sh tests/seekr_vivo.sh \
             tests/manifesto_cache.sh tests/manifesto_wait.sh \
