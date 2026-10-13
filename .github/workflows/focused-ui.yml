@@ -65,7 +65,7 @@ jobs:
             tests/ajustes_ux_dados.sh tests/tizen_improvements.sh
           python3 ci_benchmark.py upstream focused-evidence focused-development \
             tests/ajustes_ux_interacao.sh \
-            tests/discover.sh tests/profilestats.sh tests/ajustes_perfil.sh \
+            tests/discover.sh tests/menu_ocultos.sh tests/menu_geometry.sh tests/profilestats.sh tests/ajustes_perfil.sh \
             tests/ajustes_envio_auto.sh tests/i18n.sh \
             tests/streamfit_redirect_range.sh tests/streamfit_diagnostico.sh \
             tests/streamfit_paralelo.sh tests/streamfit.sh tests/seekr_vivo.sh \
