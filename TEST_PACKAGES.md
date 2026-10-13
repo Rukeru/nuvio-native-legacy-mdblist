@@ -101,5 +101,8 @@ and [Developer Mode setup](https://webostv.developer.lge.com/develop/getting-sta
    firmware, commit, install result and pass/fail for the steps. Share errors or
    screenshots without account tokens, API keys or personal watch-history dumps.
 
-A passing host/GLES build is not physical-TV evidence. Neither platform is
-cleared for a release freeze until its installation and smoke test are recorded.
+A passing host/GLES build is automated evidence, not physical-TV evidence.
+Manual installation and smoke testing on either TV are recommended and optional.
+They do not block candidate freezing, automated publication or upstream updates.
+Compatibility, complete regression, rendering, security and package-verification
+gates remain mandatory. Release notes must report physical testing separately.

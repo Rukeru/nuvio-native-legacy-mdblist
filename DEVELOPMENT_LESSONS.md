@@ -643,9 +643,9 @@ The Tizen elapsed figure includes investigation and a delayed same-source
 retry; it is not a pure machine-performance baseline. Deduplicate retained
 successful jobs by name/start/end timestamps when reading later attempts.
 The longest single queue delays were 69.85/53.75 minutes. Homebrew normally
-took 18–49 seconds, whereas Linux regression took 52.85/50.62 minutes and
+took 18â€“49 seconds, whereas Linux regression took 52.85/50.62 minutes and
 the separate UI comparison about 15 minutes. The complete performance fixture
-took 28–30 minutes, preceded by about 20 minutes of unrelated Linux work.
+took 28â€“30 minutes, preceded by about 20 minutes of unrelated Linux work.
 Move that entire fixture to its own equivalent runner, not to fewer frames,
 weaker deadlines, or a substitute benchmark.
 
@@ -702,7 +702,7 @@ The longest macOS shard took 25m38s testing plus roughly eight minutes of SDK
 setup and started nineteen minutes late. Submit that measured longest shard
 early without changing its membership or checks. The scheduling reorder's
 additional benefit is not measured yet; validate it in the final feature
-release, not another workflow-only full run. The 30–45 minute complete-release
+release, not another workflow-only full run. The 30â€“45 minute complete-release
 target is not yet demonstrated. Native packaging was deliberately not repeated
 in this infrastructure proof. Fast development run 38289570079 passed in 9m22s.
 
@@ -880,7 +880,7 @@ Manual feature releases now have an explicit reviewed-baseline input, shared by 
 
 ### Redirect fixture timing classification and correction (2026-10-12)
 
-Focused runs exposed `streamfit_redirect_range.c:24` at 575/602 kbps against the unchanged >640 kbps assertion. The paired baseline/candidate audit (38318759984, artifact 11777988431) verified identical hashes for all 15 networking/test inputs. With the same existing loopback HTTPServer-name helper, all six original runs passed; observed relative sleeps requested 2.0 seconds but took 2.64–3.15 seconds. A monotonic-deadline server experiment passed six more runs and restored the nominal 4096-byte/100-ms rate (2.00–2.08 seconds for twenty sleeps). TCP_NODELAY did not remove the measured scheduler drift in the preceding exploratory audit; do not blame or alter production networking.
+Focused runs exposed `streamfit_redirect_range.c:24` at 575/602 kbps against the unchanged >640 kbps assertion. The paired baseline/candidate audit (38318759984, artifact 11777988431) verified identical hashes for all 15 networking/test inputs. With the same existing loopback HTTPServer-name helper, all six original runs passed; observed relative sleeps requested 2.0 seconds but took 2.64â€“3.15 seconds. A monotonic-deadline server experiment passed six more runs and restored the nominal 4096-byte/100-ms rate (2.00â€“2.08 seconds for twenty sleeps). TCP_NODELAY did not remove the measured scheduler drift in the preceding exploratory audit; do not blame or alter production networking.
 
 The maintained test-server adapter now schedules against monotonic deadlines at the original rate. It retains all 200 blocks, real sockets and measurements, headers/redirects, client budgets and original assertions. Reset the pacing deadline after the intentional 2.5-second and 9-second stalls so catch-up never erases stall coverage. The focused gate additionally runs the unchanged diagnostic, parallel-connection and stream-fit fixtures, plus three unchanged redirect repetitions. The first exploratory baseline attempts lacked the custom host helper and failed server startup; they are not throughput evidence. Preserve both failed and passing archives. Do not classify diagnostic experiments as release attestation.
 
@@ -890,7 +890,7 @@ The feature release is complete. Tizen v2.0.4.68 (run 38319700449) and webOS web
 
 Sync Now, per-account/profile freshness, Collections/manifest refresh, pending-local edits, MDBList scrobbling/history and prior UI/performance improvements are enabled. Support the Project is removed with saved indices reserved. Private diagnostic collection/pairing/uploads remain disabled; local troubleshooting and crash recovery are preserved. Successful security checks do not override the user's disabled production policy. The preceding 2.0.4.63/2.0.400059 releases remain published rollback options. Tizen's host shell ID matches 2.0.4.63, preserving compatible core-update eligibility; this is not a physical-TV installation test.
 
-Measured final dual-platform elapsed time was 76m11s for Tizen and 60m09s for webOS, exceeding the 30–45-minute target. Tizen's dependency cache missed and the native step rebuilt font/media libraries before compiling the core; the completed cache was saved. The SDK key currently hashes the entire channel.py file, so the unrelated reviewed-release selector invalidated an otherwise unchanged dependency recipe. In a separate CI optimization, isolate dependency-preparation inputs from release-selection code, prove equivalent SDK inputs and preserve integrity checks before reusing cached libraries. Do not alter a running frozen candidate to chase this optimization. Record POSIX CI fingerprints from sealed release evidence: the published value is 26dbeede597d7d6538a4a6aafc6da5edbf1e25779284b3612285bf10f1b46a48; raw Windows working-tree line endings can produce a different local fingerprint.
+Measured final dual-platform elapsed time was 76m11s for Tizen and 60m09s for webOS, exceeding the 30â€“45-minute target. Tizen's dependency cache missed and the native step rebuilt font/media libraries before compiling the core; the completed cache was saved. The SDK key currently hashes the entire channel.py file, so the unrelated reviewed-release selector invalidated an otherwise unchanged dependency recipe. In a separate CI optimization, isolate dependency-preparation inputs from release-selection code, prove equivalent SDK inputs and preserve integrity checks before reusing cached libraries. Do not alter a running frozen candidate to chase this optimization. Record POSIX CI fingerprints from sealed release evidence: the published value is 26dbeede597d7d6538a4a6aafc6da5edbf1e25779284b3612285bf10f1b46a48; raw Windows working-tree line endings can produce a different local fingerprint.
 
 This published feature baseline is the starting point for the separate upstream 2.0.5 compatibility task. Keep automatic latest-upstream monitoring active. The reviewed-baseline input is an explicit manual feature-release choice, not a permanent pin of scheduled monitoring. Preserve these published assets while adapting 2.0.5 and run focused checks before any new complete release gates.
 
@@ -996,3 +996,8 @@ S95C and confirmed platform 8.0/ARMv7; this is not a candidate installation or
 feature smoke test. LG physical validation has not been provided. No candidate
 is frozen, no full production release is started, and published packages, upstream
 2.0.4, release gates, monitoring and disabled diagnostics remain unchanged.
+
+
+## Automated release policy restored (2026-10-13)
+
+The user explicitly restored automated publication and authorized freezing and publishing this feature candidate after automated validation. Physical S95C/LG C5 installation and smoke testing are recommended, optional evidence, not a freeze/publication prerequisite. This supersedes the new manual-TV requirement in the development checklist; historical untested-device statements remain factual. No executable publication guard required hardware evidence, so no guard or assertion is removed. Preserve full regression inventory/attestation, rendering/performance, SDK/ARM/package inspection, backend security, immutable source/workflow provenance and GitHub asset-digest verification. Optional test packages remain available. Keep latest-upstream schedules and in-app updates unchanged; reviewed-baseline=true is only the explicit 2.0.4 feature release selection. Freeze the final validated builder commit and let one release workflow per platform finish without candidate edits; retry only diagnosed failed jobs.

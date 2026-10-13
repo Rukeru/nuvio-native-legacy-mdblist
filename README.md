@@ -84,6 +84,13 @@ See [GitHub's schedule documentation](https://docs.github.com/en/actions/referen
 
 ## Validation and source
 
+Publication requires the existing automated compatibility, complete regression,
+rendering/performance, security, native-package and checksum gates. Physical-TV
+installation/playback smoke tests are recommended and optional; they do not block
+candidate freezes, publication or scheduled upstream monitoring. Release notes
+distinguish automated validation from physical-TV evidence. For optional local
+testing and data-preserving rollback precautions, see [test packages](TEST_PACKAGES.md).
+
 Local checks cover fake-service MDBList tracking, Trakt regressions, translation
 tables, trusted-channel selection, malformed ELF rejection, real upstream core
 rejection, wrong checksums, shell mismatch and fork version ordering. The local
