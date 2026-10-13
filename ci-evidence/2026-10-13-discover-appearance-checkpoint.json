@@ -1,0 +1,20 @@
+{
+  "status": "partial-development-checkpoint",
+  "base_builder": "a6bc686bced4f3be821d3e7da87289580daa8229",
+  "upstream": "db6ae4ee0dd2fa158c46ba375c1fe8c08de70504",
+  "upstream_version": "2.0.4",
+  "branch": "codex/discover-profile-appearance",
+  "discover": "native loaded-snapshot browsing; focused logic fixture passed",
+  "appearance": "implementation and expanded real native fixture; host runtime pending",
+  "statistics": "not implemented; existing Trakt path preserved",
+  "local_verification": [
+    "strict Discover C assertions",
+    "changed UI module object compilation with NV_TPK/NV_WEBOS (Windows host, not TV SDK)",
+    "exact upstream dual-platform adapter assembly",
+    "Settings and translation compatibility contracts",
+    "71 builder Python tests passed across initial run and targeted correction/rerun"
+  ],
+  "performance": "no added network or disk work in Discover render/navigation; no physical FPS measurement",
+  "full_release_validation": false,
+  "physical_tv_tests": false
+}

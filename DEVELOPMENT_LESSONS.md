@@ -893,3 +893,49 @@ Sync Now, per-account/profile freshness, Collections/manifest refresh, pending-l
 Measured final dual-platform elapsed time was 76m11s for Tizen and 60m09s for webOS, exceeding the 30–45-minute target. Tizen's dependency cache missed and the native step rebuilt font/media libraries before compiling the core; the completed cache was saved. The SDK key currently hashes the entire channel.py file, so the unrelated reviewed-release selector invalidated an otherwise unchanged dependency recipe. In a separate CI optimization, isolate dependency-preparation inputs from release-selection code, prove equivalent SDK inputs and preserve integrity checks before reusing cached libraries. Do not alter a running frozen candidate to chase this optimization. Record POSIX CI fingerprints from sealed release evidence: the published value is 26dbeede597d7d6538a4a6aafc6da5edbf1e25779284b3612285bf10f1b46a48; raw Windows working-tree line endings can produce a different local fingerprint.
 
 This published feature baseline is the starting point for the separate upstream 2.0.5 compatibility task. Keep automatic latest-upstream monitoring active. The reviewed-baseline input is an explicit manual feature-release choice, not a permanent pin of scheduled monitoring. Preserve these published assets while adapting 2.0.5 and run focused checks before any new complete release gates.
+
+### Discover and Appearance development checkpoint (2026-10-13)
+
+Start from builder a6bc686 (published core baseline f7015cb) and upstream
+2.0.4 db6ae4ee0dd2fa158c46ba375c1fe8c08de70504. The existing published
+Tizen 2.0.4.68 and webOS 2.0.400064 remain intact. No upstream upgrade,
+monitoring change, diagnostics activation or production release is included.
+
+Discover is a separate native destination; Explore remains unchanged. This
+checkpoint browses published addon catalogue snapshots, separates movie and
+series types and derives exact genre names from their actual metadata. It
+labels loaded-snapshot scope on screen. Available categories depend on the
+installed providers and loaded Home rows; provider-wide discovery, remote
+filtering/pagination and guaranteed desktop AI/anime/editorial categories
+remain unfinished. Artwork uses the existing texture cache, and row/index
+work occurs only on filter or catalogue revision changes. Do not describe
+this as complete desktop parity or as physical-TV performance validation.
+
+Native cosmetic settings can be local to the device AND scoped to a profile:
+keep their existing account-blob exclusion and explicitly include them in
+dePerfil. Freeze installation appearance for missing fields in old profile
+files, save active preferences on settings commits and apply fonts on restore.
+main.c reads settings before loading the saved profile; defer profile restore
+until the second settings read, after perfis_carregar_ativo. Restoring during
+the early read can checkpoint another profile's values into slot 1. Hardware,
+consent, language and accessibility settings remain device-wide. Existing
+safe GPU getters continue to preserve preferred values while applying fallback.
+
+Local strict Discover assertions passed, including an empty-carousel OK/Back
+regression caught during verification. Changed UI modules compiled with both
+NV_TPK and NV_WEBOS definitions on Windows using an isolated time shim; these
+are not SDK link/package checks. Both exact-upstream adapter assemblies and
+existing Settings/i18n compatibility contracts passed. The builder suite had
+69 successes and two Windows checkout byte-integrity errors; all four private
+client tests passed after restoring unchanged files to their exact verified
+Git bytes. Keep checksum guards intact: this repository contains legacy CRLF
+blobs predating its text attributes. Native Appearance runtime assertions are
+added to the existing fixture and queued for the focused host gate, not claimed
+as passed locally. No full release validation was initiated.
+
+Remaining: complete provider-wide Discover using manifest-declared filters;
+implement all four statistics modes with Automatic default and provider-specific
+history snapshots/provenance (the current merged watched map is not a sole-
+provider source); complete native rendering/profile/restart validation, then
+review and freeze a release candidate. Full TV builds and physical-device
+checks follow separately. This is a partial development checkpoint.
