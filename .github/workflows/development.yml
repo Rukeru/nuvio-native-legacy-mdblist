@@ -93,6 +93,66 @@ jobs:
             diagnostics/
           retention-days: 14
 
+  discovery-linkage:
+    needs: impact
+    if: needs.impact.outputs.native == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Assemble exact repaired fixture source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import integration,json,os
+          m=integration.manifest()
+          Path('link-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],'diagnostic_only':True})+'\n')
+          PY
+          python3 integration.py --platform tizen --state link-state.json
+      - name: Install fixture dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            brew install sdl2 sdl2_image sdl2_ttf pkg-config ccache
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev zlib1g-dev
+          fi
+      - name: Execute affected original assertions with the production registry
+        run: |
+          export PYTHONPATH="$GITHUB_WORKSPACE/upstream/tests/stubs/host:${PYTHONPATH:-}"
+          export CPATH="$(sdl2-config --prefix)/include:${CPATH:-}"
+          fixtures=()
+          if [ "$RUNNER_OS" = macOS ]; then
+            while IFS= read -r fixture; do fixtures+=("$fixture"); done < <(python3 - <<'PY'
+          import integration
+          for c in integration.manifest()['components']:
+              if c['name']=='discovery-fixture-linkage':
+                  for p in c['files']:
+                      assert p.startswith('tests/') and p.endswith('.sh')
+                      print(p)
+          PY
+            )
+          else
+            fixtures=(tests/home_progressiva.sh tests/montagem_cedo.sh)
+          fi
+          test "${#fixtures[@]}" -gt 0
+          python3 ci_benchmark.py upstream linkage-evidence focused-discovery-linkage "${fixtures[@]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: discovery-linkage-${{ runner.os }}-attempt-${{ github.run_attempt }}
+          path: |
+            linkage-evidence/
+            link-state.json
+          if-no-files-found: error
   native-rendering:
     needs: impact
     if: needs.impact.outputs.native == 'true'
