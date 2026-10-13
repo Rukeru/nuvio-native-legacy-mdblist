@@ -1,0 +1,33 @@
+{
+  "inventory": 580,
+  "profile_fixtures": 567,
+  "old_mac_shard_minutes": [
+    9.58,
+    22.58,
+    15.5,
+    17.15,
+    15.37,
+    9.65,
+    19.53,
+    10.64
+  ],
+  "balanced_mac_shard_minutes": [
+    15.0,
+    15.0,
+    15.0,
+    15.0,
+    15.0,
+    15.0,
+    15.0,
+    15.0
+  ],
+  "model_max_shard_reduction_percent": 33.6,
+  "queue_time_included": false,
+  "Linux_groups_unchanged": true,
+  "existing_assertions_and_exclusions_unchanged": true,
+  "integration": "deferred until both current TV releases publish",
+  "unit_tests_passed": 74,
+  "remaining_validation": "One real non-publishing full-suite check of the balanced schedule before adoption; after both current releases publish.",
+  "cache_audit": "Existing cache hits 84\u201388%; no speculative compiler/cache changes.",
+  "linux_migration": "Deferred until candidate fixtures pass original assertions on both hosts; existing host assignments preserved."
+}

@@ -1,4 +1,6 @@
 import hashlib,json,tempfile,unittest
+from unittest.mock import patch
+import full_regression
 from pathlib import Path
 from full_regression import partition,prepare,merge,render_order
 
@@ -37,6 +39,55 @@ class FullRegression(unittest.TestCase):
         self.assertEqual(ten[8],sorted(set(rendering)-{'tests/fluidez_perf.sh'},key=render_order))
         self.assertEqual(sorted(sum(ten,[])),sorted(files))
         self.assertEqual(len(set(sum(ten,[]))),len(files))
+    def test_balancing_spreads_expensive_fixtures_without_changing_hosts(self):
+        files=['tests/f%03d.sh'%i for i in range(64)]
+        weights={f:10.0 for f in files}
+        for i in (0,8,16,24):weights[files[i]]=1000.0
+        special=['tests/fluidez_perf.sh','tests/dts_engine.sh','tests/ui_profile.sh']
+        with patch('full_regression.timing_profile',return_value=(weights,25.0,'profile')):
+            shards=[partition(files+special,i,10) for i in range(10)]
+            self.assertEqual(sorted(sum(shards,[])),sorted(files+special))
+            self.assertEqual(len(set(sum(shards,[]))),len(files+special))
+            self.assertEqual(shards[9],['tests/fluidez_perf.sh'])
+            self.assertEqual(set(shards[8]),set(special)-{'tests/fluidez_perf.sh'})
+            loads=[sum(weights[f] for f in group) for group in shards[:8]]
+            old=[sum(weights[f] for f in sorted(files)[i::8]) for i in range(8)]
+            self.assertLess(max(loads),max(old))
+            self.assertEqual(shards,[partition(list(reversed(files+special)),i,10) for i in range(10)])
+            unknown=files+['tests/new_fixture.sh']
+            self.assertEqual(sorted(sum([partition(unknown,i,10) for i in range(10)],[])),sorted(unknown))
+
+    def test_timing_profiles_fail_closed_on_invalid_durations(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'timings.json'
+            with patch('full_regression.PROFILE_PATH',p):
+                for duration in (-1,float('nan'),float('inf'),True,'fast'):
+                    p.write_text(json.dumps({'schema':1,'seconds':{'tests/a.sh':duration},'unmeasured_seconds':10}))
+                    full_regression.timing_profile.cache_clear()
+                    with self.subTest(duration=duration),self.assertRaises(ValueError):full_regression.timing_profile()
+                p.unlink();full_regression.timing_profile.cache_clear()
+                self.assertIsNone(full_regression.timing_profile())
+            full_regression.timing_profile.cache_clear()
+
+    def test_merge_binds_balanced_execution_to_the_exact_profile(self):
+        files=sorted(['tests/a.sh','tests/mdblist_settings_defaults.sh','tests/fluidez_perf.sh'])
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            for index in range(10):
+                p=root/f'shard-{index}';p.mkdir();selected=partition(files,index,10)
+                text=''.join('inventory '+Path(f).name+'\nok    '+Path(f).name+'\n' for f in selected)
+                text+='testes: %d passaram, 0 falharam, 0 SKIP sem prova, 0 fora da suite\n'%len(selected)
+                (p/'SUMMARY.txt').write_text(text)
+                meta={'index':index,'count':10,'files':files,'selected':selected,'exit_code':0,
+                      'gatekeeper_sha256':'same','summary_sha256':hashlib.sha256((p/'SUMMARY.txt').read_bytes()).hexdigest(),
+                      'partition_profile_sha256':full_regression.partition_profile_sha256(10),
+                      'state':{'upstream_commit':'u','builder_commit':'b','integration':{'fingerprint':'f'}}}
+                (p/'execution.json').write_text(json.dumps(meta))
+            merge(root,root/'state',root/'summary',10)
+            p=root/'shard-9/execution.json';meta=json.loads(p.read_text());meta['partition_profile_sha256']='different'
+            p.write_text(json.dumps(meta))
+            with self.assertRaisesRegex(ValueError,'timing profile mismatch'):merge(root,root/'state',root/'summary',10)
+
     def test_merge_rejects_missing_execution_or_inconsistent_identity(self):
         files=['tests/a.sh','tests/mdblist_settings_defaults.sh']
         with tempfile.TemporaryDirectory() as d:

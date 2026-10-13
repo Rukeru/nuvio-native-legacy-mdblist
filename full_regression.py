@@ -5,7 +5,8 @@ are tracked by the integration registry; original assertions, exit rules,
 SKIP classification and upstream exclusions are retained.
 """
 from pathlib import Path
-import hashlib,json,os,re,shlex,subprocess,sys,threading,time,platform
+import hashlib,json,os,re,shlex,subprocess,sys,threading,time,platform,math
+from functools import lru_cache
 
 def environment():
     # Retry reuse is strict about compiler/dependency versions as well as source.
@@ -18,6 +19,38 @@ def environment():
     return {'os':platform.system(),'architecture':platform.machine(),
             'runner_image':os.environ.get('ImageOS'),'image_version':os.environ.get('ImageVersion'),
             'python':platform.python_version(),'toolchain_sha256':hashlib.sha256(json.dumps(versions).encode()).hexdigest()}
+
+PROFILE_PATH=Path(__file__).resolve().parent/'ci-evidence/regression-timings.json'
+
+@lru_cache(maxsize=1)
+def timing_profile():
+    if not PROFILE_PATH.exists():return None
+    data=PROFILE_PATH.read_bytes();profile=json.loads(data)
+    if profile.get('schema')!=1 or not isinstance(profile.get('seconds'),dict):
+        raise ValueError('Invalid regression timing profile')
+    weights=profile['seconds'];fallback=profile.get('unmeasured_seconds')
+    for name,value in list(weights.items())+[('unmeasured',fallback)]:
+        if (not isinstance(value,(int,float)) or isinstance(value,bool)
+            or not math.isfinite(value) or value<0 or (name=='unmeasured' and value<=0)):
+            raise ValueError('Invalid regression timing duration: '+name)
+    return weights,fallback,hashlib.sha256(data).hexdigest()
+
+def partition_profile_sha256(count):
+    profile=timing_profile() if count in (9,10) else None
+    return profile[2] if profile else None
+
+def balanced_macos(files):
+    profile=timing_profile()
+    if not profile:return [sorted(files)[i::8] for i in range(8)]
+    weights,fallback,_=profile
+    loads=[0.0]*8;groups=[[] for _ in range(8)]
+    # Stable longest-processing-time assignment. Unknown fixtures still run,
+    # using a conservative measured median; timing never controls exclusion.
+    for name in sorted(files,key=lambda p:(-weights.get(p,fallback),p)):
+        index=min(range(8),key=lambda i:(loads[i],i))
+        groups[index].append(name);loads[index]+=weights.get(name,fallback)
+    # Retain deterministic fixture order and existing compiler-cache reuse.
+    return [sorted(group) for group in groups]
 
 def partition(files,index,count):
     if count < 1 or not 0 <= index < count:raise ValueError('Invalid regression shard')
@@ -33,7 +66,7 @@ def partition(files,index,count):
             if index==9:return sorted(set(files)&{'tests/fluidez_perf.sh'})
             if index==8:return sorted((set(files)&rendering)-{'tests/fluidez_perf.sh'},key=render_order)
         elif index==8:return sorted(set(files)&rendering,key=render_order)
-        return sorted(set(files)-rendering)[index::8]
+        return balanced_macos(sorted(set(files)-rendering))[index]
     return sorted(files)[index::count]
 
 def render_order(path):
@@ -92,6 +125,7 @@ def run(root,state_path,index,count):
     metadata={'index':index,'count':count,'files':files,'selected':selected,'exit_code':code,'gatekeeper_exit_code':gate_code,
               'gatekeeper_sha256':hashlib.sha256(original.encode()).hexdigest(),
               'summary_sha256':hashlib.sha256(summary.read_bytes()).hexdigest(),'state':state,
+              'partition_profile_sha256':partition_profile_sha256(count),
               'run_id':os.environ.get('GITHUB_RUN_ID','local'),
               'attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),
               'environment':environment(),
@@ -107,8 +141,10 @@ def merge(folder,state_out,summary_out,count):
             raise ValueError(f'Missing or unsuccessful regression shard {index}')
         if hashlib.sha256((p/'SUMMARY.txt').read_bytes()).hexdigest()!=meta['summary_sha256']:
             raise ValueError('Regression summary checksum mismatch')
+        if meta.get('partition_profile_sha256')!=partition_profile_sha256(count):
+            raise ValueError('Regression shard timing profile mismatch')
         identity=(meta['state'].get('upstream_commit'),meta['state'].get('builder_commit'),
-                  meta['state'].get('integration',{}).get('fingerprint'),meta['gatekeeper_sha256'],meta['files'])
+                  meta['state'].get('integration',{}).get('fingerprint'),meta['gatekeeper_sha256'],meta['files'],meta.get('partition_profile_sha256'))
         if baseline is None:baseline=identity;state=meta['state']
         elif identity!=baseline:raise ValueError('Regression shards tested different sources or inventories')
         expected=partition(meta['files'],index,count)
@@ -122,7 +158,7 @@ def merge(folder,state_out,summary_out,count):
         total=[a+b for a,b in zip(total,numbers)];seen+=observed
         # Keep each original result line, with one aggregate result at the end.
         results.append(re.sub(r'^testes: .*$',f'shard {index}: '+match.group(0),summary,flags=re.M))
-    if sorted(seen)!=baseline[-1] or len(set(seen))!=len(seen):raise ValueError('Full regression coverage is incomplete')
+    if sorted(seen)!=baseline[-2] or len(set(seen))!=len(seen):raise ValueError('Full regression coverage is incomplete')
     result='\n'.join(results)+'\n'+'testes: %d passaram, %d falharam, %d SKIP sem prova, %d fora da suite; isolated native runners\n'%tuple(total)
     Path(state_out).write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     Path(summary_out).write_text(result,encoding='utf8')
