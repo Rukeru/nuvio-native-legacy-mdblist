@@ -1,0 +1,111 @@
+{
+  "upstream_tag": "v2.0.4",
+  "upstream_commit": "db6ae4ee0dd2fa158c46ba375c1fe8c08de70504",
+  "builder_commit": "f7015cb86e0707ff2fd038e563cd8a18194d8d9f",
+  "integration_fingerprint": "26dbeede597d7d6538a4a6aafc6da5edbf1e25779284b3612285bf10f1b46a48",
+  "bundle_sha256": "607b269e548cb46b12e5aa1ebb96e4d5d32148b66584cde0663005c20e561af6",
+  "production_diagnostics_enabled": false,
+  "local_diagnostics_preserved": true,
+  "required_per_platform": {
+    "passed": 470,
+    "failed": 0,
+    "unverified_skips": 0,
+    "approved_outside_gatekeeper": 107,
+    "inventory": 577
+  },
+  "focused_run": 38319131187,
+  "range_audit_run": 38318759984,
+  "releases": [
+    {
+      "platform": "tizen",
+      "tag": "v2.0.4.68",
+      "id": 411098064,
+      "url": "https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/tag/v2.0.4.68",
+      "run": 38319700449,
+      "published_at": "2026-10-13T00:15:09Z",
+      "elapsed_seconds": 4571,
+      "assets": [
+        {
+          "name": "libnuvio-2.0.4.68-616bc9052b5eac94bd9c1ae8dc1b581f8880ffd0056e28bad7b0bb5ace0af6cf-mdblist-tpk-arm.so",
+          "size": 19406980,
+          "digest": "sha256:fdb3f23f0826b655c61a4bddf6d6120a15b02f0425c69fc4c95e5fdd7a390a86"
+        },
+        {
+          "name": "LICENSE",
+          "size": 35150,
+          "digest": "sha256:e57f1c320b8cf8798a7d2ff83a6f9e06a33a03585f6e065fea97f1d86db84052"
+        },
+        {
+          "name": "Nuvio-2.0.4.68-MDBList-Tizen8-unsigned.tpk",
+          "size": 37008253,
+          "digest": "sha256:57ce4a365926f94b39eebe6fd89e975d72aa3e5c29df5fb49796fb2fb81e2ce4"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 518,
+          "digest": "sha256:57aaabd145fe7d4c37e83eb4a635c5ed23f9d248650176de4b7f652a42b0b00a"
+        },
+        {
+          "name": "source-2.0.4.68.tar.gz",
+          "size": 89277811,
+          "digest": "sha256:5894b940345133c3355d7a164e322fc32a3bdb84f1dfdd5d86b71cdd4c8b6657"
+        },
+        {
+          "name": "SOURCE.json",
+          "size": 49381,
+          "digest": "sha256:6e049e230136f127d942a9755be7fafb476cfd775aa3c984eec3ece9c50aab87"
+        }
+      ]
+    },
+    {
+      "platform": "webos",
+      "tag": "webos-v2.0.400064",
+      "id": 411089431,
+      "url": "https://github.com/Rukeru/nuvio-native-legacy-mdblist/releases/tag/webos-v2.0.400064",
+      "run": 38319762254,
+      "published_at": "2026-10-12T23:59:53Z",
+      "elapsed_seconds": 3609,
+      "assets": [
+        {
+          "name": "LICENSE",
+          "size": 35150,
+          "digest": "sha256:e57f1c320b8cf8798a7d2ff83a6f9e06a33a03585f6e065fea97f1d86db84052"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 450,
+          "digest": "sha256:fdc2cf1fcaf437e77ef12b48ad0c9b11f2ac19806abf68a8d027dc1a4773dad6"
+        },
+        {
+          "name": "source-webos-2.0.400064.tar.gz",
+          "size": 89284451,
+          "digest": "sha256:b2c6617f051b763a9d4012d93de73164998300371ea7f79397d2b6b61570de2a"
+        },
+        {
+          "name": "SOURCE.json",
+          "size": 49711,
+          "digest": "sha256:d008bea6efd5b3415413d4f5de53ee50f2e5a9d040ec0144b55dab4ec1f34d00"
+        },
+        {
+          "name": "space.nuvio.native.legacy_2.0.400064_mdblist_arm.ipk",
+          "size": 61322390,
+          "digest": "sha256:517a00d3f8c9acee6055322dd6d621cf2aa4155109163bbf3ba31a3c3ab9be4a"
+        },
+        {
+          "name": "VALIDATION.json",
+          "size": 731,
+          "digest": "sha256:6a4143efa00df2886818be3f2c26297e0384a34be86bc8f18e8729d6eb017ecb"
+        }
+      ]
+    }
+  ],
+  "rollback_tags": [
+    "v2.0.4.63",
+    "webos-v2.0.400059"
+  ],
+  "tizen_shell_id": "616bc9052b5eac94bd9c1ae8dc1b581f8880ffd0056e28bad7b0bb5ace0af6cf",
+  "tizen_dependency_cache": {
+    "initial_hit": false,
+    "saved_key": "tizen8-arm-deps-8b24a890593aaf4a4ff8b5f8c1f8f839c67dbc64f1bfe62b4b3f9fde64aeddd6-38319700449-1"
+  }
+}

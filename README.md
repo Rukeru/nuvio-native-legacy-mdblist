@@ -127,7 +127,7 @@ See DEVELOPMENT_LESSONS.md for verification, identity and history-size limits.
 
 ## Installed update changelog
 
-The development branch adds **Settings > Account & services > Sync Now**.
+The published 2.0.4 feature builds include **Settings > Account & services > Sync Now**.
 It refreshes the active profile through the existing account worker, preserves
 pending local edits, and refreshes addon manifests even when their URL has not
 changed. Manual requests are limited to once per minute and respect the cloud
@@ -145,8 +145,10 @@ watch tracking are unchanged.
 The donation Settings entry and panel are removed, with saved settings IDs,
 the guide, licence attribution and update information preserved.
 
-These development changes require the final complete two-platform release gate;
-the existing published 2.0.4 baseline remains the working release meanwhile.
+These features are published in **Tizen v2.0.4.68** and **webOS webos-v2.0.400064**.
+Both native packages and all 470 required tests per platform passed on builder
+`f7015cb86e0707ff2fd038e563cd8a18194d8d9f`, using upstream 2.0.4. The previous
+`v2.0.4.63` and `webos-v2.0.400059` releases remain available for rollback.
 
 After an update, a compact **What's new** card appears once when Home is ready.
 It shows the installed version and short release highlights, with three cards
