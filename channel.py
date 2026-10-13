@@ -235,7 +235,7 @@ def package(args):
 if __name__ == '__main__':
     p = argparse.ArgumentParser(); sub = p.add_subparsers(dest='command', required=True)
     d = sub.add_parser('discover'); d.add_argument('--run', type=int, required=True); d.add_argument('--force', action='store_true'); d.add_argument('--state', default='state.json'); d.add_argument('--reviewed-baseline', action='store_true')
-    r = sub.add_parser('prepare'); r.add_argument('--source', default='upstream'); r.add_argument('--engine', default='engine'); r.add_argument('--patch', default='mdblist.patch'); r.add_argument('--state', default='state.json')
+    r = sub.add_parser('prepare'); r.add_argument('--source', default='upstream'); r.add_argument('--engine', default='engine'); r.add_argument('--patch', default='patches/mdblist.patch'); r.add_argument('--state', default='state.json')
     c = sub.add_parser('dependencies'); c.add_argument('--source', default='upstream'); c.add_argument('--cache', required=True)
     b = sub.add_parser('package'); b.add_argument('--source', default='upstream'); b.add_argument('--state', default='state.json'); b.add_argument('--output', default='release')
     args = p.parse_args(); globals()[args.command](args)

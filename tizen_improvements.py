@@ -58,7 +58,7 @@ def apply(source, state_file):
     root = Path(__file__).resolve().parent
     provenance = []
     for name in PATCHES:
-        patch = root / name
+        patch = root / 'patches' / name
         subprocess.run(['git', '-C', str(source), 'apply', '--3way', '--index',
                         str(patch)], check=True)
         provenance.append({'patch': name, 'sha256': hashlib.sha256(patch.read_bytes()).hexdigest()})

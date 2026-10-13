@@ -4,7 +4,7 @@ from regression_gate import attest,validate
 
 class RegressionGate(unittest.TestCase):
     def test_deployed_bash_scripts_do_not_contain_windows_line_endings(self):
-        scripts=list(Path(__file__).parent.glob('*.sh'))
+        scripts=list(Path(__file__).resolve().parents[1].glob('*.sh'))
         self.assertTrue(scripts)
         for script in scripts:
             with self.subTest(script=script.name):self.assertNotIn(b'\r',script.read_bytes())

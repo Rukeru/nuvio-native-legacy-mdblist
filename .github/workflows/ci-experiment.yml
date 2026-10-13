@@ -22,7 +22,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Test compiler parsing and evidence safety
-        run: python3 -m unittest test_ci_compile test_regression_attempts test_full_regression test_regression_gate
+        run: python3 -m unittest tests.test_ci_compile tests.test_regression_attempts tests.test_full_regression tests.test_regression_gate
       - name: Assemble the established immutable integration
         run: |
           git clone --no-checkout https://github.com/iqui27/nuvio-native-legacy.git upstream

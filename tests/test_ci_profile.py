@@ -32,3 +32,13 @@ class EvidenceProfiling(unittest.TestCase):
     def test_ci_and_documentation_do_not_build_tv_packages(self):
         self.assertEqual(classify(['full_regression.py','DEVELOPMENT_LESSONS.md'])['native_platforms'],[])
         self.assertTrue(classify(['ci_compile.py'])['compiler_equivalence_required'])
+
+    def test_historical_rendering_inputs_require_both_native_gates(self):
+        for path in ('ci-baselines/deployment.tar.gz','ci-baselines/manifest.json','ci-baselines/v2.0.2.3-src.tar.gz'):
+            result=classify([path])
+            self.assertEqual(result['native_platforms'],['tizen','webos'])
+            self.assertTrue(result['full_release_required_before_publication'])
+
+    def test_relocated_test_files_keep_full_unit_discovery(self):
+        self.assertEqual(classify(['tests/test_update_guard.py','tests/__init__.py'])['unit_tests'],'all test_*.py')
+        self.assertEqual(classify(['tests/test_update_guard.py'])['native_platforms'],[])

@@ -10,14 +10,19 @@ and a subsequent workflow confirmed that an unchanged upstream release is skippe
 Only shared settings from the official public app are stored in the encrypted
 Actions build secret; personal login details and MDBList keys are excluded.
 
-For 2.0.3 and later, see [automatic update safeguards](UPDATER.md): hourly
+Repository files are grouped into `docs/` (guides), `patches/` (maintained
+changes), and `tests/` (builder safety tests). Build entry points remain at the
+root so existing automation and manual commands continue to work.
+Run all builder tests from the root with `python -m unittest discover -p 'test_*.py'`.
+
+For 2.0.3 and later, see [automatic update safeguards](docs/UPDATER.md): hourly
 platform checks, named component adapters, compatibility tests before SDK setup,
 bounded transport retries and automatic issues for incompatible upstream changes.
 
 ## LG webOS
 
 LG packages and automatic updates are also available in this repository. Read
-[the webOS instructions](WEBOS.md) for installation, Homebrew Channel requirements
+[the webOS instructions](docs/WEBOS.md) for installation, Homebrew Channel requirements
 and the separate LG release channel. Samsung continues using Latest unchanged.
 
 ## Install once
@@ -89,7 +94,7 @@ rendering/performance, security, native-package and checksum gates. Physical-TV
 installation/playback smoke tests are recommended and optional; they do not block
 candidate freezes, publication or scheduled upstream monitoring. Release notes
 distinguish automated validation from physical-TV evidence. For optional local
-testing and data-preserving rollback precautions, see [test packages](TEST_PACKAGES.md).
+testing and data-preserving rollback precautions, see [test packages](docs/TEST_PACKAGES.md).
 
 Local checks cover fake-service MDBList tracking, Trakt regressions, translation
 tables, trusted-channel selection, malformed ELF rejection, real upstream core
@@ -107,11 +112,11 @@ This repository uses the upstream GPL-3.0 license; third-party notices are retai
 
 Both channels preserve strict cached-source filtering, the season-chart
 performance toggle, MDBList Watchlist and MDBList Continue Watching. Read
-[Shared improvements and limitations](TIZEN-IMPROVEMENTS.md). The original
+[Shared improvements and limitations](docs/TIZEN-IMPROVEMENTS.md). The original
 integration and eleven historical shared patches remain available for older
 release provenance. For 2.0.3+, their reviewed behavior is carried by owned modules,
 keyed translations and small named adapters, followed by platform checks. Read
-[DEVELOPMENT_LESSONS.md](DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
+[DEVELOPMENT_LESSONS.md](docs/DEVELOPMENT_LESSONS.md) for confirmed causes, safeguards
 and verification limits.
 
 The user confirmed working automatic MDBList API-key sync on 2.0.2.11. The native

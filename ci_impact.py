@@ -12,7 +12,9 @@ def classify(paths):
         p=Path(name)
         if p.suffix=='.md' or name in ('LICENSE','.gitignore','.gitattributes','.channel/last-check.txt') or name.startswith('ci-evidence/'):
             continue
-        if name.startswith('test_') and p.suffix=='.py':continue
+        if (name.startswith('test_') or name.startswith('tests/')) and p.suffix=='.py':continue
+        if name.startswith('ci-baselines/'):
+            native=True;continue
         if name.startswith('private-diagnostics/') or name=='.github/workflows/diagnostics.yml':
             backend=True;continue
         if name in CI_ONLY or name.startswith('.github/workflows/'):

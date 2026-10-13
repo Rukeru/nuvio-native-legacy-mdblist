@@ -3,7 +3,7 @@ from pathlib import Path
 import hashlib,json,re,subprocess,tempfile,unittest,zipfile
 import integration
 from unittest.mock import patch
-ROOT=Path(__file__).resolve().parent
+ROOT=Path(__file__).resolve().parents[1]
 
 class PrivateClient(unittest.TestCase):
     def test_activation_fails_closed_if_verified_inputs_change(self):
