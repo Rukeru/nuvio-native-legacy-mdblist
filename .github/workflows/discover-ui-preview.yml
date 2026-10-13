@@ -1,0 +1,39 @@
+name: Focused Discover navigation and native preview (no publication)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-rendering:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Assemble exact reviewed native source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import integration,json,os
+          m=integration.manifest()
+          Path('render-state.json').write_text(json.dumps({'upstream':{'tag_name':m['base_tag'],'id':0},'builder_commit':os.environ['GITHUB_SHA'],'expected_upstream_commit':m['base_commit'],'diagnostic_only':True})+'\n')
+          PY
+          python3 integration.py --platform tizen --state render-state.json
+      - name: Install native renderer fixture libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev zlib1g-dev xvfb pkg-config
+      - name: Execute focused Discover navigation assertions
+        run: bash upstream/tests/discover.sh
+      - name: Render actual native Discover and partial Profile snapshots
+        run: bash upstream/tests/discover_render.sh "$GITHUB_WORKSPACE/render-evidence"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: native-discover-profile-render-attempt-${{ github.run_attempt }}
+          path: |
+            render-state.json
+            render-evidence/
+            diagnostics/
+          if-no-files-found: error
