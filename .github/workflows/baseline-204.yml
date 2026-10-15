@@ -109,6 +109,7 @@ jobs:
       - name: Execute original assertions and retain each fixture result
         env:
           FIXTURE: ${{ inputs.fixture }}
+          PLATFORM: tizen
         run: |
           case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo|release_205_linkage|release_205_watchdog|release_205_contracts|release_205_scopes|release_205_render|release_205_emsdk) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
