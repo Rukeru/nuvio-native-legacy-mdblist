@@ -80,6 +80,25 @@ jobs:
           C
           cc -O1 baseline-evidence/quiet-poll.c -o baseline-evidence/quiet-poll
           baseline-evidence/quiet-poll | tee baseline-evidence/quiet-poll.log
+      - name: Observe original helper phases without changing assertions or waits
+        if: inputs.fixture == 'montagem_cedo'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('baseline/tests/montagem_cedo.c')
+          s=p.read_text()
+          a='static void esperarQuieto(void) {\n  int i, quieto = 0;'
+          b=a+'\n  unsigned long long probeStart = agoraMs(), probeQuiet;'
+          assert s.count(a)==1
+          s=s.replace(a,b)
+          a='  for (i = 0; i < 10000 && quieto < 150; i++) {'
+          assert s.count(a)==1
+          s=s.replace(a,'  probeQuiet = agoraMs();\n'+a)
+          a='  assert(quieto >= 150);'
+          assert s.count(a)==1
+          s=s.replace(a,'  fprintf(stderr, "[fixture-timing] start-wait=%llu ms, quiet-wait=%llu ms, polls=%d\\n", probeQuiet-probeStart, agoraMs()-probeQuiet, quieto);\n'+a)
+          p.write_text(s)
+          PY
       - name: Execute original assertions and retain each fixture result
         env:
           FIXTURE: ${{ inputs.fixture }}
