@@ -6,7 +6,7 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage, release_205_watchdog, release_205_contracts, release_205_scopes]
+        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage, release_205_watchdog, release_205_contracts, release_205_scopes, release_205_render]
       integrated:
         description: Apply the verified current integration for focused debugging
         type: boolean
@@ -49,11 +49,11 @@ jobs:
         run: brew install sdl2 sdl2_image sdl2_ttf pkg-config ffmpeg bash ripgrep coreutils
       - name: Provision exact focused fixture dependencies
         id: tools
-        if: inputs.fixture == 'compatibility'
+        if: inputs.fixture == 'compatibility' || inputs.fixture == 'release_205_render'
         run: |
           python3 - <<'PY'
           from regression_dependencies import provision
-          provision('baseline',0,1,selected=['tests/player.sh','tests/player_retido.sh','tests/ctxlista.sh','tests/streamfit_sheet.sh','tests/hero_vizinhos.sh','tests/ondever_folha.sh','tests/salvos_segurar.sh'])
+          provision('baseline',0,1,selected=['tests/tpk_aspecto.sh','tests/vidro410.sh','tests/player.sh','tests/player_retido.sh','tests/ctxlista.sh','tests/streamfit_sheet.sh','tests/hero_vizinhos.sh','tests/ondever_folha.sh','tests/salvos_segurar.sh'])
           PY
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         if: steps.tools.outputs.dotnet == 'true'
@@ -103,7 +103,7 @@ jobs:
         env:
           FIXTURE: ${{ inputs.fixture }}
         run: |
-          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo|release_205_linkage|release_205_watchdog|release_205_contracts|release_205_scopes) ;; *) exit 2;; esac
+          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo|release_205_linkage|release_205_watchdog|release_205_contracts|release_205_scopes|release_205_render) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           export PYTHONPATH="$GITHUB_WORKSPACE/baseline/tests/stubs/host:${PYTHONPATH:-}"
@@ -115,6 +115,7 @@ jobs:
           if [ "$FIXTURE" = release_205_watchdog ]; then fixtures='streamfit_sheet fontesmortas'; fi
           if [ "$FIXTURE" = release_205_contracts ]; then fixtures='fonte_ordem_addon fontes_lista fonte_detalhe ajustes_memoria_migra streamfit_sheet'; fi
           if [ "$FIXTURE" = release_205_scopes ]; then fixtures='streamfit_sheet ponteiro_telas'; fi
+          if [ "$FIXTURE" = release_205_render ]; then fixtures='vidro410 tpk_aspecto'; fi
           failed=0
           for test in $fixtures; do
             if bash "baseline/tests/$test.sh" >"baseline-evidence/$test.log" 2>&1; then
