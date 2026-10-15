@@ -1,6 +1,7 @@
 name: Verify real 2.0.5 emulator package without publication
 on:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 env:

@@ -6,7 +6,7 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage, release_205_watchdog, release_205_contracts, release_205_scopes, release_205_render]
+        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage, release_205_watchdog, release_205_contracts, release_205_scopes, release_205_render, release_205_emulator]
       integrated:
         description: Apply the verified current integration for focused debugging
         type: boolean
@@ -16,8 +16,12 @@ permissions:
 env:
   PYTHONPATH: ${{ github.workspace }}/scripts
 jobs:
+  emulator-package:
+    if: inputs.fixture == 'release_205_emulator'
+    uses: ./.github/workflows/emulator-205.yml
+    secrets: inherit
   baseline:
-    if: inputs.fixture != 'dts_engine'
+    if: inputs.fixture != 'dts_engine' && inputs.fixture != 'release_205_emulator'
     runs-on: macos-15
     timeout-minutes: 60
     steps:
