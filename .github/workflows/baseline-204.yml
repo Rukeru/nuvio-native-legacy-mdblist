@@ -6,7 +6,7 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage, release_205_watchdog, release_205_contracts]
+        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage, release_205_watchdog, release_205_contracts, release_205_scopes]
       integrated:
         description: Apply the verified current integration for focused debugging
         type: boolean
@@ -103,7 +103,7 @@ jobs:
         env:
           FIXTURE: ${{ inputs.fixture }}
         run: |
-          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo|release_205_linkage|release_205_watchdog|release_205_contracts) ;; *) exit 2;; esac
+          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo|release_205_linkage|release_205_watchdog|release_205_contracts|release_205_scopes) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           export PYTHONPATH="$GITHUB_WORKSPACE/baseline/tests/stubs/host:${PYTHONPATH:-}"
@@ -114,6 +114,7 @@ jobs:
           if [ "$FIXTURE" = release_205_linkage ]; then fixtures='fimfileira bordafileira ajustes_creditos biblioteca_filtro logorapido cwleg streams_idade cwinicio streamfit_sheet legauto fontesmortas posplay_recuo'; fi
           if [ "$FIXTURE" = release_205_watchdog ]; then fixtures='streamfit_sheet fontesmortas'; fi
           if [ "$FIXTURE" = release_205_contracts ]; then fixtures='fonte_ordem_addon fontes_lista fonte_detalhe ajustes_memoria_migra streamfit_sheet'; fi
+          if [ "$FIXTURE" = release_205_scopes ]; then fixtures='streamfit_sheet ponteiro_telas'; fi
           failed=0
           for test in $fixtures; do
             if bash "baseline/tests/$test.sh" >"baseline-evidence/$test.log" 2>&1; then
