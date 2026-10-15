@@ -28,11 +28,11 @@ jobs:
       - name: Assemble the established immutable integration
         run: |
           git clone --no-checkout https://github.com/iqui27/nuvio-native-legacy.git upstream
-          git -C upstream checkout --detach db6ae4ee0dd2fa158c46ba375c1fe8c08de70504
+          git -C upstream checkout --detach 17bb330373273a3de284d7f2898a3a3e16f1fc3f
           python3 - <<'PY'
           from pathlib import Path
           import integration,os,json
-          state={'upstream':{'tag_name':'v2.0.4','id':0},'upstream_commit':'db6ae4ee0dd2fa158c46ba375c1fe8c08de70504',
+          state={'upstream':{'tag_name':'v2.0.5','id':0},'upstream_commit':'17bb330373273a3de284d7f2898a3a3e16f1fc3f',
                  'builder_commit':os.environ['GITHUB_SHA'],'diagnostic_only':True}
           integration.apply(Path('upstream').resolve(),'tizen',state)
           Path('benchmark-evidence').mkdir()

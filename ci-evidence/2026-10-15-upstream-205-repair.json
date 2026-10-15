@@ -1,0 +1,23 @@
+{
+  "upstream_tag": "v2.0.5",
+  "upstream_commit": "17bb330373273a3de284d7f2898a3a3e16f1fc3f",
+  "original_failures": {
+    "tizen": "https://github.com/Rukeru/nuvio-native-legacy-mdblist/actions/runs/38469633986",
+    "webos": "https://github.com/Rukeru/nuvio-native-legacy-mdblist/actions/runs/38455674352"
+  },
+  "reviewed_changes": [
+    "Preserve storage bookkeeping and private 0600 writes",
+    "Preserve official pull-only addons and manual sync, restore custom Sync Now freshness",
+    "Retain new Trakt watched-time proof and custom MDBList scrobbles",
+    "Keep upstream Settings IDs/defaults before custom registry, all per-profile preferences",
+    "Retain collection Discover, provider catalogues, Statistics provenance and chart caches",
+    "Preserve all current upstream fixture assertions and both source-quality mode assertions",
+    "Retired depth UI matches upstream commit 4d5fcd0410; add saved-slot and replacement-control coverage"
+  ],
+  "user_policy": "Donation controls remain hidden and diagnostic uploads disabled, explicitly approved by user",
+  "historical_security_evidence": "Unchanged backend/client SHA-256 inputs; adapter-context checksum reviewed; no new runtime/security result claimed",
+  "local_assembly_contracts": "Fresh Tizen and webOS 2.0.5 assembly, Settings and translation contracts passed",
+  "automated_runtime_validation": "pending",
+  "publication": "pending; no release builds dispatched",
+  "builder_safety_tests_passed": 80
+}

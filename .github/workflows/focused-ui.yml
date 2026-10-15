@@ -64,7 +64,8 @@ jobs:
           # Diagnose the confirmed assertion/linker failures first. The remaining
           # development fixtures run only after these exact checks succeed.
           python3 scripts/ci_benchmark.py upstream focused-evidence/confirmed-repairs focused-repairs \
-            tests/ajustes_ux_dados.sh tests/tizen_improvements.sh
+            tests/ajustes_ux_dados.sh tests/tizen_improvements.sh \
+            tests/armazenamento.sh tests/dados-persistencia.sh tests/syncaddons.sh tests/trakt_scrobble.sh
           python3 scripts/ci_benchmark.py upstream focused-evidence focused-development \
             tests/ajustes_ux_interacao.sh \
             tests/discover.sh tests/menu_ocultos.sh tests/menu_geometry.sh tests/player.sh tests/profilestats.sh tests/ajustes_perfil.sh \
