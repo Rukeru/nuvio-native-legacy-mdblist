@@ -1,0 +1,7 @@
+{
+  "engine_commit": "02938d75cbc5823dbf47c9006ca6d51a4a08aaf2",
+  "overlay_sha256": "241a09ca73114fa0f52fb760688df57ba90259e61ff11d8624def36f52badc62",
+  "patched_header_sha256": "96540a18eda78553e7824b48ea72377913704982902db09a53db6c55f2362b8d",
+  "api_version": 4,
+  "original_recipe": "official 2.0.5 immutable source"
+}

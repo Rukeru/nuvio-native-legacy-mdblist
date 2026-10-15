@@ -8,6 +8,7 @@ import argparse, hashlib, io, json, os, re, shutil, struct, subprocess, tarfile
 import urllib.request
 from channel import api, UPSTREAM, CHANNEL, BASE, version, select_upstream
 from resilience import fetch
+from engine_recipe import pin_recipe, record_overlay
 
 SDK_URL = 'https://github.com/openlgtv/buildroot-nc4/releases/download/webos-a38c582/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz'
 SDK_SHA = '04ad3311b48b4557a7002aef56ae2e167478e8e129f37daac04649bddf813616'
@@ -96,9 +97,12 @@ def prepare(args):
     for k in ['NUVIO_SUPABASE_URL','NUVIO_SUPABASE_ANON_KEY','TV_LOGIN_WEB_BASE_URL']:
         if not re.search(r'^'+k+r'=\S+',props,re.M): raise ValueError('Missing shared app setting: '+k)
     recipe=root/'tools/p2p-motor/build-arm.sh'
-    body=recipe.read_text(); short=re.search(r'^COMMIT=([0-9a-f]+)$',body,re.M).group(1)
+    pin_file, pin_key, short, overlay = pin_recipe(root, recipe)
     state['engine_commit']=api('repos/NuvioMedia/nuvio-engine/commits/'+short)['sha']
-    body=body.replace('COMMIT='+short,'COMMIT='+state['engine_commit']).replace('--platform linux/arm64','--platform "${NUVIO_BUILD_PLATFORM:-linux/arm64}"')
+    pinned=pin_file.read_text(encoding='utf8').replace(pin_key+'='+short,pin_key+'='+state['engine_commit'])
+    pin_file.write_text(pinned,encoding='utf8')
+    record_overlay(state, overlay)
+    body=recipe.read_text().replace('--platform linux/arm64','--platform "${NUVIO_BUILD_PLATFORM:-linux/arm64}"')
     recipe.write_text(body,encoding='utf8')
     # Checksum-verified SDK is copied into the normal upstream Docker recipe.
     download(SDK_URL,root/'tools/webos-sdk.tar.gz',SDK_SHA)

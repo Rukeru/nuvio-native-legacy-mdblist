@@ -16,6 +16,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 from shell_id import shell_id
+from engine_recipe import pin_recipe, record_overlay, apply_header_overlay
 from resilience import fetch
 
 UPSTREAM = 'iqui27/nuvio-native-legacy'
@@ -166,13 +167,14 @@ def prepare(args):
         if z.testzip(): raise ValueError('Damaged official TPK')
         (engine_root / 'libnuvio_engine.so').write_bytes(z.read('lib/libnuvio_engine.so'))
     temp.unlink()
-    recipe = (root / 'tools/p2p-motor/build-tpk.sh').read_text()
-    commit = re.search(r'^COMMIT=([0-9a-f]{7,40})$', recipe, re.M).group(1)
+    pin_file, pin_key, commit, overlay = pin_recipe(root, root / 'tools/p2p-motor/build-tpk.sh')
     # Expand the engine ref to a full immutable commit.
     commit = api('repos/NuvioMedia/nuvio-engine/commits/' + commit)['sha']
     download('https://raw.githubusercontent.com/NuvioMedia/nuvio-engine/' + commit +
              '/include/nuvio_engine/nuvio_engine.h', inc / 'nuvio_engine.h')
     (inc / 'export.h').write_text('#pragma once\n#define NUVIO_ENGINE_API __attribute__((visibility("default")))\n')
+    apply_header_overlay(engine_root, overlay)
+    record_overlay(state, overlay)
     state['engine_commit'] = commit
     state['shell_id'] = shell_id(root, engine_root / 'libnuvio_engine.so')
     (root / 'build').mkdir(exist_ok=True)
