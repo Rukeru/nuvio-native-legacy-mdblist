@@ -19,5 +19,22 @@
   "local_assembly_contracts": "Fresh Tizen and webOS 2.0.5 assembly, Settings and translation contracts passed",
   "automated_runtime_validation": "pending",
   "publication": "pending; no release builds dispatched",
-  "builder_safety_tests_passed": 80
+  "builder_safety_tests_passed": 80,
+  "development_validation_initial": {
+    "run": 38671296541,
+    "passed": [
+      "native rendering",
+      "backend security",
+      "Linux discovery linkage",
+      "Linux compiler equivalence",
+      "macOS compiler equivalence",
+      "80 builder/safety tests"
+    ],
+    "confirmed_fixture_failures": [
+      "factory-default test append-only boundary",
+      "macOS fixture missing Continue Watching interfaces",
+      "account cache fixture duplicate mock linkage"
+    ],
+    "followup": "Test-only adapters; all production adapter bytes unchanged; assertions retained. Native rerun pending."
+  }
 }
