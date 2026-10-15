@@ -28,7 +28,7 @@ def partition(files,index,count):
                    'tests/salvospainel.sh','tests/spainel_fundo_tempo.sh','tests/mipcpu.sh',
                    'tests/streamfit_paralelo.sh','tests/tizen-globalthis.sh',
                    'tests/montagem_cedo.sh','tests/home_progressiva.sh','tests/proxyts.sh',
-                   'tests/tpk_lifecycle.sh','tests/dts_engine.sh'}
+                   'tests/tpk_lifecycle.sh','tests/dts_engine.sh','tests/tpk_x64.sh'}
         if count==10:
             if index==9:return sorted(set(files)&{'tests/fluidez_perf.sh'})
             if index==8:return sorted((set(files)&rendering)-{'tests/fluidez_perf.sh'},key=render_order)

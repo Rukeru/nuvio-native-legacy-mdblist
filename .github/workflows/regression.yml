@@ -151,6 +151,12 @@ jobs:
           umask 077
           printf '%s\n' "$BUILD_PROPERTIES" > "$RUNNER_TEMP/regression.properties"
           python3 -c 'import pathlib,os;[print("::add-mask::"+line.split("=",1)[1].strip().strip(chr(34))) for line in pathlib.Path(os.environ["RUNNER_TEMP"],"regression.properties").read_text().splitlines() if "=" in line and line.split("=",1)[1].strip()]'
+      - name: Build the real emulator artifact required by its original assertions
+        if: steps.tools.outputs.emulator == 'true'
+        timeout-minutes: 90
+        env:
+          NUVIO_PROPERTIES: ${{ runner.temp }}/regression.properties
+        run: python3 scripts/emulator_fixture.py upstream
       - name: Define content-checked host object cache
         id: object-cache-key
         run: |

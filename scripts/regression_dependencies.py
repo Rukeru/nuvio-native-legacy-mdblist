@@ -28,7 +28,10 @@ def provision(root,index,count,*,selected=None):
     patterns=excluded.group(1).strip().split('|')
     selected=[path for path in selected if not any(fnmatch.fnmatch(Path(path).name,p) for p in patterns)]
     print('Provisioning toolchains for',len(selected),'assigned scripts',flush=True)
-    dotnet=any('.csproj' in (root/path).read_text() and re.search(r'\b(?:build|run)\b',(root/path).read_text()) for path in selected)
+    emulator='tests/tpk_x64.sh' in selected
+    if emulator and sys.platform!='linux':raise ValueError('Real emulator package requires its assigned Linux Docker host')
+    with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf8') as output:output.write('emulator='+str(emulator).lower()+'\n')
+    dotnet=emulator or any('.csproj' in (root/path).read_text() and re.search(r'\b(?:build|run)\b',(root/path).read_text()) for path in selected)
     with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf8') as output:output.write('dotnet='+str(dotnet).lower()+'\n')
     legacy='tests/tizen-globalthis.sh' in selected
     with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf8') as output:output.write('legacy='+str(legacy).lower()+'\n')

@@ -9,6 +9,13 @@ class FullRegression(unittest.TestCase):
         self.assertIn('bash "$f" || exit 1',adapted)
         self.assertIn('echo "inventory $n"',adapted)
         with self.assertRaises(ValueError):prepare(script.replace('tests/*.sh','other/*.sh'),[])
+    def test_emulator_artifact_is_checked_once_on_linux(self):
+        files=['tests/tpk_x64.sh','tests/fluidez_perf.sh','tests/ordinary.sh']
+        shards=[partition(files,i,10) for i in range(10)]
+        self.assertIn('tests/tpk_x64.sh',shards[8])
+        self.assertNotIn('tests/tpk_x64.sh',sum(shards[:8],[]))
+        self.assertEqual(sorted(sum(shards,[])),sorted(files))
+
     def test_partitions_cover_each_test_exactly_once(self):
         files=['tests/'+str(i)+'.sh' for i in range(577)]
         shards=[partition(files,i,8) for i in range(8)]
