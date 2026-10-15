@@ -6,7 +6,7 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo]
+        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo, release_205_linkage]
       integrated:
         description: Apply the verified current integration for focused debugging
         type: boolean
@@ -103,7 +103,7 @@ jobs:
         env:
           FIXTURE: ${{ inputs.fixture }}
         run: |
-          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo) ;; *) exit 2;; esac
+          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo|release_205_linkage) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           export PYTHONPATH="$GITHUB_WORKSPACE/baseline/tests/stubs/host:${PYTHONPATH:-}"
@@ -111,6 +111,7 @@ jobs:
           if command -v dotnet >/dev/null 2>&1; then export NUVIO_DOTNET="$(command -v dotnet)"; fi
           fixtures="$FIXTURE"
           if [ "$FIXTURE" = compatibility ]; then fixtures='player streamfit_sheet hero_vizinhos ondever_folha salvos_segurar ctxlista player_retido'; fi
+          if [ "$FIXTURE" = release_205_linkage ]; then fixtures='fimfileira bordafileira ajustes_creditos biblioteca_filtro logorapido cwleg streams_idade cwinicio streamfit_sheet legauto fontesmortas posplay_recuo'; fi
           failed=0
           for test in $fixtures; do
             if bash "baseline/tests/$test.sh" >"baseline-evidence/$test.log" 2>&1; then
