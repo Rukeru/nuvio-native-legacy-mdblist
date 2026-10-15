@@ -6,7 +6,7 @@ on:
         description: Original upstream assertion fixture to compare
         type: choice
         default: home_progressiva
-        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar]
+        options: [compatibility, player_retido, ctxlista, dts_engine, hero_vizinhos, player, ondever_folha, home_progressiva, ilha_voo_cw, spainel_fundo_tempo, texbruto, streamfit_sheet, trailer-hero-contract, tpk-escolha, salvos_segurar, montagem_cedo]
       integrated:
         description: Apply the verified current integration for focused debugging
         type: boolean
@@ -59,11 +59,32 @@ jobs:
         if: steps.tools.outputs.dotnet == 'true'
         with:
           dotnet-version: '8.0.425'
+      - name: Measure host quiet-poll overhead without changing fixture assertions
+        if: inputs.fixture == 'montagem_cedo'
+        run: |
+          mkdir -p baseline-evidence
+          cat > baseline-evidence/quiet-poll.c <<'C'
+          #include <stdio.h>
+          #include <unistd.h>
+          #include <time.h>
+          static unsigned long long ms(void) {
+            struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+            return (unsigned long long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+          }
+          int main(void) {
+            unsigned long long start = ms();
+            for (int i = 0; i < 150; i++) usleep(2000);
+            printf("150 original quiet polls: %llu ms (nominal 300 ms)\n", ms()-start);
+            return 0;
+          }
+          C
+          cc -O1 baseline-evidence/quiet-poll.c -o baseline-evidence/quiet-poll
+          baseline-evidence/quiet-poll | tee baseline-evidence/quiet-poll.log
       - name: Execute original assertions and retain each fixture result
         env:
           FIXTURE: ${{ inputs.fixture }}
         run: |
-          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar) ;; *) exit 2;; esac
+          case "$FIXTURE" in compatibility|player_retido|ctxlista|hero_vizinhos|player|ondever_folha|home_progressiva|ilha_voo_cw|spainel_fundo_tempo|texbruto|streamfit_sheet|trailer-hero-contract|tpk-escolha|salvos_segurar|montagem_cedo) ;; *) exit 2;; esac
           mkdir -p baseline-evidence
           export TMPDIR="$GITHUB_WORKSPACE/baseline-evidence/"
           export PYTHONPATH="$GITHUB_WORKSPACE/baseline/tests/stubs/host:${PYTHONPATH:-}"
