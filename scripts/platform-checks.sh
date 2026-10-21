@@ -3,7 +3,7 @@ set -euo pipefail
 platform="$1"
 component=trakt-scrobbling-tests
 trap 'echo "::integration-component::$component"' ERR
-cc -std=c11 -Wall -Wextra -Werror -Iupstream/src upstream/tests/trakt_scrobble.c upstream/src/traktscrobble.c -lm -o "$RUNNER_TEMP/trakt-check"
+cc -std=c11 -Wall -Wextra -Werror -Wno-missing-field-initializers -Iupstream/src upstream/tests/trakt_scrobble.c upstream/src/traktscrobble.c upstream/src/metaep.c upstream/src/js.c -lm -o "$RUNNER_TEMP/trakt-check"
 "$RUNNER_TEMP/trakt-check"
 if [ "$platform" = webos ]; then
   component=webos-update-channel-tests
