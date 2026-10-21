@@ -10,5 +10,8 @@ fi
 bash upstream/tools/p2p-motor/build-arm.sh "$NUVIO_P2P_MOTOR/arm"
 export NUVIO_ARES_PACKAGE="$RUNNER_TEMP/lg-cli/node_modules/.bin/ares-package"
 bash upstream/tools/env.sh --require-core >/dev/null
+# Since v2.0.7 arm.sh links the Rust MKV core, built offline for soft-float ARMv7.
+export RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo"
+rustup target add armv7-unknown-linux-gnueabi
 bash upstream/tools/arm.sh --ipk --build
 python3 scripts/webos.py package
