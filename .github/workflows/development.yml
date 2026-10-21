@@ -100,6 +100,9 @@ jobs:
     if: needs.impact.outputs.native == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    # Upstream does not run these fixtures itself; on macOS they report the
+    # fork's discovery/Continue Watching linkage without blocking the run.
+    continue-on-error: ${{ matrix.os == 'macos-15' }}
     strategy:
       fail-fast: false
       matrix:
