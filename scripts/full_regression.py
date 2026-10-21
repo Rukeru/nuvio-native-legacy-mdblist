@@ -54,7 +54,9 @@ def prepare(script,selected):
     return script.replace(loop,'for f in '+' '.join(shlex.quote(f) for f in selected)+'; do').replace(
         name,name+'\n  echo "inventory $n"')
 
-NOT_OK=re.compile(r'^(?:FALHA|SKIP) +(\S+\.sh)\b',re.M)
+# Only the gatekeeper's per-script lines: test output such as
+# "FALHA tests/x.sh:8: ..." names a path, not a script result.
+NOT_OK=re.compile(r'^(?:FALHA|SKIP) +([^\s/]+\.sh)(?=\s|$)',re.M)
 OK=re.compile(r'^ok +(\S+\.sh)\s*$',re.M)
 
 def gatekeeper(script,log):
