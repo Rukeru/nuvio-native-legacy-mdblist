@@ -115,7 +115,9 @@ def dependencies(args):
         print('Prepared fresh-source cleanup and dependency progress messages')
     cache = (Path(args.cache) / 'src').resolve()
     cache.mkdir(parents=True, exist_ok=True)
-    urls = re.findall(r'https://[^\s"\\]+\.tar\.xz', recipe)
+    # URLs built from shell variables (the DTS FFmpeg since v2.0.7) are fetched
+    # and checksum-verified by the recipe itself.
+    urls = re.findall(r'https://[^\s"\\$]+\.tar\.xz', recipe)
     if not urls: raise ValueError('No upstream xz dependency URLs found; review recipe')
     for url in urls:
         name = url.rsplit('/', 1)[1].removesuffix('.tar.xz')

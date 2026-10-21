@@ -103,6 +103,13 @@ def prepare(args):
     pin_file.write_text(pinned,encoding='utf8')
     record_overlay(state, overlay)
     body=recipe.read_text().replace('--platform linux/arm64','--platform "${NUVIO_BUILD_PLATFORM:-linux/arm64}"')
+    # Since v2.0.7 poc.c includes ../../tests/nvtmp.h, which does not exist once
+    # the recipe copies poc.c alone into the container workdir.
+    poc=root/'tools/p2p-motor/poc.c'
+    if poc.is_file() and '"../../tests/nvtmp.h"' in poc.read_text():
+        copy='cp tools/p2p-motor/poc.c "$W/poc.c"'
+        if body.count(copy)!=1: raise ValueError('Upstream engine PoC copy needs review')
+        body=body.replace(copy,'sed \'s#"../../tests/nvtmp.h"#"nvtmp.h"#\' tools/p2p-motor/poc.c > "$W/poc.c"\ncp tests/nvtmp.h "$W/nvtmp.h"')
     recipe.write_text(body,encoding='utf8')
     # Checksum-verified SDK is copied into the normal upstream Docker recipe.
     download(SDK_URL,root/'tools/webos-sdk.tar.gz',SDK_SHA)
