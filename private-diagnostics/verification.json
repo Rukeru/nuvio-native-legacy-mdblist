@@ -11,7 +11,7 @@
     "private-diagnostics/ingestion.mjs": "3b4435e869c88d0eb28244212285701e1e7be16adfa4e1a5c2854c2a6bd04fda",
     "private-diagnostics/migrations/0001_private_diagnostics.sql": "ed5d4431af255a60f6690a6cc839d2ed9b36c5b0720603f854d076e136607fc3",
     "private-diagnostics/wrangler.jsonc": "5ce8141e0bd966f5f0b53092b1f498034daf5d7b32d50da4c83a97ff6964633a",
-    "integration/private-diagnostics.patch": "9dbc92a320f4eddffe91bfc082e3c4cc2f11f99cfcbb49a2ef216348778f4bfc",
+    "integration/private-diagnostics.patch": "f897215a22076f2fac912727e30ed17ee642ecd1e20727eabce88573e5bb4603",
     "integration/overlay/src/nvdiag.c": "b17b6abaae1271ca3dfc7b32fa907629b3daf92c5fab7e5cb8d4cd38ed31cce1",
     "integration/overlay/src/nvdiag.h": "d21580353f46578733450c28dffddc82c48863a458613cfb4e47ef823c832580",
     "integration/overlay/src/nvdiag_format.c": "0ce8202ad46bbc9e42942c46212ece7a164c8376a2181a566ca2c71f1c841aca",
@@ -36,6 +36,13 @@
     "adapter_sha256": "9dbc92a320f4eddffe91bfc082e3c4cc2f11f99cfcbb49a2ef216348778f4bfc",
     "unchanged": "All native diagnostic client and backend inputs and owned nvdiag modules retain their verified SHA-256 digests. Historical deployment evidence is unchanged.",
     "scope": "Rebase onto upstream v2.0.7 only: removed-line context follows upstream updater/registry changes, and the consent fixture uses upstream nvt_set temporary directories. No production activation; uploads remain disabled at user request.",
+    "required_validation": "Existing native diagnostic/consent/disabled fixtures, security checks and complete release gates remain mandatory; this metadata is not new runtime evidence."
+  },
+  "upstream_208_adapter_review": {
+    "previous_adapter_sha256": "9dbc92a320f4eddffe91bfc082e3c4cc2f11f99cfcbb49a2ef216348778f4bfc",
+    "adapter_sha256": "f897215a22076f2fac912727e30ed17ee642ecd1e20727eabce88573e5bb4603",
+    "unchanged": "All native diagnostic client and backend inputs and owned nvdiag modules retain their verified SHA-256 digests. Historical deployment evidence is unchanged.",
+    "scope": "Rebase onto upstream v2.0.8 only: settings help-text context follows upstream, and upstream's AJ_LOG_REDE joins the existing local-only case line beside AJ_PRIVATE_PAIR and AJ_PRIVATE_STATUS. No production activation; uploads remain disabled at user request.",
     "required_validation": "Existing native diagnostic/consent/disabled fixtures, security checks and complete release gates remain mandatory; this metadata is not new runtime evidence."
   }
 }
