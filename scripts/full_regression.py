@@ -3,6 +3,11 @@
 Only the gatekeeper's file enumeration is adapted. Reviewed fixture preconditions
 are tracked by the integration registry; original assertions, exit rules,
 SKIP classification and upstream exclusions are retained.
+
+A script that fails or SKIPs on the integrated tree is rerun, on the same runner,
+on the unmodified upstream release. Only failures that upstream shares are
+inherited; anything that passes upstream, or that upstream does not ship, still
+fails the shard.
 """
 from pathlib import Path
 import hashlib,json,os,re,shlex,subprocess,sys,threading,time,platform
@@ -49,6 +54,57 @@ def prepare(script,selected):
     return script.replace(loop,'for f in '+' '.join(shlex.quote(f) for f in selected)+'; do').replace(
         name,name+'\n  echo "inventory $n"')
 
+NOT_OK=re.compile(r'^(?:FALHA|SKIP) +(\S+\.sh)\b',re.M)
+OK=re.compile(r'^ok +(\S+\.sh)\s*$',re.M)
+
+def gatekeeper(script,log):
+    """Run one prepared gatekeeper, mirroring its output; return (exit, timings)."""
+    timings=[];current=None
+    process=subprocess.Popen(['bash',str(script)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+    for line in process.stdout:
+        if line.startswith('inventory '):
+            now=time.monotonic()
+            if current:timings.append({'script':current[0],'seconds':now-current[1]})
+            current=(line.strip().split(' ',1)[1],now)
+        log.write(line);log.flush();print(line,end='',flush=True)
+    code=process.wait()
+    if current:timings.append({'script':current[0],'seconds':time.monotonic()-current[1]})
+    return code,timings
+
+def classify(failed,upstream_text,shipped):
+    """Split integrated failures into those upstream shares and real regressions."""
+    passed=set(OK.findall(upstream_text));not_ok=set(NOT_OK.findall(upstream_text))
+    inherited=[n for n in failed if n in shipped and n in not_ok and n not in passed]
+    return inherited,[n for n in failed if n not in inherited]
+
+def compare_upstream(root,state,failed,evidence):
+    commit=state.get('upstream_commit')
+    if not commit or not re.fullmatch(r'[0-9a-f]{40}',commit):raise ValueError('Tested upstream commit unknown; cannot compare failures')
+    pristine=root.parent/(root.name+'-pristine')
+    if pristine.exists():raise ValueError('Pristine upstream checkout already exists; use a fresh runner')
+    subprocess.run(['git','-C',str(root),'worktree','add','--detach',str(pristine),commit],check=True)
+    if subprocess.check_output(['git','-C',str(pristine),'rev-parse','HEAD'],text=True).strip()!=commit:
+        raise ValueError('Pristine upstream checkout is not the tested release')
+    if subprocess.check_output(['git','-C',str(pristine),'status','--porcelain'],text=True).strip():
+        raise ValueError('Pristine upstream checkout is modified')
+    shipped={n for n in failed if (pristine/'tests'/n).is_file()}
+    summary=evidence/'UPSTREAM-SUMMARY.txt'
+    code=0
+    with summary.open('w',encoding='utf8') as log:
+        if shipped:
+            original=(pristine/'tools/testa-tudo.sh').read_text()
+            script=pristine/'tools/.ci-full-regression.sh'
+            script.write_text(prepare(original,['tests/'+n for n in failed if n in shipped]),encoding='utf8')
+            print(f'::group::Same failing scripts on unmodified upstream {commit[:12]}',flush=True)
+            code,_=gatekeeper(script,log)
+            print('::endgroup::',flush=True)
+    inherited,regressions=classify(failed,summary.read_text(),shipped)
+    for name in inherited:print(f'inherited from upstream {commit[:12]}: {name} fails there too',flush=True)
+    for name in regressions:
+        print(f'::error::{name} fails here but '+('passes on' if name in shipped else 'is not shipped by')+f' upstream {commit[:12]}',flush=True)
+    return {'commit':commit,'failed':failed,'inherited':inherited,'regressions':regressions,
+            'gatekeeper_exit_code':code,'summary_sha256':hashlib.sha256(summary.read_bytes()).hexdigest()}
+
 def run(root,state_path,index,count):
     root=Path(root).resolve();state_path=Path(state_path).resolve()
     files=sorted(p.relative_to(root).as_posix() for p in (root/'tests').glob('*.sh'))
@@ -73,22 +129,20 @@ def run(root,state_path,index,count):
                         previous[str(path)]=size
                 except OSError:pass
     observer=threading.Thread(target=progress,daemon=True);observer.start()
-    timings=[];current=None;started=time.monotonic()
-    with summary.open('w',encoding='utf8') as log:
-        process=subprocess.Popen(['bash',str(script)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
-        for line in process.stdout:
-            if line.startswith('inventory '):
-                now=time.monotonic()
-                if current:timings.append({'script':current[0],'seconds':now-current[1]})
-                current=(line.strip().split(' ',1)[1],now)
-            log.write(line);log.flush();print(line,end='',flush=True)
-        code=process.wait()
-    if current:timings.append({'script':current[0],'seconds':time.monotonic()-current[1]})
-    stop.set();observer.join()
+    started=time.monotonic()
+    with summary.open('w',encoding='utf8') as log:code,timings=gatekeeper(script,log)
     state=json.loads(state_path.read_text())
-    result=re.search(r'testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',summary.read_text())
-    gate_code=code
+    text=summary.read_text()
+    result=re.search(r'testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',text)
+    gate_code=code;comparison=None
+    failed=NOT_OK.findall(text)
+    try:
+        if failed:comparison=compare_upstream(root,state,failed,evidence)
+    finally:stop.set();observer.join()
     if not result or int(result.group(2)) or int(result.group(3)):code=code or 1
+    # Exactly the failures that unmodified upstream shares, and nothing else.
+    if (code and result and comparison and not comparison['regressions']
+            and int(result.group(2))+int(result.group(3))==len(failed)==len(comparison['inherited'])):code=0
     metadata={'index':index,'count':count,'files':files,'selected':selected,'exit_code':code,'gatekeeper_exit_code':gate_code,
               'gatekeeper_sha256':hashlib.sha256(original.encode()).hexdigest(),
               'summary_sha256':hashlib.sha256(summary.read_bytes()).hexdigest(),'state':state,
@@ -96,11 +150,12 @@ def run(root,state_path,index,count):
               'attempt':int(os.environ.get('GITHUB_RUN_ATTEMPT','1')),
               'environment':environment(),
               'seconds':time.monotonic()-started,'timings':timings}
+    if comparison:metadata['upstream_comparison']=comparison
     (evidence/'execution.json').write_text(json.dumps(metadata,indent=2)+'\n',encoding='utf8')
     if code:raise RuntimeError(f'Full regression shard {index} failed; see its complete logs')
 
 def merge(folder,state_out,summary_out,count):
-    folder=Path(folder);seen=[];results=[];baseline=None;total=[0,0,0,0]
+    folder=Path(folder);seen=[];results=[];baseline=None;total=[0,0,0,0];herdadas=[]
     for index in range(count):
         p=folder/f'shard-{index}';meta=json.loads((p/'execution.json').read_text());summary=(p/'SUMMARY.txt').read_text()
         if meta['index']!=index or meta['count']!=count or meta['exit_code']!=0:
@@ -118,12 +173,26 @@ def merge(folder,state_out,summary_out,count):
         match=re.search(r'testes: (\d+) passaram, (\d+) falharam, (\d+) SKIP sem prova, (\d+) fora da suite',summary)
         if not match:raise ValueError('Regression shard result missing')
         numbers=list(map(int,match.groups()))
-        if numbers[1] or numbers[2] or sum(numbers)!=len(expected):raise ValueError('Regression shard result does not cover its entire inventory')
+        failing=NOT_OK.findall(summary);comparison=meta.get('upstream_comparison')
+        if failing:
+            # Accept only failures that the same runner reproduced on unmodified upstream.
+            upstream=p/'UPSTREAM-SUMMARY.txt'
+            if not comparison or comparison.get('regressions') or comparison.get('failed')!=failing:
+                raise ValueError(f'Regression shard {index} has failures that unmodified upstream does not share')
+            if comparison.get('commit')!=meta['state'].get('upstream_commit'):raise ValueError('Upstream comparison tested a different release')
+            if not upstream.is_file() or hashlib.sha256(upstream.read_bytes()).hexdigest()!=comparison.get('summary_sha256'):
+                raise ValueError('Upstream comparison summary checksum mismatch')
+            inherited,regressions=classify(failing,upstream.read_text(),set(failing))
+            if regressions or inherited!=comparison.get('inherited'):raise ValueError('Upstream comparison does not reproduce every failure')
+            herdadas+=inherited
+        elif comparison:raise ValueError('Upstream comparison without integrated failures')
+        if numbers[1]+numbers[2]!=len(failing) or sum(numbers)!=len(expected):raise ValueError('Regression shard result does not cover its entire inventory')
         total=[a+b for a,b in zip(total,numbers)];seen+=observed
         # Keep each original result line, with one aggregate result at the end.
         results.append(re.sub(r'^testes: .*$',f'shard {index}: '+match.group(0),summary,flags=re.M))
     if sorted(seen)!=baseline[-1] or len(set(seen))!=len(seen):raise ValueError('Full regression coverage is incomplete')
     result='\n'.join(results)+'\n'+'testes: %d passaram, %d falharam, %d SKIP sem prova, %d fora da suite; isolated native runners\n'%tuple(total)
+    result+='herdadas do upstream: %d%s\n'%(len(herdadas),(' ('+' '.join(sorted(herdadas))+')') if herdadas else '')
     Path(state_out).write_text(json.dumps(state,indent=2)+'\n',encoding='utf8')
     Path(summary_out).write_text(result,encoding='utf8')
     print(result.splitlines()[-1])

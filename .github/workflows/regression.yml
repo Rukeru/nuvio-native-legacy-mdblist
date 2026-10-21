@@ -212,6 +212,7 @@ jobs:
           path: |
             regression-logs/**/*.log
             regression-logs/**/SUMMARY.txt
+            regression-logs/**/UPSTREAM-SUMMARY.txt
             regression-logs/**/execution.json
             diagnostics/
             regression-state.json

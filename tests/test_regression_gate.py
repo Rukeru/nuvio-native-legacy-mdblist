@@ -39,3 +39,18 @@ class RegressionGate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'state.json';p.write_text('{"diagnostic_only":true}')
             with self.assertRaisesRegex(ValueError,'Diagnostic'):validate({},p)
+
+    def test_only_listed_upstream_failures_may_remain(self):
+        with tempfile.TemporaryDirectory() as d:
+            state=Path(d)/'state.json';summary=Path(d)/'summary.txt'
+            state.write_text(json.dumps({'upstream_commit':'source','builder_commit':'builder','integration':{'fingerprint':'reviewed'}}))
+            body='ok    mdblist_settings_defaults.sh\ntestes: 500 passaram, 2 falharam, 1 SKIP sem prova, 75 fora da suite; isolated native runners\n'
+            for shared in ('herdadas do upstream: 2 (a.sh b.sh)\n','herdadas do upstream: 3 (a.sh b.sh)\n',''):
+                summary.write_text(body+shared)
+                with self.subTest(shared=shared),self.assertRaises(ValueError):attest(state,summary)
+            summary.write_text(body+'herdadas do upstream: 3 (a.sh b.sh c.sh)\n')
+            attest(state,summary)
+            data=json.loads(state.read_text());result=validate(data,state)
+            self.assertEqual(result['inherited_from_upstream'],['a.sh','b.sh','c.sh'])
+            data['full_regression']['inherited_from_upstream']=['a.sh'];state.write_text(json.dumps(data))
+            with self.assertRaises(ValueError):validate(data,state)
