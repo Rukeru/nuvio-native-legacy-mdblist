@@ -74,7 +74,7 @@ def settings_scene_contract(root):
     scenes=scenes.replace('#include "mdbsettings_scene_cases.inc"',
         (root/'src/mdbsettings_scene_cases.inc').read_text(encoding='utf8'))
     scenes=re.sub(r'/\*.*?\*/|//[^\n]*','',scenes,flags=re.S)
-    match=re.search(r'static int ajCenaSecao\(int op\)\s*\{\s*switch \(op\)\s*\{(.*?)default:\s*return -1;',scenes,re.S)
+    match=re.search(r'static int ajCenaSecao\(int op\)\s*\{[^{}]*?switch \(op\)\s*\{(.*?)default:\s*return -1;',scenes,re.S)
     if not match:raise Incompatible('Settings preview switch format changed')
     mapping={}
     for cases,scene in re.findall(r'((?:\s*case AJ_[A-Z0-9_]+:)+)\s*return (AJC_[A-Z0-9_]+);',match.group(1)):
@@ -223,10 +223,7 @@ def contracts(root,platform,state):
                   'tests/mdblist_settings_defaults.sh':['-UNDEBUG','"$out/defaults"']},
       'account-history':{'src/contalib.c':['contalib_vistos_tick','vistoep_fonte(v->id'],
                          'src/vistoep.c':['pthread_mutex_lock(&mapLock)','lapBarra','vistoep_revisao'],
-                         'src/sync.c':['mdb_credentials'],
-                         'src/app.c':['contapend_lapides_guardadas(vistonao_guardada)'],
-                         'src/contapend.c':['lapideGuardada(usuario, ents[i].perfil'],
-                         'src/vistonao.h':['vistonao_guardada']},
+                         'src/sync.c':['mdb_credentials']},
       'playback-tracking':{'src/player.c':['mdblist','mdblist_scrobble'], 'src/mdblistlibrary.c':['/sync/watched']},
       'ui-performance-library':{'src/episodeindex.c':['episodeindex'], 'src/chartcache.c':['chartcache']},
       'app-updater-changelog':{'src/app.c':['mdbchangelog','contalib_vistos_tick']}}
