@@ -24,6 +24,10 @@ permissions:
   contents: read
 env:
   PYTHONPATH: ${{ github.workspace }}/scripts
+  # Upstream's per-script limit (tools/testa-tudo.sh, default 120 s). Applies to
+  # both our tree and the pristine rerun, so the gate stays like-for-like; shared
+  # runners put several upstream fixtures within seconds of 120.
+  TEST_TIMEOUT: '300'
 jobs:
   select:
     runs-on: ubuntu-24.04
