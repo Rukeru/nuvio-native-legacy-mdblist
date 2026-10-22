@@ -57,8 +57,7 @@ jobs:
       - name: Install minimal compatibility test headers
         if: steps.discover.outputs.build == 'true'
         run: |
-          timeout 180 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -qq
-          timeout 900 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev ffmpeg xvfb xauth ripgrep
+          bash scripts/apt-install.sh libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev ffmpeg xvfb xauth ripgrep
       - name: Check interfaces, Settings, watched history and tracking before full build
         id: preflight
         timeout-minutes: 25
