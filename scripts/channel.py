@@ -10,7 +10,9 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -48,7 +50,19 @@ def select_upstream(reviewed_baseline=False):
     """Manual feature releases may pin the reviewed tag and immutable commit."""
     from update_guard import pages, stable
     if not reviewed_baseline:
-        release = stable(pages('repos/' + UPSTREAM + '/releases'))
+        release = None
+        for attempt in range(3):
+            listed = pages('repos/' + UPSTREAM + '/releases')
+            release = stable(listed)
+            if release is not None: break
+            # The list has come back empty on hosted runners; ask for the
+            # latest published release directly before giving up.
+            latest = api('repos/' + UPSTREAM + '/releases/latest', missing=True)
+            print(f'Upstream release list had {len(listed)} entries and no stable tag; '
+                  f'latest is {latest and latest.get("tag_name")}', file=sys.stderr)
+            release = stable([latest] if latest else [])
+            if release is not None: break
+            time.sleep(10 * (attempt + 1))
         if release is None: raise ValueError('No stable official release')
         return release, {}
     from integration import manifest
