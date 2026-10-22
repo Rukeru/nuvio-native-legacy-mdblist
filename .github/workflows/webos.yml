@@ -58,10 +58,10 @@ jobs:
         if: steps.discover.outputs.build == 'true'
         run: |
           timeout 180 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -qq
-          timeout 300 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev ffmpeg xvfb xauth ripgrep
+          timeout 900 sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y -qq libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libgles2-mesa-dev libegl1-mesa-dev ffmpeg xvfb xauth ripgrep
       - name: Check interfaces, Settings, watched history and tracking before full build
         id: preflight
-        timeout-minutes: 10
+        timeout-minutes: 25
         if: steps.discover.outputs.build == 'true'
         run: python3 scripts/update_guard.py run --platform webos --state webos-state.json --stage compatibility-tests -- bash scripts/preflight.sh webos
       - name: Prepare the exact source and verified SDK
