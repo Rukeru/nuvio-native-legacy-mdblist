@@ -46,13 +46,21 @@ def render_order(path):
     # performance measurement. Every script and every original frame still runs.
     return (2 if path=='tests/fluidez_perf.sh' else 1 if path=='tests/tizen-globalthis.sh' else 0,path)
 
+# Scripts that build every src/*.c and run within seconds of TEST_TIMEOUT on
+# hosted macOS on both trees; the cap, not the code, decided their result.
+SLOW=('detalhe_espaco.sh',)
+SLOW_TIMEOUT=600
+
 def prepare(script,selected):
     loop='for f in tests/*.sh; do'
     name='  n=$(basename "$f")'
-    if script.count(loop)!=1 or script.count(name)!=1:
+    limit='"${TEST_TIMEOUT:-120}"'
+    if script.count(loop)!=1 or script.count(name)!=1 or script.count(limit)>1:
         raise ValueError('Upstream full-suite enumeration changed; adapt the runner contract')
+    slow='|'.join(SLOW)
     return script.replace(loop,'for f in '+' '.join(shlex.quote(f) for f in selected)+'; do').replace(
-        name,name+'\n  echo "inventory $n"')
+        name,name+'\n  echo "inventory $n"').replace(
+        limit,f'"$(case "$n" in {slow}) echo {SLOW_TIMEOUT};; *) echo "${{TEST_TIMEOUT:-120}}";; esac)"')
 
 # Only the gatekeeper's per-script lines: test output such as
 # "FALHA tests/x.sh:8: ..." names a path, not a script result.
